@@ -1,197 +1,44 @@
 import { faker } from "@faker-js/faker/locale/pt_BR";
 import fakebr from "faker-br";
 import mongoose, { model } from "mongoose";
-import { v4 as uuid } from "uuid";
 import loadModels from "./loadModels.js";
-import { estadosBrasil } from "../models/Usuario.js";
 
 const fakeMappings = {
   common: {
-    nome: () => fakebr.name.firstName() + " " + fakebr.name.lastName(),
-    descricao: () => fakebr.lorem.sentence(),
-    link_imagem: () => fakebr.internet.url() + "/" + uuid() + ".jpg",
-    tipo: () => {
-      const values = [
-        "Coleta",
-        "Iluminação",
-        "Animais",
-        "Pavimentação",
-        "Árvores",
-        "Saneamento",
-      ];
-      return values[Math.floor(Math.random() * values.length)];
-    },
-    secretarias: () => [{ _id: new mongoose.Types.ObjectId().toString() }],
-    descricao: () => fakebr.lorem.sentence(),
   },
 
-  Usuario: {
-    ativo: () => Math.random() < 0.8,
-    cpf: () => fakebr.br.cpf(),
+  User: {
+    name: () => fakebr.name.fullName(),
     email: () => fakebr.internet.email(),
-    celular: () => faker.phone.number("(##) 9####-####"),
-    cnh: () => fakebr.helpers.replaceSymbols("###########"),
-    data_nomeacao: () => fakebr.date.past(),
-    cargo: () => fakebr.name.jobType(),
-    formacao: () => fakebr.name.jobArea(),
-    nivel_acesso: () => {
-      const values = ["municipe", "operador", "administrador", "secretario"];
-      const selected = values[Math.floor(Math.random() * values.length)];
-      return {
-        municipe: selected === "municipe",
-        operador: selected === "operador",
-        secretario: selected === "secretario",
-        administrador: selected === "administrador",
-      };
+    password: () => fakebr.internet.password(),
+    xp: () => faker.number.int({ min: 0, max: 10000 }),
+    level: () => faker.number.int({ min: 1, max: 10 }),
+    role: () => {
+      const roles = ["student", "teacher", "admin"];
+      return roles[Math.floor(Math.random() * roles.length)];
     },
-    nome_social: () => fakebr.name.firstName() + " " + fakebr.name.lastName(),
-    portaria_nomeacao: () =>
-      `PORTARIA/${faker.number.int({ min: 1000, max: 9999 })}`,
-    senha: () => fakebr.internet.password(),
-    endereco: {
-      logradouro: () => fakebr.address.streetName(),
-      cep: () => fakebr.address.zipCode(),
-      bairro: () => fakebr.address.county(),
-      numero: () => Math.floor(Math.random() * 9000) + 1000,
-      complemento: () => fakebr.address.secondaryAddress(),
-      cidade: () => fakebr.address.city(),
-      estado: () => {
-        return estadosBrasil[Math.floor(Math.random() * estadosBrasil.length)];
+    mission_progress: () => {
+      const missions = [];
+      const numMissions = faker.number.int({ min: 1, max: 5 });
+      for (let i = 0; i < numMissions; i++) {
+        missions.push({
+          mission_id: new mongoose.Types.ObjectId().toString(),
+          done: faker.datatype.boolean(),
+          score: faker.number.int({ min: 0, max: 100 }),
+        });
       }
+      return missions;
     },
-    tokenUnico: () => "",
+    streak: () => faker.number.int({ min: 0, max: 30 }),
+    active: () => Math.random() < 0.8,
+
+    uniqueToken: () => "",
     accesstoken: () => "",
     refreshtoken: () => "",
-    codigo_recupera_senha: () => "",
-    exp_codigo_recupera_senha: () => undefined,
-    grupo: () => {
-      return new mongoose.Types.ObjectId().toString();
-    },
-  },
+    password_recovery_code: () => "",
+    exp_password_recovery_code: () => undefined,
 
-  Secretaria: {
-    nome_secretaria: () => {
-      const values = [
-        "Secretaria Municipal de Transporte e Trânsito",
-        " Serviço Autônomo de Águas e Esgotos",
-        "Secretaria Municipal de Obras e Serviços Públicos",
-      ];
-      return values[Math.floor(Math.random() * values.length)];
-    },
-    sigla: () => fakebr.lorem.word(),
-    email: () => fakebr.internet.email(),
-    telefone: () => faker.phone.number('(##) 9####-####')
-  },
-
-  TipoDemanda: {
-    titulo: () => fakebr.lorem.word(),
-    icone: () => fakebr.internet.url() + "/" + uuid() + ".jpg",
-    subdescricao: () => fakebr.lorem.sentence(),
-    tipo: () => {
-      const values = [
-        "Coleta",
-        "Iluminação",
-        "Saneamento",
-        "Árvores",
-        "Animais",
-        "Pavimentação",
-      ];
-      return values[Math.floor(Math.random() * values.length)];
-    },
-  },
-
-  Demanda: {
-    status: () => {
-      const values = ["Em aberto", "Em andamento", "Concluída"];
-      return values[Math.floor(Math.random() * values.length)];
-    },
-    data: () => fakebr.date.past(),
-    resolucao: () => fakebr.random.words(),
-    feedback: () => parseFloat(Math.floor(Math.random() * 5)) + 1,
-    avaliacao_resolucao: () => fakebr.lorem.sentence(),
-    motivo_devolucao: () => fakebr.lorem.sentence(),
-    link_imagem_resolucao: () => fakebr.internet.url() + "/" + uuid() + ".jpg",
-    usuarios: () => [{ _id: new mongoose.Types.ObjectId().toString() }],
-    endereco: {
-        logradouro: fakebr.address.streetName(),
-        cep: fakebr.address.zipCode(),
-        bairro: fakebr.address.county(),
-        numero: (Math.floor(Math.random() * 9999) + 1000),
-        complemento: fakebr.address.secondaryAddress()
-      }
-  },
-
-  Grupo: {
-    ativo: () => Math.random() < 0.9, // true na maioria das vezes
-    permissoes: () => {
-      // Um array fake com 1 ou 2 permissões
-      return [
-        {
-          rota: 'demandas',
-          dominio: 'localhost',
-          ativo: true,
-          buscar: true,
-          enviar: true,
-          substituir: true,
-          modificar: true,
-          excluir: false,
-        },
-      ];
-    },
-  },
-
-  Rota: {
-    rota: () => {
-      const rotas = ['demandas', 'usuarios', 'secretarias', 'grupos'];
-      return rotas[Math.floor(Math.random() * rotas.length)];
-    },
-    dominio: () => 'localhost',
-    ativo: () => true,
-    buscar: () => true,
-    enviar: () => true,
-    substituir: () => false,
-    modificar: () => false,
-    excluir: () => false,
-  },
-
-  Grupo: {
-    ativo: () => Math.random() < 0.9, // true na maioria das vezes
-    permissoes: () => {
-      // Um array fake com 1 ou 2 permissões
-      return [
-        {
-          rota: "demandas",
-          dominio: "localhost",
-          ativo: true,
-          buscar: true,
-          enviar: true,
-          substituir: true,
-          modificar: true,
-          excluir: false,
-        },
-      ];
-    },
-  },
-
-  Rota: {
-    rota: () => {
-      const rotas = [
-        "demandas",
-        "usuarios",
-        "secretaria",
-        "grupos",
-        "tipoDemanda",
-      ];
-      return rotas[Math.floor(Math.random() * rotas.length)];
-    },
-    dominio: () => "localhost",
-    ativo: () => true,
-    buscar: () => true,
-    enviar: () => true,
-    substituir: () => false,
-    modificar: () => false,
-    excluir: () => false,
-  },
+  }
 };
 
 /**

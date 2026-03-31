@@ -7,6 +7,7 @@ class User {
       {
         name: { type: String },
         email: { type: String, unique: true },
+        password: { type: String, select: false },
         xp: { type: Number, default: 0 },
         level: { type: Number, default: 1 },
         class: {
@@ -31,17 +32,12 @@ class User {
         streak: { type: Number, default: 0 },
         badges: [{ type: String }],
         active: { type: Boolean, default: true },
-        
-        tokenUnico: { type: String, select: false },
+
+        uniqueToken: { type: String, select: false },
         refreshtoken: { type: String, select: false },
         accesstoken: { type: String, select: false },
-        codigo_recupera_senha: { type: String, select: false, unique: false },
-        exp_codigo_recupera_senha: { type: Date, select: false },
-
-        group: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "groups",
-        },
+        password_recovery_code: { type: String, select: false, unique: false },
+        exp_password_recovery_code: { type: Date, select: false },
       },
       {
         timestamps: true,
