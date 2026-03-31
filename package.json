@@ -1,9 +1,9 @@
 {
   "author": "Matheus Lucas Batista",
   "license": "MIT",
-  "name": "projeto-novo",
+  "name": "level-up-english",
   "version": "1.0.0",
-  "description": "Serviço para gerenciamento de usuários",
+  "description": "LevelUp English - Gamification platform for English learning",
   "main": "src/app.js",
   "type": "module",
   "scripts": {
