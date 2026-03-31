@@ -1,23 +1,19 @@
 import "dotenv/config";
+import mongoose from "mongoose";
 import seedUsuario from "./user_seeds.js";
-import seedGrupo from "./seed_grupo.js";
-import seedRotas from "./seed_rota.js";
- 
+
 async function main() {
-    try {
-      await seedRotas();
-      await seedGrupo();
-      await seedUsuario();
+  try {
+    await seedUsuario();
 
-      console.log(">>> SEED FINALIZADO COM SUCESSO! <<<");
-    } catch (err) {
-      console.error("Erro ao executar SEED:", err);
-
-    } finally {
-      mongoose.connection.close();
-      process.exit(0);
-    }
+    console.log(">>> SEED COMPLETED SUCCESSFULLY! <<<");
+  } catch (err) {
+    console.error("Erro ao executar SEED:", err);
+    process.exitCode = 1;
+  } finally {
+    await mongoose.connection.close();
+    process.exit(process.exitCode || 0);
   }
-  
-  main();
-  
+}
+
+main();

@@ -1,11 +1,10 @@
 import { faker } from "@faker-js/faker/locale/pt_BR";
 import fakebr from "faker-br";
-import mongoose, { model } from "mongoose";
+import mongoose from "mongoose";
 import loadModels from "./loadModels.js";
 
 const fakeMappings = {
-  common: {
-  },
+  common: {},
 
   User: {
     name: () => fakebr.name.fullName(),
@@ -30,6 +29,13 @@ const fakeMappings = {
       return missions;
     },
     streak: () => faker.number.int({ min: 0, max: 30 }),
+    badges: () =>
+      faker.helpers.arrayElements(
+        ["beginner", "intermediate", "advanced", "veteran"],
+        { min: 0, max: 4 },
+      ),
+    // TODO: after creating class, refer to it properly instead of generating random ObjectId
+    class: () => new mongoose.Types.ObjectId().toString(),
     active: () => Math.random() < 0.8,
 
     uniqueToken: () => "",
@@ -37,8 +43,7 @@ const fakeMappings = {
     refreshtoken: () => "",
     password_recovery_code: () => "",
     exp_password_recovery_code: () => undefined,
-
-  }
+  },
 };
 
 /**
@@ -90,8 +95,8 @@ function validateModelMapping(model, modelName, mapping) {
   if (missing.length > 0) {
     console.error(
       `Model ${modelName} está faltando mapeamento para os campos: ${missing.join(
-        ", "
-      )}`
+        ", ",
+      )}`,
     );
   } else {
     console.log(`Model ${modelName} possui mapeamento para todos os campos.`);
@@ -127,21 +132,6 @@ async function validateAllMappings() {
   }
 }
 
-// Executa a validação antes de prosseguir com o seeding ou outras operações
-validateAllMappings()
-  .then((valid) => {
-    if (valid) {
-      console.log("Podemos acessar globalFakeMapping com segurança.");
-      // Prossegue com o seeding ou outras operações
-    } else {
-      throw new Error(
-        "globalFakeMapping não possui todos os mapeamentos necessários."
-      );
-    }
-  })
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+export { validateAllMappings };
 
 export default getGlobalFakeMapping;
