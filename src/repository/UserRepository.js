@@ -1,17 +1,16 @@
-import Usuario from '../models/Usuario.js';
-import mongoose from 'mongoose';
+import User from "../models/User.js";
 import { CommonResponse, CustomError, HttpStatusCodes, errorHandler, messages, StatusService, asyncWrapper } from '../utils/helpers/index.js';
-import UsuarioFilterBuild from './filters/UsuarioFilterBuild.js';
-
-class UsuarioRepository {
+import UserFilterBuilder from "../repository/filters/UserFilterBuilder.js";
+ 
+class UserRepository {
     constructor({
-        usuarioModel = Usuario
+        userModel = User
     } = {}) {
-        this.modelUsuario = usuarioModel;
+        this.userModel = userModel;
     }
 
     async armazenarTokens(id, accesstoken, refreshtoken) {
-        const document = await this.modelUsuario.findById(id);
+        const document = await this.userModel.findById(id);
         if(!document) {
             throw new CustomError({
                 statusCode: 401,
@@ -33,7 +32,7 @@ class UsuarioRepository {
             accesstoken: null
         };
 
-        const usuario = await this.modelUsuario.findByIdAndUpdate(id, parsedData, { new: true }).exec();
+        const usuario = await this.userModel.findByIdAndUpdate(id, parsedData, { new: true }).exec();
 
         if (!usuario) {
             throw new CustomError({
@@ -49,7 +48,7 @@ class UsuarioRepository {
     }
 
     async buscarPorID(id, includeTokens = false) {
-        let query = this.modelUsuario.findById(id)
+        let query = this.userModel.findById(id)
             .populate('secretarias')
             .populate('grupo');
 
@@ -73,7 +72,7 @@ class UsuarioRepository {
     }
 
     async buscarPorIDs(ids) {
-        return await this.modelUsuario.find({ _id: { $in: ids } })
+        return await this.userModel.find({ _id: { $in: ids } })
             .populate('secretarias')
             .populate('grupo')
     }
@@ -87,7 +86,7 @@ class UsuarioRepository {
             filtro._id = { $ne: idIgnorado };
         }
 
-        const documentos = await this.modelUsuario.findOne(filtro);
+        const documentos = await this.userModel.findOne(filtro);
         return documentos;
     }
 
@@ -98,8 +97,8 @@ class UsuarioRepository {
             filtro._id = { $ne: idIgnorado };
         }
 
-        // const documento = await this.modelUsuario.findOne(filtro, '+senha')
-        const documento = await this.modelUsuario.findOne(filtro).select('+senha');
+        // const documento = await this.userModel.findOne(filtro, '+senha')
+        const documento = await this.userModel.findOne(filtro).select('+senha');
 
         return documento;
     }
@@ -108,7 +107,7 @@ class UsuarioRepository {
         const { id } = req.params;
 
         if(id) {
-            const data = await this.modelUsuario.findById(id)
+            const data = await this.userModel.findById(id)
                 .populate('secretarias')
                 .populate('grupo')
 
@@ -128,7 +127,7 @@ class UsuarioRepository {
         const { nome, email, nivel_acesso, cargo, formacao, secretaria, ativo, page = 1 } = req.query;
         const limite = Math.min(parseInt(req.query.limite, 10) || 10, 100)
         
-        const filterBuilder = new UsuarioFilterBuild()
+        const filterBuilder = new UserFilterBuilder()
             .comEmail(email || '')
             .comNome(nome || '')
             .comNivelAcesso(nivel_acesso || '')
@@ -160,7 +159,7 @@ class UsuarioRepository {
             sort: { nome: 1 },
         };
 
-        const resultado = await this.modelUsuario.paginate(filtros, options);
+        const resultado = await this.userModel.paginate(filtros, options);
 
         resultado.docs = resultado.docs.map(doc => {
             const usuarioObj = typeof doc.toObject === 'function' ? doc.toObject() : doc;
@@ -171,12 +170,12 @@ class UsuarioRepository {
     }
 
     async criar(dadosUsuario){
-        const usuario = new this.modelUsuario(dadosUsuario);
+        const usuario = new this.userModel(dadosUsuario);
         return await usuario.save()
     }
 
     async atualizar(id, parsedData) {
-        const usuario = await this.modelUsuario.findByIdAndUpdate(id, parsedData, { new: true })
+        const usuario = await this.userModel.findByIdAndUpdate(id, parsedData, { new: true })
             .populate('secretarias')
             .populate('grupo')
 
@@ -194,18 +193,18 @@ class UsuarioRepository {
     }
 
     async deletar(id){
-        const usuario = await this.modelUsuario.findByIdAndDelete(id)
+        const usuario = await this.userModel.findByIdAndDelete(id)
             .populate('secretarias')
             .populate('grupo')
         return usuario;
     }
 
     async buscarPorPorCodigoRecuperacao(codigo) {
-        console.log('Estou no buscarPorPorCodigoRecuperacao em UsuarioRepository');
+        console.log('Estou no buscarPorPorCodigoRecuperacao em UserRepository');
         const filtro = { codigo_recupera_senha: codigo };
-        const documento = await this.modelUsuario.findOne(filtro, ['+senha', '+codigo_recupera_senha', '+exp_codigo_recupera_senha'])
+        const documento = await this.userModel.findOne(filtro, ['+senha', '+codigo_recupera_senha', '+exp_codigo_recupera_senha'])
         return documento;
     }
 }
 
-export default UsuarioRepository;
+export default UserRepository;

@@ -1,17 +1,12 @@
-import Usuario from "../../models/Usuario.js";
-import Secretaria from "../../models/Secretaria.js";
-import mongoose from "mongoose";
+import User from "../../models/User.js";
 
-import UsuarioRepository from "../UsuarioRepository.js";
-import SecretariaRepository from "../SecretariaRepository.js";
+import UserRepository from "../UserRepository.js";
 
-class UsuarioFilterBuild {
+class UserFilterBuilder {
   constructor() {
     this.filtros = {};
-    this.usuarioRepository = new UsuarioRepository();
-    this.secretariaRepository = new SecretariaRepository();
-    this.usuarioModel = new Usuario();
-    this.secretariaModel = new Secretaria();
+    this.usuarioRepository = new UserRepository();
+    this.usuarioModel = new User();
   }
 
   comNome(nome) {
@@ -64,7 +59,8 @@ class UsuarioFilterBuild {
       if (Array.isArray(secretaria)) {
         this.filtros.secretarias = { $in: secretaria };
       } else {
-        const secretariaEncontrado = await this.secretariaRepository.buscarPorNome(secretaria);
+        const secretariaEncontrado =
+          await this.secretariaRepository.buscarPorNome(secretaria);
 
         const secretariasIDs = secretariaEncontrado
           ? Array.isArray(secretariaEncontrado)
@@ -88,4 +84,4 @@ class UsuarioFilterBuild {
   }
 }
 
-export default UsuarioFilterBuild;
+export default UserFilterBuilder;
