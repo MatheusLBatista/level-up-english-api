@@ -11,9 +11,5 @@ const userController = new UserController();
 router
     .get("/users", AuthMiddleware, AuthPermission, asyncWrapper(userController.list.bind(userController)))
     .get("/users/:id", AuthMiddleware, AuthPermission, asyncWrapper(userController.list.bind(userController)))
-    .post("/users", AuthMiddleware, AuthPermission, asyncWrapper(userController.create.bind(userController)))
-    .patch("/users/:id", AuthMiddleware, AuthPermission, asyncWrapper(userController.update.bind(userController)))
-    .put("/users/:id", AuthMiddleware, AuthPermission, asyncWrapper(userController.update.bind(userController)))
-    .delete("/users/:id", AuthMiddleware, AuthPermission, asyncWrapper(userController.delete.bind(userController)))
 
 export default router;

@@ -169,36 +169,6 @@ class UserRepository {
         return resultado;
     }
 
-    async criar(dadosUsuario){
-        const usuario = new this.userModel(dadosUsuario);
-        return await usuario.save()
-    }
-
-    async atualizar(id, parsedData) {
-        const usuario = await this.userModel.findByIdAndUpdate(id, parsedData, { new: true })
-            .populate('secretarias')
-            .populate('grupo')
-
-        if (!usuario) {
-            throw new CustomError({
-                statusCode: 404,
-                errorType: 'resourceNotFound',
-                field: 'Usuário',
-                details: [],
-                customMessage: messages.error.resourceNotFound('Usuário')
-            });
-        }
-
-        return usuario;
-    }
-
-    async deletar(id){
-        const usuario = await this.userModel.findByIdAndDelete(id)
-            .populate('secretarias')
-            .populate('grupo')
-        return usuario;
-    }
-
     async buscarPorPorCodigoRecuperacao(codigo) {
         console.log('Estou no buscarPorPorCodigoRecuperacao em UserRepository');
         const filtro = { codigo_recupera_senha: codigo };
