@@ -13,18 +13,18 @@ export default function (query, defaultSort) {
   let pagina = 1;
   let ordenar = defaultSort;
 
-  for(const [key, value] of Object.entries(query)) {
-    if(key === "pagina") {
+  for (const [key, value] of Object.entries(query)) {
+    if (key === "pagina") {
       pagina = parseInt(value);
       continue;
     }
-    if(key === "ordenar") {
+    if (key === "ordenar") {
       const sort = value.split("-");
       ordenar = { [sort[0]]: sort[1] };
       continue;
     }
     //Campo do usuario
-    if(key === "ativo") {
+    if (key === "ativo") {
       filtros[key] = value === "1";
       continue;
     }
@@ -45,7 +45,11 @@ export default function (query, defaultSort) {
 
     // Depois verificar se essa é uma boa maneira de filtrar datas ou é melhor nem ter.
     // Inicio e termino é campo do projeto e do estagio, e o liberado e do refeicaoTurma
-    if (key === "data_inicio" || key === "data_termino" || key === "data_liberado") {
+    if (
+      key === "data_inicio" ||
+      key === "data_termino" ||
+      key === "data_liberado"
+    ) {
       const datas = value.split(",");
       filtros[key] = {
         // Depois vê se é possível refatorar isso e deixar melhor, mexer com datas é uma #####
@@ -71,7 +75,7 @@ export default function (query, defaultSort) {
       continue;
     }
     //O resto é tratado com filtro
-    if(value) {
+    if (value) {
       filtros[key] = { $regex: new RegExp(value, "i") };
     }
   }

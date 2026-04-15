@@ -2,12 +2,12 @@
 
 **Serviços Públicos - Vilhena+ Pública**
 
-*versão 1.1*
+_versão 1.1_
 
 ## Histórico das alterações
 
-| Data       | Versão | Descrição                         | Autor(a)    |
-| ---------- | ------ | --------------------------------- | ----------- |
+| Data       | Versão | Descrição                         | Autor(a)                |
+| ---------- | ------ | --------------------------------- | ----------------------- |
 | 01/06/2025 | 1.0    | Primeira versão do plano de teste | Giullia e Matheus Lucas |
 | 08/07/2025 | 1.1    | SEgunda versão do plano de teste  | Giullia e Matheus Lucas |
 
@@ -23,13 +23,13 @@ A aplicação é construída em uma arquitetura modular em camadas, utilizando N
 
 ### Camadas:
 
-* **Routes**: Definem os endpoints da API e direcionam as requisições para os controllers.
-* **Controllers**: Recebem e validam as requisições, chamando os serviços correspondentes.
-* **Services**: Contêm as regras de negócio e controlam os fluxos das operações.
-* **Repositories**: Acessam os dados no banco MongoDB, isolando a lógica de persistência.
-* **Models**: Definem os schemas das entidades do banco.
-* **Validations**: Implementam as regras de validação com Zod.
-* **Middlewares**: Gerenciam autenticação, tratamento de erros e permissões.
+- **Routes**: Definem os endpoints da API e direcionam as requisições para os controllers.
+- **Controllers**: Recebem e validam as requisições, chamando os serviços correspondentes.
+- **Services**: Contêm as regras de negócio e controlam os fluxos das operações.
+- **Repositories**: Acessam os dados no banco MongoDB, isolando a lógica de persistência.
+- **Models**: Definem os schemas das entidades do banco.
+- **Validations**: Implementam as regras de validação com Zod.
+- **Middlewares**: Gerenciam autenticação, tratamento de erros e permissões.
 
 ## 3 - Categorização dos Requisitos Funcionais e Não Funcionais
 
@@ -56,8 +56,8 @@ A aplicação é construída em uma arquitetura modular em camadas, utilizando N
 | RNF-004 | Backup      | Implementar rotina de backup incremental para garantir integridade e disponibilidade dos dados.                       |
 
 ## 4 - Casos de Teste
-Os casos de teste serão implementados ao longo do desenvolvimento, organizados em arquivos complementares. De forma geral, serão considerados cenários de sucesso, cenários de falha e as regras de negócio associadas a cada funcionalidade.
 
+Os casos de teste serão implementados ao longo do desenvolvimento, organizados em arquivos complementares. De forma geral, serão considerados cenários de sucesso, cenários de falha e as regras de negócio associadas a cada funcionalidade.
 
 ## 5 - Estratégia de Teste
 
@@ -73,31 +73,30 @@ Serão executados testes em todos os níveis conforme a descrição abaixo.
 
 Os testes serão implementados de forma incremental, acompanhando o desenvolvimento das funcionalidades. Cada funcionalidade terá seu próprio plano de teste específico, com os casos detalhados, critérios de aceitação e cenários de sucesso e falha.
 
-## 6 -	Ambiente e Ferramentas
+## 6 - Ambiente e Ferramentas
 
 Os testes serão feitos do ambiente de desenvolvimento, e contém as mesmas configurações do ambiente de produção.
 
 As seguintes ferramentas serão utilizadas no teste:
 
-Ferramenta | 	Time |	Descrição 
------------|--------|--------
-POSTMAN, Swagger UI 	| Desenvolvimento|	Ferramenta para realização de testes manuais de API
-Jest|	Desenvolvimento |Framework utilizada para testes unitários e integração
-Supertest|	Desenvolvimento|	Framework utilizada para testes de endpoints REST
-MongoDB Memory Server|	Desenvolvimento|	Para testes com banco em memória, garantindo isolamento dos dados
-
+| Ferramenta            | Time            | Descrição                                                         |
+| --------------------- | --------------- | ----------------------------------------------------------------- |
+| POSTMAN, Swagger UI   | Desenvolvimento | Ferramenta para realização de testes manuais de API               |
+| Jest                  | Desenvolvimento | Framework utilizada para testes unitários e integração            |
+| Supertest             | Desenvolvimento | Framework utilizada para testes de endpoints REST                 |
+| MongoDB Memory Server | Desenvolvimento | Para testes com banco em memória, garantindo isolamento dos dados |
 
 ## 7 - Classificação de Bugs
 
 Os Bugs serão classificados com as seguintes severidades:
 
-ID 	|Nivel de Severidade |	Descrição 
------------|--------|--------
-1	|Blocker |	●	Bug que bloqueia o teste de uma função ou feature causa crash na aplicação. <br>●	Botão não funciona impedindo o uso completo da funcionalidade. <br>●	Bloqueia a entrega. 
-2	|Grave |	●	Funcionalidade não funciona como o esperado <br>●	Input incomum causa efeitos irreversíveis
-3	|Moderada |	●	Funcionalidade não atinge certos critérios de aceitação, mas sua funcionalidade em geral não é afetada <br>●	Mensagem de erro ou sucesso não é exibida
-4	|Pequena |	●	Quase nenhum impacto na funcionalidade porém atrapalha a experiência  <br>●	Erro ortográfico<br>● Pequenos erros de UI
+| ID  | Nivel de Severidade | Descrição                                                                                                                                                                    |
+| --- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Blocker             | ● Bug que bloqueia o teste de uma função ou feature causa crash na aplicação. <br>● Botão não funciona impedindo o uso completo da funcionalidade. <br>● Bloqueia a entrega. |
+| 2   | Grave               | ● Funcionalidade não funciona como o esperado <br>● Input incomum causa efeitos irreversíveis                                                                                |
+| 3   | Moderada            | ● Funcionalidade não atinge certos critérios de aceitação, mas sua funcionalidade em geral não é afetada <br>● Mensagem de erro ou sucesso não é exibida                     |
+| 4   | Pequena             | ● Quase nenhum impacto na funcionalidade porém atrapalha a experiência <br>● Erro ortográfico<br>● Pequenos erros de UI                                                      |
 
+### 8 - Definição de Pronto
 
-### 8 - Definição de Pronto 
 Será considerada pronta as funcionalidades que passarem pelas verificações e testes descritas nos casos de teste, não apresentarem bugs com a severidade acima de moderada, e passarem por uma validação da equipe.

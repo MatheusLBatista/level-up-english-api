@@ -1,5 +1,5 @@
 // /src/utils/TokenUtil.js
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 class TokenUtil {
   generateAccessToken(id) {
@@ -8,13 +8,13 @@ class TokenUtil {
         { id },
         process.env.JWT_SECRET_ACCESS_TOKEN,
         //TODO: mudar expiration do access token
-        { expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRATION || '1d' },
+        { expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRATION || "1d" },
         (err, token) => {
           if (err) {
             return reject(err);
           }
           resolve(token);
-        }
+        },
       );
     });
   }
@@ -24,13 +24,13 @@ class TokenUtil {
       jwt.sign(
         { id },
         process.env.JWT_SECRET_REFRESH_TOKEN,
-        { expiresIn: process.env.JWT_REFRESH_TOKEN_EXPIRATION || '7d' },
+        { expiresIn: process.env.JWT_REFRESH_TOKEN_EXPIRATION || "7d" },
         (err, token) => {
           if (err) {
             return reject(err);
           }
           resolve(token);
-        }
+        },
       );
     });
   }
@@ -43,17 +43,16 @@ class TokenUtil {
       jwt.sign(
         { id },
         process.env.JWT_SECRET_PASSWORD_RECOVERY,
-        { expiresIn: process.env.JWT_PASSWORD_RECOVERY_EXPIRATION || '30m' },
+        { expiresIn: process.env.JWT_PASSWORD_RECOVERY_EXPIRATION || "30m" },
         (err, token) => {
           if (err) {
             return reject(err);
           }
           resolve(token);
-        }
+        },
       );
     });
   }
-
 }
 
 export default new TokenUtil();

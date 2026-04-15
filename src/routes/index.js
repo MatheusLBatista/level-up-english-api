@@ -7,24 +7,21 @@ import userRoutes from "./userRoutes.js";
 dotenv.config();
 
 const routes = (app) => {
-    // Middleware de log, se ativado
-    if (process.env.DEBUGLOG) {
-        app.use(logRoutes);
-    }
+  // Middleware de log, se ativado
+  if (process.env.DEBUGLOG) {
+    app.use(logRoutes);
+  }
 
-    app.get("/", (req, res) => {
-        res.redirect("/docs");
-    });
+  app.get("/", (req, res) => {
+    res.redirect("/docs");
+  });
 
-    // Rota raiz simples
-    app.get("/", (req, res) => {
-        res.send("API rodando.");
-    });
+  // Rota raiz simples
+  app.get("/", (req, res) => {
+    res.send("API rodando.");
+  });
 
-    app.use(express.json(), 
-    userRoutes
-  );
-    
+  app.use(express.json(), userRoutes);
 };
 
 export default routes;

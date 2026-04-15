@@ -1,6 +1,6 @@
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
-import crypto from 'crypto';
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -8,10 +8,9 @@ class SendMail {
   static async enviaEmail(infoemail) {
     // Verifica se o serviço de email está desativado
     if (process.env.DISABLED_EMAIL) {
-      console.log('Serviço de Email desativado');
+      console.log("Serviço de Email desativado");
       return; // Adiciona o return para interromper a execução
     }
-
 
     try {
       // Configuração do transportador
@@ -26,7 +25,7 @@ class SendMail {
       });
 
       // Gerar hash para o ID do email
-      const hashId = () => crypto.randomBytes(6).toString('hex');
+      const hashId = () => crypto.randomBytes(6).toString("hex");
 
       // Envia o email
       let info = await transporter.sendMail({
@@ -37,10 +36,10 @@ class SendMail {
         html: infoemail.html,
       });
 
-      console.log('Email enviado: %s', info.messageId);
+      console.log("Email enviado: %s", info.messageId);
     } catch (err) {
-      console.error('Erro ao enviar email:', err);
-      return { error: true, code: 500, message: 'Erro interno do Servidor' };
+      console.error("Erro ao enviar email:", err);
+      return { error: true, code: 500, message: "Erro interno do Servidor" };
     }
   }
 
@@ -49,7 +48,7 @@ class SendMail {
       to: process.env.ADMIN_EMAIL,
       subject: `Erro interno do servidor na classe: ${pathname}`,
       text: `Erro Detectado \n\nErro interno do Servidor\n\nAtenciosamente,\nEquipe de suporte\n\nErro: ${err.message}\n\nArquivo: ${pathname}\n\nData e Hora: ${date}`,
-      html: `<p>Olá,</p><p>Erro interno do Servidor</p><p>Atenciosamente,</p><p>Equipe de suporte</p><p>Erro: ${err.message}</p><p>Arquivo: ${pathname}</p><p>Data e Hora: ${date}</p><p>Requisição: ${req.method}</p><p>URL: ${req.protocol}://${req.get('host')}${req.originalUrl}</p>`,
+      html: `<p>Olá,</p><p>Erro interno do Servidor</p><p>Atenciosamente,</p><p>Equipe de suporte</p><p>Erro: ${err.message}</p><p>Arquivo: ${pathname}</p><p>Data e Hora: ${date}</p><p>Requisição: ${req.method}</p><p>URL: ${req.protocol}://${req.get("host")}${req.originalUrl}</p>`,
     };
 
     await this.enviaEmail(infoEmail);

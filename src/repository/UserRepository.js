@@ -1,180 +1,148 @@
 import User from "../models/User.js";
-import { CommonResponse, CustomError, HttpStatusCodes, errorHandler, messages, StatusService, asyncWrapper } from '../utils/helpers/index.js';
+import {
+  CommonResponse,
+  CustomError,
+  HttpStatusCodes,
+  errorHandler,
+  messages,
+  StatusService,
+  asyncWrapper,
+} from "../utils/helpers/index.js";
 import UserFilterBuilder from "../repository/filters/UserFilterBuilder.js";
- 
+
 class UserRepository {
-    constructor({
-        userModel = User
-    } = {}) {
-        this.userModel = userModel;
+  constructor({ userModel = User } = {}) {
+    this.userModel = userModel;
+  }
+
+  async armazenarTokens(id, accesstoken, refreshtoken) {
+    const document = await this.userModel.findById(id);
+    if (!document) {
+      throw new CustomError({
+        statusCode: 401,
+        errorType: "resourceNotFound",
+        field: "Usuário",
+        details: [],
+        customMessage: messages.error.resourceNotFound("Usuário"),
+      });
+    }
+    document.accesstoken = accesstoken;
+    document.refreshtoken = refreshtoken;
+    const data = document.save();
+    return data;
+  }
+
+  async removerTokens(id) {
+    const parsedData = {
+      refreshtoken: null,
+      accesstoken: null,
+    };
+
+    const usuario = await this.userModel
+      .findByIdAndUpdate(id, parsedData, { new: true })
+      .exec();
+
+    if (!usuario) {
+      throw new CustomError({
+        statusCode: 404,
+        errorType: "resourceNotFound",
+        field: "Usuário",
+        details: [],
+        customMessage: messages.error.resourceNotFound("Usuário"),
+      });
     }
 
-    async armazenarTokens(id, accesstoken, refreshtoken) {
-        const document = await this.userModel.findById(id);
-        if(!document) {
-            throw new CustomError({
-                statusCode: 401,
-                errorType: "resourceNotFound",
-                field: "Usuário",
-                details: [],
-                customMessage: messages.error.resourceNotFound("Usuário")
-            })
-        }
-        document.accesstoken = accesstoken;
-        document.refreshtoken = refreshtoken;
-        const data = document.save();
-        return data;
+    return usuario;
+  }
+
+  async buscarPorID(id, includeTokens = false) {
+    let query = this.userModel
+      .findById(id)
+      .populate("secretarias")
+      .populate("grupo");
+
+    if (includeTokens) {
+      query = query.select("+refreshtoken +accesstoken");
     }
 
-    async removerTokens(id) {
-        const parsedData = {
-            refreshtoken: null,
-            accesstoken: null
-        };
+    const user = await query;
 
-        const usuario = await this.userModel.findByIdAndUpdate(id, parsedData, { new: true }).exec();
-
-        if (!usuario) {
-            throw new CustomError({
-                statusCode: 404,
-                errorType: 'resourceNotFound',
-                field: "Usuário",
-                details: [],
-                customMessage: messages.error.resourceNotFound("Usuário")
-            });
-        }
-
-        return usuario;
+    if (!user) {
+      throw new CustomError({
+        statusCode: 404,
+        errorType: "resourceNotFound",
+        field: "Usuário",
+        details: [],
+        customMessage: messages.error.resourceNotFound("Usuário"),
+      });
     }
 
-    async buscarPorID(id, includeTokens = false) {
-        let query = this.userModel.findById(id)
-            .populate('secretarias')
-            .populate('grupo');
+    return user;
+  }
 
-        if (includeTokens) {
-            query = query.select('+refreshtoken +accesstoken');
-        }
+  async buscarPorIDs(ids) {
+    return await this.userModel
+      .find({ _id: { $in: ids } })
+      .populate("secretarias")
+      .populate("grupo");
+  }
 
-        const user = await query;
-        
-        if (!user) {
-            throw new CustomError({
-                statusCode: 404,
-                errorType: 'resourceNotFound',
-                field: 'Usuário',
-                details: [],
-                customMessage: messages.error.resourceNotFound('Usuário')
-            });
-        }
+  async buscarPorNome(nome, idIgnorado = null) {
+    const filtro = {
+      nome: { $regex: nome, $options: "i" },
+    };
 
-        return user;
+    if (idIgnorado) {
+      filtro._id = { $ne: idIgnorado };
     }
 
-    async buscarPorIDs(ids) {
-        return await this.userModel.find({ _id: { $in: ids } })
-            .populate('secretarias')
-            .populate('grupo')
+    const documentos = await this.userModel.findOne(filtro);
+    return documentos;
+  }
+
+  async buscarPorEmail(email, idIgnorado = null) {
+    const filtro = { email };
+
+    if (idIgnorado) {
+      filtro._id = { $ne: idIgnorado };
     }
 
-    async buscarPorNome(nome, idIgnorado = null) {
-        const filtro = {
-            nome: { $regex: nome, $options: 'i' }
-        };
+    // const documento = await this.userModel.findOne(filtro, '+senha')
+    const documento = await this.userModel.findOne(filtro).select("+senha");
 
-        if (idIgnorado) {
-            filtro._id = { $ne: idIgnorado };
-        }
+    return documento;
+  }
 
-        const documentos = await this.userModel.findOne(filtro);
-        return documentos;
-    }
+  async list(req) {
+    const { id } = req.params;
 
-    async buscarPorEmail(email, idIgnorado = null) {
-        const filtro = { email };
+    if (id) {
+      const data = await this.userModel.findById(id);
 
-        if (idIgnorado) {
-            filtro._id = { $ne: idIgnorado };
-        }
-
-        // const documento = await this.userModel.findOne(filtro, '+senha')
-        const documento = await this.userModel.findOne(filtro).select('+senha');
-
-        return documento;
-    }
-
-    async listar(req) {
-        const { id } = req.params;
-
-        if(id) {
-            const data = await this.userModel.findById(id)
-                .populate('secretarias')
-                .populate('grupo')
-
-            if (!data) {
-                throw new CustomError({
-                    statusCode: 404,
-                    errorType: 'resourceNotFound',
-                    field: 'Usuário',
-                    details: [],
-                    customMessage: messages.error.resourceNotFound('Usuário')
-                });
-            }
-
-            return data;
-        }
-
-        const { nome, email, nivel_acesso, cargo, formacao, secretaria, ativo, page = 1 } = req.query;
-        const limite = Math.min(parseInt(req.query.limite, 10) || 10, 100)
-        
-        const filterBuilder = new UserFilterBuilder()
-            .comEmail(email || '')
-            .comNome(nome || '')
-            .comNivelAcesso(nivel_acesso || '')
-            .comCargo(cargo || '')
-            .comFormacao(formacao || '')
-            .comAtivo(ativo)
-
-            await filterBuilder.comSecretaria(secretaria || '');
-
-        if(typeof filterBuilder.build !== 'function') {
-            throw new CustomError({
-                statusCode: 500,
-                errorType: 'internalServerError',
-                field: 'Usuário',
-                details: [],
-                customMessage: messages.error.internalServerError("Usuário")
-            });
-        }
-
-        const filtros = filterBuilder.build();
-
-        const options = {
-            page: parseInt(page, 10),
-            limit: parseInt(limite, 10),
-            populate: [
-                { path: 'secretarias' },
-                { path: 'grupo' }
-            ],
-            sort: { nome: 1 },
-        };
-
-        const resultado = await this.userModel.paginate(filtros, options);
-
-        resultado.docs = resultado.docs.map(doc => {
-            const usuarioObj = typeof doc.toObject === 'function' ? doc.toObject() : doc;
-            return usuarioObj;
+      if (!data) {
+        throw new CustomError({
+          statusCode: 404,
+          errorType: "resourceNotFound",
+          field: "Usuário",
+          details: [],
+          customMessage: messages.error.resourceNotFound("Usuário"),
         });
-        
-        return resultado;
-    }
+      }
 
-    async buscarPorPorCodigoRecuperacao(codigo) {
-        console.log('Estou no buscarPorPorCodigoRecuperacao em UserRepository');
-        const filtro = { codigo_recupera_senha: codigo };
-        const documento = await this.userModel.findOne(filtro, ['+senha', '+codigo_recupera_senha', '+exp_codigo_recupera_senha'])
-        return documento;
+      return data;
     }
+  }
+
+  async buscarPorPorCodigoRecuperacao(codigo) {
+    console.log("Estou no buscarPorPorCodigoRecuperacao em UserRepository");
+    const filtro = { codigo_recupera_senha: codigo };
+    const documento = await this.userModel.findOne(filtro, [
+      "+senha",
+      "+codigo_recupera_senha",
+      "+exp_codigo_recupera_senha",
+    ]);
+    return documento;
+  }
 }
 
 export default UserRepository;
