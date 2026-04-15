@@ -1,3 +1,4 @@
+// TODO: clean up imports
 // import routes from "./routes/index.js";
 // import cors from "cors";
 // import helmet from "helmet";
@@ -10,6 +11,8 @@ import routes from './routes/index.js';
 import CommonResponse from './utils/helpers/CommonResponse.js';
 import express from "express";
 import expressFileUpload from 'express-fileupload';
+import swaggerUi from 'swagger-ui-express';
+import { generateOpenApiDoc } from './utils/schemas/registry.js';
 
 const app = express();
 
@@ -20,7 +23,11 @@ app.use(expressFileUpload());
 
 routes(app);
 
-// Middleware para lidar com rotas não encontradas (404)
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(generateOpenApiDoc()))
+app.get('/docs.json', (req, res) => {
+  res.json(generateOpenApiDoc())
+})
+
 app.use((req, res, next) => {
     return CommonResponse.error(
         res,

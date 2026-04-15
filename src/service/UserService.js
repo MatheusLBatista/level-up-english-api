@@ -9,14 +9,10 @@ import {
 } from "../utils/helpers/index.js";
 import AuthHelper from "../utils/AuthHelper.js";
 import UsuarioRepository from "../repository/UserRepository.js";
-import GrupoRepository from "../repository/GrupoRepository.js";
-import SecretariaRepository from "../repository/SecretariaRepository.js";
 
 class UserService {
   constructor() {
     this.repository = new UsuarioRepository();
-    this.grupoRepository = new GrupoRepository();
-    this.secretariaRepository = new SecretariaRepository();
   }
 
   async listar(req) {
