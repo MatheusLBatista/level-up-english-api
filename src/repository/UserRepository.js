@@ -8,7 +8,7 @@ import {
   StatusService,
   asyncWrapper,
 } from "../utils/helpers/index.js";
-import UserFilterBuilder from "../repository/filters/UserFilterBuilder.js";
+import UserFilterBuilder from "./filters/UserFilterBuilder.js";
 
 class UserRepository {
   constructor({ userModel = User } = {}) {
@@ -131,6 +131,25 @@ class UserRepository {
 
       return data;
     }
+
+    const { name, email, active, role } = req.query;
+
+    const filtros = new UserFilterBuilder()
+      .withName(name || "")
+      .withEmail(email || "")
+      .withActive(active)
+      .withRole(role || "")
+      .build();
+
+    const options = {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      sort: { name: 1 },
+    };
+
+    const data = await this.userModel.find(filtros, options);
+
+    return data;
   }
 
   async buscarPorPorCodigoRecuperacao(codigo) {
