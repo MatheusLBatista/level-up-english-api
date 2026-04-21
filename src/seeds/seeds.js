@@ -4,6 +4,7 @@ import seedUsuario from "./user_seeds.js";
 import seedMission from "./mission_seeds.js";
 import seedClass from "./class_seeds.js";
 import seedAttitude from "./attitude_seeds.js";
+import seedAttitudeLog from "./attitudeLog_seeds.js";
 
 async function main() {
   try {
@@ -12,6 +13,7 @@ async function main() {
     await seedMission();
     await seedClass();
     await seedAttitude();
+    await seedAttitudeLog();
 
     console.log(">>> SEED COMPLETED SUCCESSFULLY! <<<");
   } catch (err) {
