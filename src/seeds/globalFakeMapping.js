@@ -2,6 +2,7 @@ import { faker } from "@faker-js/faker/locale/pt_BR";
 import fakebr from "faker-br";
 import mongoose from "mongoose";
 import loadModels from "./loadModels.js";
+import Mission from "../models/Mission.js";
 
 const fakeMappings = {
   common: {},
@@ -43,6 +44,21 @@ const fakeMappings = {
     refreshtoken: () => "",
     password_recovery_code: () => "",
     exp_password_recovery_code: () => undefined,
+  },
+
+  Mission: {
+    title: () => faker.lorem.sentence({ min: 2, max: 5 }),
+    description: () => faker.lorem.paragraph(),
+    type: () => {
+      const types = ["video", "quiz", "reading"];
+      return types[Math.floor(Math.random() * types.length)];
+    },
+    content_url: () => faker.internet.url(),
+    thumbnail: () => faker.image.url(),
+    xp_reward: () => faker.number.int({ min: 10, max: 500 }),
+    max_score: () => faker.number.int({ min: 10, max: 100 }),
+    active: () => Math.random() < 0.9,
+    createdBy: () => new mongoose.Types.ObjectId().toString(),
   },
 };
 
