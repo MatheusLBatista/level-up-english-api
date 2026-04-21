@@ -3,6 +3,7 @@ import fakebr from "faker-br";
 import mongoose from "mongoose";
 import loadModels from "./loadModels.js";
 import Mission from "../models/Mission.js";
+import Class from "../models/Class.js";
 
 const fakeMappings = {
   common: {},
@@ -59,6 +60,28 @@ const fakeMappings = {
     max_score: () => faker.number.int({ min: 10, max: 100 }),
     active: () => Math.random() < 0.9,
     createdBy: () => new mongoose.Types.ObjectId().toString(),
+  },
+
+  Class: {
+    name: () => faker.lorem.words({ min: 1, max: 3 }),
+    active: () => Math.random() < 0.9,
+    teacher: () => new mongoose.Types.ObjectId().toString(),
+    students: () => {
+      const students = [];
+      const numStudents = faker.number.int({ min: 5, max: 30 });
+      for (let i = 0; i < numStudents; i++) {
+        students.push(new mongoose.Types.ObjectId().toString());
+      }
+      return students;
+    },
+    missions: () => {
+      const missions = [];
+      const numMissions = faker.number.int({ min: 1, max: 10 });
+      for (let i = 0; i < numMissions; i++) {
+        missions.push(new mongoose.Types.ObjectId().toString());
+      }
+      return missions;
+    },
   },
 };
 

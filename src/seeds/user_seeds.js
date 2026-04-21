@@ -26,6 +26,7 @@ async function userSeeds() {
     email: "admin@example.com",
     password: senhaHash,
     role: "admin",
+    active: true,
   });
 
   // teachers
@@ -35,6 +36,7 @@ async function userSeeds() {
       email: `teacher${i + 1}@example.com`,
       password: senhaHash,
       role: "teacher",
+      active: true
     });
   }
 
