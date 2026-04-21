@@ -92,6 +92,11 @@ const fakeMappings = {
       return types[Math.floor(Math.random() * types.length)];
     },
   },
+
+  AttitudeLog: {
+    xp_applied: () => faker.number.int({ min: -200, max: 200 }),
+    applied_at: () => faker.date.recent({ days: 30 }),
+  },
 };
 
 /**
