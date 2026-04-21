@@ -1,10 +1,13 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import seedUsuario from "./user_seeds.js";
+import seedMission from "./mission_seeds.js";
 
 async function main() {
   try {
-    await seedUsuario();
+    //TODO: rename seeds cascade to english 
+    // await seedUsuario();
+    await seedMission();
 
     console.log(">>> SEED COMPLETED SUCCESSFULLY! <<<");
   } catch (err) {
