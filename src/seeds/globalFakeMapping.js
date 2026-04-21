@@ -1,17 +1,19 @@
 import { faker } from "@faker-js/faker/locale/pt_BR";
-import fakebr from "faker-br";
 import mongoose from "mongoose";
 import loadModels from "./loadModels.js";
 import Mission from "../models/Mission.js";
 import Class from "../models/Class.js";
+import Attitude from "../models/Attitude.js";
 
 const fakeMappings = {
-  common: {},
+  common: {
+    active: () => Math.random() < 0.9,
+  },
 
   User: {
-    name: () => fakebr.name.fullName(),
-    email: () => fakebr.internet.email(),
-    password: () => fakebr.internet.password(),
+    name: () => faker.person.fullName(),
+    email: () => faker.internet.email(),
+    password: () => faker.internet.password(),
     xp: () => faker.number.int({ min: 0, max: 10000 }),
     level: () => faker.number.int({ min: 1, max: 10 }),
     role: () => {
@@ -38,7 +40,6 @@ const fakeMappings = {
       ),
     // TODO: after creating class, refer to it properly instead of generating random ObjectId
     class: () => new mongoose.Types.ObjectId().toString(),
-    active: () => Math.random() < 0.8,
 
     uniqueToken: () => "",
     accesstoken: () => "",
@@ -58,13 +59,11 @@ const fakeMappings = {
     thumbnail: () => faker.image.url(),
     xp_reward: () => faker.number.int({ min: 10, max: 500 }),
     max_score: () => faker.number.int({ min: 10, max: 100 }),
-    active: () => Math.random() < 0.9,
     createdBy: () => new mongoose.Types.ObjectId().toString(),
   },
 
   Class: {
     name: () => faker.lorem.words({ min: 1, max: 3 }),
-    active: () => Math.random() < 0.9,
     teacher: () => new mongoose.Types.ObjectId().toString(),
     students: () => {
       const students = [];
@@ -83,13 +82,30 @@ const fakeMappings = {
       return missions;
     },
   },
+
+  Attitude: {
+    name: () => faker.lorem.words({ min: 1, max: 3 }),
+    description: () => faker.lorem.sentence(),
+    xp_value: () => faker.number.int({ min: 10, max: 200 }),
+    type: () => {
+      const types = ["positive", "negative"];
+      return types[Math.floor(Math.random() * types.length)];
+    },
+  },
 };
 
 /**
  * Retorna o mapping global, consolidando os mappings comuns e específicos.
  * Nesta versão automatizada, carregamos os models e combinamos o mapping comum com o mapping específico de cada model.
  */
-export async function getGlobalFakeMapping() {
+export async function getGlobalFakeMapping(modelName = null) {
+  if (modelName) {
+    return {
+      ...fakeMappings.common,
+      ...(fakeMappings[modelName] || {}),
+    };
+  }
+
   const models = await loadModels();
   let globalMapping = { ...fakeMappings.common };
 

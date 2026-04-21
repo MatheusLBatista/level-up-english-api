@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import seedUsuario from "./user_seeds.js";
 import seedMission from "./mission_seeds.js";
 import seedClass from "./class_seeds.js";
+import seedAttitude from "./attitude_seeds.js";
 
 async function main() {
   try {
@@ -10,6 +11,7 @@ async function main() {
     await seedUsuario();
     await seedMission();
     await seedClass();
+    await seedAttitude();
 
     console.log(">>> SEED COMPLETED SUCCESSFULLY! <<<");
   } catch (err) {

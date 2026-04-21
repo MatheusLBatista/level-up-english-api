@@ -14,7 +14,7 @@ const defaultPassword = "Senha@123";
 const hashPassword = generateHashPassword(defaultPassword);
 
 async function userSeeds() {
-  const globalFakeMapping = await getGlobalFakeMapping();
+  const globalFakeMapping = await getGlobalFakeMapping("User");
 
   await User.deleteMany();
 
@@ -36,7 +36,7 @@ async function userSeeds() {
       email: `teacher${i + 1}@example.com`,
       password: hashPassword,
       role: "teacher",
-      active: true
+      active: true,
     });
   }
 
