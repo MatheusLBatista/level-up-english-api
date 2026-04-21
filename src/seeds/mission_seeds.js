@@ -7,7 +7,7 @@ import Mission from "../models/Mission.js";
 await DbConnect.conectar();
 
 async function missionSeeds() {
-  const globalFakeMapping = await getGlobalFakeMapping();
+  const globalFakeMapping = await getGlobalFakeMapping("Mission");
 
   await Mission.deleteMany();
 
