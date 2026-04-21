@@ -6,12 +6,12 @@ import User from "../models/User.js";
 
 await DbConnect.conectar();
 
-export function gerarSenhaHash(senhaPura) {
-  return bcrypt.hashSync(senhaPura, 8);
+export function generateHashPassword(defaultPassword) {
+  return bcrypt.hashSync(defaultPassword, 8);
 }
 
-const senhaPura = "Senha@123";
-const senhaHash = gerarSenhaHash(senhaPura);
+const defaultPassword = "Senha@123";
+const hashPassword = generateHashPassword(defaultPassword);
 
 async function userSeeds() {
   const globalFakeMapping = await getGlobalFakeMapping();
@@ -24,8 +24,9 @@ async function userSeeds() {
   users.push({
     name: "Admin User",
     email: "admin@example.com",
-    password: senhaHash,
+    password: hashPassword,
     role: "admin",
+    active: true,
   });
 
   // teachers
@@ -33,8 +34,9 @@ async function userSeeds() {
     users.push({
       name: `Teacher ${i + 1}`,
       email: `teacher${i + 1}@example.com`,
-      password: senhaHash,
+      password: hashPassword,
       role: "teacher",
+      active: true
     });
   }
 
@@ -43,7 +45,7 @@ async function userSeeds() {
     users.push({
       name: `Student ${i + 1}`,
       email: `student${i + 1}@example.com`,
-      password: senhaHash,
+      password: hashPassword,
       role: "student",
       xp: globalFakeMapping.xp(),
       level: globalFakeMapping.level(),
