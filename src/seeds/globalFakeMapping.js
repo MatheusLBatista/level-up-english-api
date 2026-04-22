@@ -97,6 +97,21 @@ const fakeMappings = {
     xp_applied: () => faker.number.int({ min: -200, max: 200 }),
     applied_at: () => faker.date.recent({ days: 30 }),
   },
+
+  Ranking: {
+    type: () => {
+      const types = ["global", "class"];
+      return types[Math.floor(Math.random() * types.length)];
+    },
+    class: () => new mongoose.Types.ObjectId().toString(),
+    entries: () => [
+      {
+        user: new mongoose.Types.ObjectId().toString(),
+        xp: faker.number.int({ min: 0, max: 10000 }),
+        level: faker.number.int({ min: 1, max: 10 }),
+      },
+    ],
+  },
 };
 
 /**
