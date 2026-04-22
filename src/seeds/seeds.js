@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import seedUsuario from "./user_seeds.js";
 import seedMission from "./mission_seeds.js";
 import seedClass from "./class_seeds.js";
+import seedRanking from "./ranking_seeds.js";
 import seedAttitude from "./attitude_seeds.js";
 import seedAttitudeLog from "./attitudeLog_seeds.js";
 
@@ -12,6 +13,7 @@ async function main() {
     await seedUsuario();
     await seedMission();
     await seedClass();
+    await seedRanking();
     await seedAttitude();
     await seedAttitudeLog();
 
