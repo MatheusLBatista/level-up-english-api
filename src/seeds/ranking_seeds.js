@@ -1,10 +1,7 @@
 import "dotenv/config";
-import DbConnect from "../config/dbConnect.js";
 import Ranking from "../models/Ranking.js";
 import User from "../models/User.js";
 import Class from "../models/Class.js";
-
-await DbConnect.conectar();
 
 async function rankingSeeds() {
   await Ranking.deleteMany();

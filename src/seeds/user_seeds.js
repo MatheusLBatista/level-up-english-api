@@ -1,10 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import DbConnect from "../config/dbConnect.js";
 import getGlobalFakeMapping from "./globalFakeMapping.js";
 import User from "../models/User.js";
-
-await DbConnect.conectar();
 
 export function generateHashPassword(defaultPassword) {
   return bcrypt.hashSync(defaultPassword, 8);

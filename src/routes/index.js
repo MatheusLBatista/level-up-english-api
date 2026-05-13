@@ -3,45 +3,23 @@
 import express from "express";
 import logRoutes from "../middlewares/LogRoutesMiddleware.js";
 import dotenv from "dotenv";
-import swaggerJSDoc from "swagger-jsdoc";
-import swaggerUI from "swagger-ui-express";
-import getSwaggerOptions from "../docs/config/head.js";
-
 
 // Importação das rotas
-import usuarioRoutes from "./usuarioRoutes.js";
-import demandaRoutes from "./demandaRoutes.js"
-import secretariaRoutes from "./secretariaRoutes.js"
-import tipoDemandaRoutes from "./tipoDemandaRoutes.js"
-import authRoutes from "./authRoutes.js"
-import grupoRoutes from "./grupoRoutes.js"
+import userRoutes from "./userRoutes.js";
 
 dotenv.config();
 
 const routes = (app) => {
-    // Middleware de log, se ativado
-    if (process.env.DEBUGLOG) {
-        app.use(logRoutes);
-    }
+  // Middleware de log, se ativado
+  if (process.env.DEBUGLOG) {
+    app.use(logRoutes);
+  }
 
-    app.get("/", (req, res) => {
-        res.redirect("/docs");
-    });
+  app.get("/", (req, res) => {
+    res.send("API rodando.");
+  });
 
-    const swaggerDocs = swaggerJSDoc(getSwaggerOptions());
-    app.use(swaggerUI.serve);
-    app.get("/docs", (req, res, next) => {
-        swaggerUI.setup(swaggerDocs)(req, res, next);
-    });
-
-    // Rota raiz simples
-    app.get("/", (req, res) => {
-        res.send("API rodando.");
-    });
-
-    app.use(express.json(), 
-    usuarioRoutes, secretariaRoutes, demandaRoutes, tipoDemandaRoutes, authRoutes, grupoRoutes)
-    
+  app.use(express.json(), userRoutes);
 };
 
 export default routes;

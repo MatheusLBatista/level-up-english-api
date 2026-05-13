@@ -1,10 +1,6 @@
 import "dotenv/config";
-import bcrypt from "bcryptjs";
-import DbConnect from "../config/dbConnect.js";
 import getGlobalFakeMapping from "./globalFakeMapping.js";
 import Mission from "../models/Mission.js";
-
-await DbConnect.conectar();
 
 async function missionSeeds() {
   const globalFakeMapping = await getGlobalFakeMapping("Mission");

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import mongoose from "mongoose";
+import DbConnect from "../config/dbConnect.js";
 import seedUsuario from "./user_seeds.js";
 import seedMission from "./mission_seeds.js";
 import seedClass from "./class_seeds.js";
@@ -10,6 +10,7 @@ import seedAttitudeLog from "./attitudeLog_seeds.js";
 async function main() {
   try {
     // TODO: rename seeds cascade to english
+    await DbConnect.conectar();
     await seedUsuario();
     await seedMission();
     await seedClass();
@@ -22,7 +23,7 @@ async function main() {
     console.error("Erro ao executar SEED:", err);
     process.exitCode = 1;
   } finally {
-    await mongoose.connection.close();
+    await DbConnect.desconectar();
     process.exit(process.exitCode || 0);
   }
 }

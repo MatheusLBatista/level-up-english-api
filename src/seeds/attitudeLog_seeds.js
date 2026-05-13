@@ -1,11 +1,8 @@
 import "dotenv/config";
-import DbConnect from "../config/dbConnect.js";
 import getGlobalFakeMapping from "./globalFakeMapping.js";
 import AttitudeLog from "../models/AttitudeLog.js";
 import User from "../models/User.js";
 import Attitude from "../models/Attitude.js";
-
-await DbConnect.conectar();
 
 async function attitudeLogSeeds() {
   const globalFakeMapping = await getGlobalFakeMapping("AttitudeLog");
