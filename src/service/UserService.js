@@ -35,7 +35,7 @@ class UserService {
     const usuarioLogado = await this.repository.buscarPorID(req.user_id);
     const role = usuarioLogado.role;
 
-    if (role === 'student') {
+    if (role === "student") {
       throw new CustomError({
         statusCode: HttpStatusCodes.FORBIDDEN.code,
         errorType: "permissionError",
@@ -86,7 +86,7 @@ class UserService {
     await this.ensureUserExists(id);
 
     const usuario = await this.repository.buscarPorID(req.user_id);
-    const isAdmin = usuario?.role === 'admin';
+    const isAdmin = usuario?.role === "admin";
 
     const atualizarOutroUser = String(usuario._id) !== String(id);
 
@@ -118,7 +118,7 @@ class UserService {
 
     await this.ensureUserExists(id);
 
-    if (usuario.role === 'student') {
+    if (usuario.role === "student") {
       if (usuarioID.toString() !== id.toString()) {
         throw new CustomError({
           statusCode: HttpStatusCodes.FORBIDDEN.code,

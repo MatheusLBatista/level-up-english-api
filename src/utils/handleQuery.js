@@ -8,23 +8,23 @@ import { endOfDay, startOfDay, addDays } from "date-fns";
  * @param {object} defaultSort - Ordenação padrão caso o usuario não informe na query
  * @returns {object} a query tratada com os filtros, ordenação e pagina
  */
-export default function (query, defaultSort) {
+export default function(query, defaultSort) {
   const filtros = {};
   let pagina = 1;
   let ordenar = defaultSort;
 
-  for(const [key, value] of Object.entries(query)) {
-    if(key === "pagina") {
+  for (const [key, value] of Object.entries(query)) {
+    if (key === "pagina") {
       pagina = parseInt(value);
       continue;
     }
-    if(key === "ordenar") {
+    if (key === "ordenar") {
       const sort = value.split("-");
       ordenar = { [sort[0]]: sort[1] };
       continue;
     }
     //Campo do usuario
-    if(key === "ativo") {
+    if (key === "ativo") {
       filtros[key] = value === "1";
       continue;
     }
@@ -71,7 +71,7 @@ export default function (query, defaultSort) {
       continue;
     }
     //O resto é tratado com filtro
-    if(value) {
+    if (value) {
       filtros[key] = { $regex: new RegExp(value, "i") };
     }
   }

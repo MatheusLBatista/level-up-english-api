@@ -1,9 +1,9 @@
 // middlewares/AuthPermission.js
 
-import jwt from 'jsonwebtoken';
-import PermissionService from '../service/PermissionService.js';
-import Rota from '../models/Rota.js';
-import { CustomError, errorHandler, messages } from '../utils/helpers/index.js';
+import jwt from "jsonwebtoken";
+import PermissionService from "../service/PermissionService.js";
+import Rota from "../models/Rota.js";
+import { CustomError, errorHandler, messages } from "../utils/helpers/index.js";
 
 // Certifique-se de que as variáveis de ambiente estejam carregadas
 const JWT_SECRET_ACCESS_TOKEN = process.env.JWT_SECRET_ACCESS_TOKEN;
@@ -25,17 +25,17 @@ class AuthPermission {
       // 1. Extrai o token do cabeçalho Authorization
       const authHeader = req.headers.authorization;
 
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
         throw new CustomError({
           statusCode: 401,
-          errorType: 'authenticationError',
-          field: 'Authorization',
+          errorType: "authenticationError",
+          field: "Authorization",
           details: [],
-          customMessage: this.messages.error.resourceNotFound('Token')
+          customMessage: this.messages.error.resourceNotFound("Token"),
         });
       }
 
-      const token = authHeader.split(' ')[1];
+      const token = authHeader.split(" ")[1];
 
       // 2. Verifica e decodifica o token
       let decoded;
@@ -44,10 +44,10 @@ class AuthPermission {
       } catch (err) {
         throw new CustomError({
           statusCode: 401,
-          errorType: 'authenticationError',
-          field: 'Token',
+          errorType: "authenticationError",
+          field: "Token",
           details: [],
-          customMessage: this.messages.error.resourceNotFound('Token')
+          customMessage: this.messages.error.resourceNotFound("Token"),
         });
       }
       const userId = decoded.id;
@@ -56,40 +56,40 @@ class AuthPermission {
        * 3. Determina a rota e o domínio da requisição
        * Remove barras iniciais e finais, remove query strings e pega a primeira parte da URL
        */
-      const rotaReq = req.url.split('/').filter(Boolean)[0].split('?')[0];
+      const rotaReq = req.url.split("/").filter(Boolean)[0].split("?")[0];
 
-      const dominioReq = `localhost`; // domínio foi colocado como localhost para fins de teste
+      const dominioReq = "localhost"; // domínio foi colocado como localhost para fins de teste
 
       // 4. Busca a rota atual no banco de dados
       const rotaDB = await this.Rota.findOne({ rota: rotaReq, dominio: dominioReq });
-      console.log(rotaDB)
+      console.log(rotaDB);
       if (!rotaDB) {
         throw new CustomError({
           statusCode: 404,
-          errorType: 'resourceNotFound',
-          field: 'Rota',
+          errorType: "resourceNotFound",
+          field: "Rota",
           details: [],
-          customMessage: this.messages.error.resourceNotFound('Rota')
+          customMessage: this.messages.error.resourceNotFound("Rota"),
         });
       }
 
       // 5. Mapeia o método HTTP para o campo de permissão correspondente
       const metodoMap = {
-        'GET': 'buscar',
-        'POST': 'enviar',
-        'PUT': 'substituir',
-        'PATCH': 'modificar',
-        'DELETE': 'excluir'
+        "GET": "buscar",
+        "POST": "enviar",
+        "PUT": "substituir",
+        "PATCH": "modificar",
+        "DELETE": "excluir",
       };
 
       const metodo = metodoMap[req.method];
       if (!metodo) {
         throw new CustomError({
           statusCode: 405,
-          errorType: 'methodNotAllowed',
-          field: 'Método',
+          errorType: "methodNotAllowed",
+          field: "Método",
           details: [],
-          customMessage: this.messages.error.resourceNotFound('Método.')
+          customMessage: this.messages.error.resourceNotFound("Método."),
         });
       }
 
@@ -97,10 +97,10 @@ class AuthPermission {
       if (!rotaDB.ativo || !rotaDB[metodo]) {
         throw new CustomError({
           statusCode: 403,
-          errorType: 'forbidden',
-          field: 'Rota',
+          errorType: "forbidden",
+          field: "Rota",
           details: [],
-          customMessage: this.messages.error.resourceNotFound('Rota.')
+          customMessage: this.messages.error.resourceNotFound("Rota."),
         });
       }
 
@@ -109,16 +109,16 @@ class AuthPermission {
         userId,
         rotaReq.toLowerCase(),
         rotaDB.dominio,
-        metodo
+        metodo,
       );
 
       if (!hasPermission) {
         throw new CustomError({
           statusCode: 403,
-          errorType: 'forbidden',
-          field: 'Permissão',
+          errorType: "forbidden",
+          field: "Permissão",
           details: [],
-          customMessage: this.messages.error.resourceNotFound('Permissão')
+          customMessage: this.messages.error.resourceNotFound("Permissão"),
         });
       }
 

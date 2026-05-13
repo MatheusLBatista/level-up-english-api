@@ -1,18 +1,18 @@
 // src/middlewares/AuthMiddleware.js
-import jwt from 'jsonwebtoken';
-import { promisify } from 'util';
-import AuthenticationError from '../utils/errors/AuthenticationError.js';
-import TokenExpiredError from '../utils/errors/TokenExpiredError.js';
-import { CustomError } from '../utils/helpers/index.js';
-import AuthService from '../service/AuthService.js';
+import jwt from "jsonwebtoken";
+import { promisify } from "util";
+import AuthenticationError from "../utils/errors/AuthenticationError.js";
+import TokenExpiredError from "../utils/errors/TokenExpiredError.js";
+import { CustomError } from "../utils/helpers/index.js";
+import AuthService from "../service/AuthService.js";
 
 class AuthMiddleware {
   constructor() {
-   this.service = new AuthService();
+    this.service = new AuthService();
 
     /**
      * Vinculação para grantir ao método handle o contexto 'this' correto
-     * Ao usar bind(this) no método handle garantimos independentemente de como ou onde o método é chamado, 
+     * Ao usar bind(this) no método handle garantimos independentemente de como ou onde o método é chamado,
      * this sempre se referirá à instância atual de AuthMiddleware.
      */
     this.handle = this.handle.bind(this);
@@ -26,9 +26,9 @@ class AuthMiddleware {
         throw new AuthenticationError("O token de autenticação não existe!");
       }
 
-      const [scheme, token] = authHeader.split(' ');
+      const [scheme, token] = authHeader.split(" ");
 
-      if (scheme !== 'Bearer' || !token) {
+      if (scheme !== "Bearer" || !token) {
         throw new AuthenticationError("Formato do token de autenticação inválido!");
       }
 
@@ -45,10 +45,10 @@ class AuthMiddleware {
       if (!tokenData?.data?.refreshtoken) {
         throw new CustomError({
           statusCode: 401,
-          errorType: 'unauthorized',
-          field: 'Token',
+          errorType: "unauthorized",
+          field: "Token",
           details: [],
-          customMessage: 'Refresh token inválido, autentique novamente!'
+          customMessage: "Refresh token inválido, autentique novamente!",
         });
       }
 
@@ -57,9 +57,9 @@ class AuthMiddleware {
       next();
 
     } catch (err) {
-      if (err.name === 'JsonWebTokenError') {
+      if (err.name === "JsonWebTokenError") {
         next(new AuthenticationError("Token JWT inválido!"));
-      } else if (err.name === 'TokenExpiredError') {
+      } else if (err.name === "TokenExpiredError") {
         next(new TokenExpiredError("O token JWT está expirado!"));
       } else {
         next(err); // Passa outros erros para o errorHandler
