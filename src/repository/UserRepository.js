@@ -97,24 +97,6 @@ class UserRepository {
   }
 
   async list(req) {
-    const { id } = req.params || {};
-
-    if (id) {
-      const data = await this.userModel.findById(id);
-
-      if (!data) {
-        throw new CustomError({
-          statusCode: 404,
-          errorType: "resourceNotFound",
-          field: "Usuário",
-          details: [],
-          customMessage: messages.error.resourceNotFound("Usuário"),
-        });
-      }
-
-      return data;
-    }
-
     const { name, email, role, active, page = 1 } = req.query || {};
     const limite = Math.min(parseInt(req.query?.limite, 10) || 10, 100);
 
@@ -172,7 +154,6 @@ class UserRepository {
   }
 
   async buscarPorCodigoRecuperacao(codigo) {
-    console.log("Estou no buscarPorCodigoRecuperacao em UserRepository");
     const filtro = { password_recovery_code: codigo };
     const documento = await this.userModel
       .findOne(filtro)

@@ -30,7 +30,6 @@ class UserService {
   }
 
   async criar(parsedData, req) {
-    console.log("Estou em criar no UserService");
 
     const usuarioLogado = await this.repository.buscarPorID(req.user_id);
     const role = usuarioLogado.role;
@@ -59,7 +58,6 @@ class UserService {
   }
 
   async criarComSenha(parsedData) {
-    console.log("Estou em criarComSenha no UserService");
 
     // Garante que não passe role privilegiada
     delete parsedData.role;
@@ -78,7 +76,6 @@ class UserService {
   }
 
   async atualizar(id, parsedData, req) {
-    console.log("Estou no atualizar em UserService");
 
     delete parsedData.email;
     delete parsedData.password;
@@ -111,7 +108,6 @@ class UserService {
   }
 
   async deletar(id, req) {
-    console.log("Estou no deletar em UserService");
 
     const usuario = await this.repository.buscarPorID(req.user_id);
     const usuarioID = usuario._id;

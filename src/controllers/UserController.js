@@ -22,7 +22,6 @@ class UserController {
   }
 
   async criar(req, res) {
-    console.log("Estou no criar em UserController");
 
     const parsedData = req.body;
     let data = await this.service.criar(parsedData, req);
@@ -34,7 +33,6 @@ class UserController {
   }
 
   async criarComSenha(req, res) {
-    console.log("Estou no criarComSenha em UserController");
 
     const parsedData = req.body;
     let data = await this.service.criarComSenha(parsedData);
@@ -46,7 +44,6 @@ class UserController {
   }
 
   async atualizar(req, res) {
-    console.log("Estou no atualizar em UserController");
 
     const id = req?.params?.id;
     if (!id) {
@@ -70,7 +67,6 @@ class UserController {
   }
 
   async deletar(req, res) {
-    console.log("Estou no deletar em UserController");
 
     const id = req?.params?.id;
     if (!id) {
