@@ -10,7 +10,7 @@ class Mission {
         type: { type: String, enum: ["video", "quiz", "reading"] },
         thumbnail: { type: String, default: null },
         content_url: { type: String, default: null },
-        
+
         xp_reward: { type: Number, default: 0 },
         max_score: { type: Number, default: 0 },
 
