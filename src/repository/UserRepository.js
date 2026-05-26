@@ -107,7 +107,7 @@ class UserRepository {
     const result = await this.userModel.paginate(filters, options);
 
     result.docs = result.docs.map((doc) =>
-      typeof doc.toObject === "function" ? doc.toObject() : doc
+      typeof doc.toObject === "function" ? doc.toObject() : doc,
     );
 
     return result;

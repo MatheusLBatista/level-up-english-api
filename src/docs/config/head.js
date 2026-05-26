@@ -1,24 +1,8 @@
-import path from "path";
-import { fileURLToPath } from "url";
+import swaggerUi from "swagger-ui-express";
+import { generateOpenAPIDocument } from "../registry.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-function getSwaggerOptions() {
-  return {
-    definition: {
-      openapi: "3.0.0",
-      info: {
-        title: "LevelUp English API",
-        version: "1.0.0",
-      },
-    },
-    apis: [
-      path.resolve(__dirname, "../../routes/*.js"),
-      path.resolve(__dirname, "../../controllers/*.js"),
-      path.resolve(__dirname, "../../models/*.js"),
-    ],
-  };
+export function setupDocs(app) {
+  const spec = generateOpenAPIDocument();
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(spec));
+  app.get("/api-docs.json", (req, res) => res.json(spec));
 }
-
-export default getSwaggerOptions;

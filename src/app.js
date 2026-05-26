@@ -7,6 +7,7 @@ import expressFileUpload from "express-fileupload";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
+import { setupDocs } from "./docs/config/head.js";
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use(expressFileUpload());
 
 routes(app);
+setupDocs(app);
 
 // Middleware para lidar com rotas não encontradas (404)
 app.use((req, res, next) => {

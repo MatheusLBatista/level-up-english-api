@@ -4,6 +4,7 @@ import {
   CustomError,
   HttpStatusCodes,
 } from "../utils/helpers/index.js";
+import { CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
 
 class UserController {
   constructor() {
@@ -16,7 +17,8 @@ class UserController {
   }
 
   async create(req, res) {
-    const data = await this.service.create(req.body, req);
+    const body = CreateUserBodySchema.parse(req.body);
+    const data = await this.service.create(body, req);
 
     const cleanUser = data.toObject();
     delete cleanUser.password;
@@ -45,7 +47,8 @@ class UserController {
       });
     }
 
-    const data = await this.service.update(id, req.body, req);
+    const body = UpdateUserBodySchema.parse(req.body);
+    const data = await this.service.update(id, body, req);
 
     const cleanUser = data.toObject();
     delete cleanUser.email;
