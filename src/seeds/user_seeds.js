@@ -1,5 +1,5 @@
 import "dotenv/config";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import getGlobalFakeMapping from "./globalFakeMapping.js";
 import User from "../models/User.js";
 

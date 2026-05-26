@@ -25,6 +25,7 @@ export const CreateUserBodySchema = z
     email: z.string().email().openapi({ example: "john@example.com" }),
     password: z.string().min(6).openapi({ example: "senha123" }),
     role: z.enum(["student", "teacher", "admin"]).optional().openapi({ example: "student" }),
+    class: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
   })
   .openapi("CreateUserBody");
 
@@ -34,5 +35,6 @@ export const UpdateUserBodySchema = z
     streak: z.number().optional().openapi({ example: 5 }),
     badges: z.array(z.string()).optional().openapi({ example: ["first_login"] }),
     active: z.boolean().optional().openapi({ example: true }),
+    class: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
   })
   .openapi("UpdateUserBody");
