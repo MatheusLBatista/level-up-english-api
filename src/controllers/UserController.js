@@ -3,17 +3,11 @@ import {
   CommonResponse,
   CustomError,
   HttpStatusCodes,
-  errorHandler,
-  messages,
-  StatusService,
-  asyncWrapper,
 } from "../utils/helpers/index.js";
-import TokenUtil from "../utils/TokenUtil.js";
 
 class UserController {
   constructor() {
     this.service = new UserService();
-    this.TokenUtil = TokenUtil;
   }
 
   async list(req, res) {
@@ -21,30 +15,25 @@ class UserController {
     return CommonResponse.success(res, data);
   }
 
-  async criar(req, res) {
+  async create(req, res) {
+    const data = await this.service.create(req.body, req);
 
-    const parsedData = req.body;
-    let data = await this.service.criar(parsedData, req);
+    const cleanUser = data.toObject();
+    delete cleanUser.password;
 
-    let usuarioLimpo = data.toObject();
-    delete usuarioLimpo.password;
-
-    return CommonResponse.created(res, usuarioLimpo);
+    return CommonResponse.created(res, cleanUser);
   }
 
-  async criarComSenha(req, res) {
+  async createWithPassword(req, res) {
+    const data = await this.service.createWithPassword(req.body);
 
-    const parsedData = req.body;
-    let data = await this.service.criarComSenha(parsedData);
+    const cleanUser = data.toObject();
+    delete cleanUser.password;
 
-    let usuarioLimpo = data.toObject();
-    delete usuarioLimpo.password;
-
-    return CommonResponse.created(res, usuarioLimpo);
+    return CommonResponse.created(res, cleanUser);
   }
 
-  async atualizar(req, res) {
-
+  async update(req, res) {
     const id = req?.params?.id;
     if (!id) {
       throw new CustomError({
@@ -52,22 +41,20 @@ class UserController {
         errorType: "validationError",
         field: "id",
         details: [],
-        customMessage: "ID do usuário é obrigatório.",
+        customMessage: "User ID is required.",
       });
     }
 
-    const parsedData = req.body;
-    const data = await this.service.atualizar(id, parsedData, req);
+    const data = await this.service.update(id, req.body, req);
 
-    let usuarioLimpo = data.toObject();
-    delete usuarioLimpo.email;
-    delete usuarioLimpo.password;
+    const cleanUser = data.toObject();
+    delete cleanUser.email;
+    delete cleanUser.password;
 
-    return CommonResponse.success(res, usuarioLimpo, 200, "Usuário atualizado com sucesso.");
+    return CommonResponse.success(res, cleanUser, 200, "User updated successfully.");
   }
 
-  async deletar(req, res) {
-
+  async delete(req, res) {
     const id = req?.params?.id;
     if (!id) {
       throw new CustomError({
@@ -75,12 +62,12 @@ class UserController {
         errorType: "validationError",
         field: "id",
         details: [],
-        customMessage: "ID do usuário é obrigatório para deletar.",
+        customMessage: "User ID is required.",
       });
     }
 
-    const data = await this.service.deletar(id, req);
-    return CommonResponse.success(res, data, 200, "Usuário excluído com sucesso.");
+    const data = await this.service.delete(id, req);
+    return CommonResponse.success(res, data, 200, "User deleted successfully.");
   }
 }
 

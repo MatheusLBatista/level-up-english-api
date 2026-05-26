@@ -10,7 +10,7 @@ class AuthService {
   }
 
   async login({ email, password }) {
-    const user = await this.userRepository.buscarPorEmail(email);
+    const user = await this.userRepository.findByEmail(email);
 
     const credenciaisInvalidas = new CustomError({
       statusCode: HttpStatusCodes.UNAUTHORIZED.code,
@@ -28,7 +28,7 @@ class AuthService {
     const accessToken = await this.tokenUtil.generateAccessToken(user._id);
     const refreshToken = await this.tokenUtil.generateRefreshToken(user._id);
 
-    await this.userRepository.armazenarTokens(user._id, accessToken, refreshToken);
+    await this.userRepository.storeTokens(user._id, accessToken, refreshToken);
 
     const userObj = user.toObject();
     delete userObj.password;
@@ -36,8 +36,8 @@ class AuthService {
     return { accessToken, refreshToken, user: userObj };
   }
 
-  async carregatokens(userId) {
-    const data = await this.userRepository.buscarPorID(userId, true);
+  async loadTokens(userId) {
+    const data = await this.userRepository.findById(userId, true);
     return { data };
   }
 }

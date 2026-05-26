@@ -40,7 +40,7 @@ class AuthMiddleware {
       }
 
       // Verifica se o refreshtoken está presente no banco de dados e se é válido
-      const tokenData = await this.service.carregatokens(decoded.id);
+      const tokenData = await this.service.loadTokens(decoded.id);
 
       if (!tokenData?.data?.refreshtoken) {
         throw new CustomError({

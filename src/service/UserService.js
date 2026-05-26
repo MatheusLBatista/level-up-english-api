@@ -1,15 +1,8 @@
 import {
-  CommonResponse,
   CustomError,
   HttpStatusCodes,
-  errorHandler,
-  messages,
-  StatusService,
-  asyncWrapper,
 } from "../utils/helpers/index.js";
 import AuthHelper from "../utils/AuthHelper.js";
-import mongoose from "mongoose";
-import bcrypt from "bcrypt";
 import UserRepository from "../repository/UserRepository.js";
 
 class UserService {
@@ -21,79 +14,67 @@ class UserService {
     const id = req?.params?.id;
 
     if (id) {
-      const data = await this.repository.buscarPorID(id);
-      return data;
+      return await this.repository.findById(id);
     }
 
-    const data = await this.repository.list(req);
-    return data;
+    return await this.repository.list(req);
   }
 
-  async criar(parsedData, req) {
+  async create(parsedData, req) {
+    const loggedUser = await this.repository.findById(req.user_id);
 
-    const usuarioLogado = await this.repository.buscarPorID(req.user_id);
-    const role = usuarioLogado.role;
-
-    if (role === "student") {
+    if (loggedUser.role === "student") {
       throw new CustomError({
         statusCode: HttpStatusCodes.FORBIDDEN.code,
         errorType: "permissionError",
-        field: "Usuário",
+        field: "User",
         details: [],
-        customMessage: "Estudantes não podem criar usuários.",
+        customMessage: "Students cannot create users.",
       });
     }
 
-    // Valida email único
     await this.validateEmail(parsedData.email);
 
-    // Gerar senha hash
     if (parsedData.password) {
-      const { senha: senhaHash } = await AuthHelper.hashPassword(parsedData.password);
-      parsedData.password = senhaHash;
+      const { hash } = await AuthHelper.hashPassword(parsedData.password);
+      parsedData.password = hash;
     }
 
-    const data = await this.repository.criar(parsedData);
-    return data;
+    return await this.repository.create(parsedData);
   }
 
-  async criarComSenha(parsedData) {
-
-    // Garante que não passe role privilegiada
+  async createWithPassword(parsedData) {
     delete parsedData.role;
 
     await this.validateEmail(parsedData.email);
 
     if (parsedData.password) {
-      const { senha: senhaHash } = await AuthHelper.hashPassword(parsedData.password);
-      parsedData.password = senhaHash;
+      const { hash } = await AuthHelper.hashPassword(parsedData.password);
+      parsedData.password = hash;
     }
 
     parsedData.role = "student";
 
-    const data = await this.repository.criar(parsedData);
-    return data;
+    return await this.repository.create(parsedData);
   }
 
-  async atualizar(id, parsedData, req) {
-
+  async update(id, parsedData, req) {
     delete parsedData.email;
     delete parsedData.password;
 
     await this.ensureUserExists(id);
 
-    const usuario = await this.repository.buscarPorID(req.user_id);
-    const isAdmin = usuario?.role === "admin";
+    const user = await this.repository.findById(req.user_id);
+    const isAdmin = user?.role === "admin";
+    const updatingAnotherUser = String(user._id) !== String(id);
 
-    const atualizarOutroUser = String(usuario._id) !== String(id);
-
-    if (!isAdmin && atualizarOutroUser) {
+    if (!isAdmin && updatingAnotherUser) {
       throw new CustomError({
         statusCode: HttpStatusCodes.FORBIDDEN.code,
         errorType: "permissionError",
-        field: "Usuário",
+        field: "User",
         details: [],
-        customMessage: "Você não tem permissões para atualizar outro usuário.",
+        customMessage: "You do not have permission to update another user.",
       });
     }
 
@@ -103,61 +84,54 @@ class UserService {
       delete parsedData.level;
     }
 
-    const data = await this.repository.atualizar(id, parsedData);
-    return data;
+    return await this.repository.update(id, parsedData);
   }
 
-  async deletar(id, req) {
-
-    const usuario = await this.repository.buscarPorID(req.user_id);
-    const usuarioID = usuario._id;
+  async delete(id, req) {
+    const user = await this.repository.findById(req.user_id);
 
     await this.ensureUserExists(id);
 
-    if (usuario.role === "student") {
-      if (usuarioID.toString() !== id.toString()) {
-        throw new CustomError({
-          statusCode: HttpStatusCodes.FORBIDDEN.code,
-          errorType: "permissionError",
-          field: "Usuário",
-          details: [],
-          customMessage: "Estudantes só podem deletar seus próprios dados.",
-        });
-      }
+    if (user.role === "student" && user._id.toString() !== id.toString()) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "User",
+        details: [],
+        customMessage: "Students can only delete their own account.",
+      });
     }
 
-    const data = await this.repository.deletar(id);
-    return data;
+    return await this.repository.delete(id);
   }
 
-  // Métodos auxiliares
   async validateEmail(email, id = null) {
-    const usuarioExistente = await this.repository.buscarPorEmail(email, id);
-    if (usuarioExistente) {
+    const existingUser = await this.repository.findByEmail(email, id);
+    if (existingUser) {
       throw new CustomError({
         statusCode: HttpStatusCodes.BAD_REQUEST.code,
         errorType: "validationError",
         field: "email",
-        details: [{ path: "email", message: "Email já está em uso." }],
-        customMessage: "Email já cadastrado.",
+        details: [{ path: "email", message: "Email is already in use." }],
+        customMessage: "Email already registered.",
       });
     }
   }
 
   async ensureUserExists(id) {
-    const usuarioExistente = await this.repository.buscarPorID(id);
+    const existingUser = await this.repository.findById(id);
 
-    if (!usuarioExistente) {
+    if (!existingUser) {
       throw new CustomError({
         statusCode: HttpStatusCodes.NOT_FOUND.code,
         errorType: "resourceNotFound",
-        field: "Usuário",
+        field: "User",
         details: [],
-        customMessage: "Usuário não encontrado.",
+        customMessage: "User not found.",
       });
     }
 
-    return usuarioExistente;
+    return existingUser;
   }
 }
 

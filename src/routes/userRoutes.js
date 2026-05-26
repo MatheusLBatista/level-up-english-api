@@ -10,8 +10,8 @@ const userController = new UserController();
 router
   .get("/users", authMiddleware, asyncWrapper(userController.list.bind(userController)))
   .get("/users/:id", authMiddleware, asyncWrapper(userController.list.bind(userController)))
-  .post("/users", authMiddleware, asyncWrapper(userController.criar.bind(userController)))
-  .put("/users/:id", authMiddleware, asyncWrapper(userController.atualizar.bind(userController)))
-  .delete("/users/:id", authMiddleware, asyncWrapper(userController.deletar.bind(userController)));
+  .post("/users", authMiddleware, asyncWrapper(userController.create.bind(userController)))
+  .put("/users/:id", authMiddleware, asyncWrapper(userController.update.bind(userController)))
+  .delete("/users/:id", authMiddleware, asyncWrapper(userController.delete.bind(userController)));
 
 export default router;

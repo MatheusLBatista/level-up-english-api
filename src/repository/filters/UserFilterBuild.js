@@ -33,8 +33,8 @@ class UserFilterBuild {
     return this;
   }
 
-  escapeRegex(texto) {
-    return texto.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+  escapeRegex(text) {
+    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
   }
 
   build() {

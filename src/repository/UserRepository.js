@@ -6,47 +6,41 @@ class UserRepository {
     this.userModel = userModel;
   }
 
-  async armazenarTokens(id, accesstoken, refreshtoken) {
+  async storeTokens(id, accesstoken, refreshtoken) {
     const document = await this.userModel.findById(id);
     if (!document) {
       throw new CustomError({
         statusCode: 401,
         errorType: "resourceNotFound",
-        field: "Usuário",
+        field: "User",
         details: [],
-        customMessage: messages.error.resourceNotFound("Usuário"),
+        customMessage: messages.error.resourceNotFound("User"),
       });
     }
     document.accesstoken = accesstoken;
     document.refreshtoken = refreshtoken;
-    const data = document.save();
-    return data;
+    return document.save();
   }
 
-  async removerTokens(id) {
-    const parsedData = {
-      refreshtoken: null,
-      accesstoken: null,
-    };
-
-    const usuario = await this.userModel
-      .findByIdAndUpdate(id, parsedData, { new: true })
+  async removeTokens(id) {
+    const user = await this.userModel
+      .findByIdAndUpdate(id, { refreshtoken: null, accesstoken: null }, { new: true })
       .exec();
 
-    if (!usuario) {
+    if (!user) {
       throw new CustomError({
         statusCode: 404,
         errorType: "resourceNotFound",
-        field: "Usuário",
+        field: "User",
         details: [],
-        customMessage: messages.error.resourceNotFound("Usuário"),
+        customMessage: messages.error.resourceNotFound("User"),
       });
     }
 
-    return usuario;
+    return user;
   }
 
-  async buscarPorID(id, includeTokens = false) {
+  async findById(id, includeTokens = false) {
     let query = this.userModel.findById(id);
 
     if (includeTokens) {
@@ -59,106 +53,95 @@ class UserRepository {
       throw new CustomError({
         statusCode: 404,
         errorType: "resourceNotFound",
-        field: "Usuário",
+        field: "User",
         details: [],
-        customMessage: messages.error.resourceNotFound("Usuário"),
+        customMessage: messages.error.resourceNotFound("User"),
       });
     }
 
     return user;
   }
 
-  async buscarPorIDs(ids) {
+  async findByIds(ids) {
     return await this.userModel.find({ _id: { $in: ids } });
   }
 
-  async buscarPorNome(nome, idIgnorado = null) {
-    const filtro = {
-      name: { $regex: nome, $options: "i" },
-    };
+  async findByName(name, excludeId = null) {
+    const filter = { name: { $regex: name, $options: "i" } };
 
-    if (idIgnorado) {
-      filtro._id = { $ne: idIgnorado };
+    if (excludeId) {
+      filter._id = { $ne: excludeId };
     }
 
-    const documentos = await this.userModel.findOne(filtro);
-    return documentos;
+    return await this.userModel.findOne(filter);
   }
 
-  async buscarPorEmail(email, idIgnorado = null) {
-    const filtro = { email };
+  async findByEmail(email, excludeId = null) {
+    const filter = { email };
 
-    if (idIgnorado) {
-      filtro._id = { $ne: idIgnorado };
+    if (excludeId) {
+      filter._id = { $ne: excludeId };
     }
 
-    const documento = await this.userModel.findOne(filtro).select("+password");
-    return documento;
+    return await this.userModel.findOne(filter).select("+password");
   }
 
   async list(req) {
     const { name, email, role, active, page = 1 } = req.query || {};
-    const limite = Math.min(parseInt(req.query?.limite, 10) || 10, 100);
+    const limit = Math.min(parseInt(req.query?.limit, 10) || 10, 100);
 
-    const filtros = {};
-    if (name) filtros.name = { $regex: name, $options: "i" };
-    if (email) filtros.email = { $regex: email, $options: "i" };
-    if (role) filtros.role = role;
+    const filters = {};
+    if (name) filters.name = { $regex: name, $options: "i" };
+    if (email) filters.email = { $regex: email, $options: "i" };
+    if (role) filters.role = role;
     if (active !== undefined) {
-      filtros.active = active === "true" || active === "1" || active === true;
+      filters.active = active === "true" || active === "1" || active === true;
     }
 
     const options = {
       page: parseInt(page, 10),
-      limit: parseInt(limite, 10),
+      limit: parseInt(limit, 10),
       sort: { name: 1 },
     };
 
-    const resultado = await this.userModel.paginate(filtros, options);
+    const result = await this.userModel.paginate(filters, options);
 
-    resultado.docs = resultado.docs.map((doc) => {
-      const usuarioObj =
-        typeof doc.toObject === "function" ? doc.toObject() : doc;
-      return usuarioObj;
-    });
+    result.docs = result.docs.map((doc) =>
+      typeof doc.toObject === "function" ? doc.toObject() : doc
+    );
 
-    return resultado;
+    return result;
   }
 
-  async criar(dadosUsuario) {
-    const usuario = new this.userModel(dadosUsuario);
-    return await usuario.save();
+  async create(userData) {
+    const user = new this.userModel(userData);
+    return await user.save();
   }
 
-  async atualizar(id, parsedData) {
-    const usuario = await this.userModel.findByIdAndUpdate(id, parsedData, {
-      new: true,
-    });
+  async update(id, data) {
+    const user = await this.userModel.findByIdAndUpdate(id, data, { new: true });
 
-    if (!usuario) {
+    if (!user) {
       throw new CustomError({
         statusCode: 404,
         errorType: "resourceNotFound",
-        field: "Usuário",
+        field: "User",
         details: [],
-        customMessage: messages.error.resourceNotFound("Usuário"),
+        customMessage: messages.error.resourceNotFound("User"),
       });
     }
 
-    return usuario;
+    return user;
   }
 
-  async deletar(id) {
-    const usuario = await this.userModel.findByIdAndDelete(id);
-    return usuario;
+  async delete(id) {
+    return await this.userModel.findByIdAndDelete(id);
   }
 
-  async buscarPorCodigoRecuperacao(codigo) {
-    const filtro = { password_recovery_code: codigo };
-    const documento = await this.userModel
-      .findOne(filtro)
+  async findByRecoveryCode(code) {
+    return await this.userModel
+      .findOne({ password_recovery_code: code })
       .select("+password +password_recovery_code +exp_password_recovery_code");
-    return documento;
   }
 }
 
