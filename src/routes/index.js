@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 
 // Importação das rotas
 import userRoutes from "./userRoutes.js";
+import authRoutes from "./authRoutes.js";
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ const routes = (app) => {
     res.send("API rodando.");
   });
 
+  app.use(express.json(), authRoutes);
   app.use(express.json(), userRoutes);
 };
 
