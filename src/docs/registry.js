@@ -19,7 +19,7 @@ registry.registerComponent("securitySchemes", "bearerAuth", {
   bearerFormat: "JWT",
 });
 
-// Helper: envolve data no padrão CommonResponse
+// Helper: resposta de sucesso no padrão CommonResponse
 const commonResponse = (dataSchema, description) => ({
   description,
   content: {
@@ -33,7 +33,53 @@ const commonResponse = (dataSchema, description) => ({
   },
 });
 
-const errorResponse = (description) => ({ description });
+// Helper base para erros
+const errorResponse = (description, messageExample, errorsExample = []) => ({
+  description,
+  content: {
+    "application/json": {
+      schema: z.object({
+        message: z.string().openapi({ example: messageExample }),
+        data: z.null().openapi({ example: null }),
+        errors: z.array(z.any()).openapi({ example: errorsExample }),
+      }),
+    },
+  },
+});
+
+// Respostas de erro reutilizáveis
+const error400 = errorResponse(
+  "Dados inválidos",
+  "Erro de validação. 1 campo(s) inválido(s).",
+  [{ path: "email", message: "Invalid email" }],
+);
+
+const error401Credentials = errorResponse(
+  "Credenciais inválidas",
+  "Credenciais inválidas. Verifique seu usuário e senha.",
+);
+
+const error401Token = errorResponse(
+  "Token ausente ou inválido",
+  "O token de autenticação não existe!",
+  [{ message: "O token de autenticação não existe!" }],
+);
+
+const error401TokenExpired = errorResponse(
+  "Token expirado",
+  "O token JWT está expirado!",
+  [{ message: "O token JWT está expirado!" }],
+);
+
+const error403 = errorResponse(
+  "Sem permissão",
+  "You do not have permission to perform this action.",
+);
+
+const error404User = errorResponse(
+  "Usuário não encontrado",
+  "Recurso não encontrado em User.",
+);
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
@@ -47,7 +93,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(LoginResponseSchema, "Login realizado com sucesso"),
-    401: errorResponse("Credenciais inválidas"),
+    400: error400,
+    401: error401Credentials,
   },
 });
 
@@ -71,7 +118,7 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.array(UserSchema), "Lista de usuários"),
-    401: errorResponse("Não autenticado"),
+    401: error401Token,
   },
 });
 
@@ -88,8 +135,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(UserSchema, "Usuário encontrado"),
-    401: errorResponse("Não autenticado"),
-    404: errorResponse("Usuário não encontrado"),
+    401: error401Token,
+    404: error404User,
   },
 });
 
@@ -104,8 +151,9 @@ registry.registerPath({
   },
   responses: {
     201: commonResponse(UserSchema, "Usuário criado"),
-    401: errorResponse("Não autenticado"),
-    403: errorResponse("Sem permissão"),
+    400: error400,
+    401: error401Token,
+    403: error403,
   },
 });
 
@@ -123,9 +171,10 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(UserSchema, "Usuário atualizado"),
-    401: errorResponse("Não autenticado"),
-    403: errorResponse("Sem permissão"),
-    404: errorResponse("Usuário não encontrado"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+    404: error404User,
   },
 });
 
@@ -142,9 +191,9 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(UserSchema, "Usuário deletado"),
-    401: errorResponse("Não autenticado"),
-    403: errorResponse("Sem permissão"),
-    404: errorResponse("Usuário não encontrado"),
+    401: error401Token,
+    403: error403,
+    404: error404User,
   },
 });
 
