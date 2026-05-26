@@ -9,7 +9,7 @@ class Ranking {
         class: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "classes",
-          required: function () {
+          required: function() {
             return this.type === "class";
           },
         },
