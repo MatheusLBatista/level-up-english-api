@@ -76,6 +76,22 @@ class UserRepository {
     return await this.userModel.findOne(filter);
   }
 
+  async findByIdWithPassword(id) {
+    const user = await this.userModel.findById(id).select("+password");
+
+    if (!user) {
+      throw new CustomError({
+        statusCode: 404,
+        errorType: "resourceNotFound",
+        field: "User",
+        details: [],
+        customMessage: messages.error.resourceNotFound("User"),
+      });
+    }
+
+    return user;
+  }
+
   async findByEmail(email, excludeId = null) {
     const filter = { email };
 
@@ -136,6 +152,22 @@ class UserRepository {
 
   async delete(id) {
     return await this.userModel.findByIdAndDelete(id);
+  }
+
+  async setRecoveryCode(userId, code, expiry) {
+    return await this.userModel.findByIdAndUpdate(
+      userId,
+      { password_recovery_code: code, exp_password_recovery_code: expiry },
+      { new: true },
+    );
+  }
+
+  async clearRecoveryCode(userId) {
+    return await this.userModel.findByIdAndUpdate(
+      userId,
+      { password_recovery_code: null, exp_password_recovery_code: null },
+      { new: true },
+    );
   }
 
   async findByRecoveryCode(code) {

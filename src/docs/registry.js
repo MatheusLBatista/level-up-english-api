@@ -1,25 +1,29 @@
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 import { UserSchema, CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
-import { LoginBodySchema, LoginResponseSchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema, RegisterStudentBodySchema } from "../schemas/AuthSchema.js";
 
 const registry = new OpenAPIRegistry();
 
-// Schemas
 registry.register("User", UserSchema);
 registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
+registry.register("RevokeParams", RevokeParamsSchema);
+registry.register("RegisterStudentBody", RegisterStudentBodySchema);
+registry.register("ForgotPasswordBody", ForgotPasswordBodySchema);
+registry.register("ResetPasswordBody", ResetPasswordBodySchema);
+registry.register("ChangePasswordBody", ChangePasswordBodySchema);
+registry.register("RefreshBody", RefreshBodySchema);
+registry.register("RefreshResponse", RefreshResponseSchema);
 registry.register("CreateUserBody", CreateUserBodySchema);
 registry.register("UpdateUserBody", UpdateUserBodySchema);
 
-// Segurança JWT
 registry.registerComponent("securitySchemes", "bearerAuth", {
   type: "http",
   scheme: "bearer",
   bearerFormat: "JWT",
 });
 
-// Helper: resposta de sucesso no padrão CommonResponse
 const commonResponse = (dataSchema, description) => ({
   description,
   content: {
@@ -33,7 +37,6 @@ const commonResponse = (dataSchema, description) => ({
   },
 });
 
-// Helper base para erros
 const errorResponse = (description, messageExample, errorsExample = []) => ({
   description,
   content: {
@@ -47,7 +50,6 @@ const errorResponse = (description, messageExample, errorsExample = []) => ({
   },
 });
 
-// Respostas de erro reutilizáveis
 const error400 = errorResponse(
   "Dados inválidos",
   "Erro de validação. 1 campo(s) inválido(s).",
@@ -95,6 +97,125 @@ registry.registerPath({
     200: commonResponse(LoginResponseSchema, "Login realizado com sucesso"),
     400: error400,
     401: error401Credentials,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/register-student",
+  tags: ["Auth"],
+  summary: "Cadastrar aluno (teacher/admin) — envia e-mail de boas-vindas",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: { content: { "application/json": { schema: RegisterStudentBodySchema } } },
+  },
+  responses: {
+    201: commonResponse(UserSchema, "Aluno cadastrado e e-mail enviado"),
+    400: errorResponse(
+      "E-mail já cadastrado",
+      "Este e-mail já está cadastrado.",
+      [{ path: "email", message: "Este e-mail já está cadastrado." }],
+    ),
+    401: error401Token,
+    403: errorResponse("Sem permissão", "Apenas professores e administradores podem cadastrar alunos."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/refresh",
+  tags: ["Auth"],
+  summary: "Renovar tokens (refresh rotation)",
+  request: {
+    body: { content: { "application/json": { schema: RefreshBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(RefreshResponseSchema, "Tokens renovados com sucesso"),
+    401: errorResponse(
+      "Refresh token inválido ou expirado",
+      "Token inválido. Faça login novamente.",
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/forgot-password",
+  tags: ["Auth"],
+  summary: "Solicitar redefinição de senha",
+  request: {
+    body: { content: { "application/json": { schema: ForgotPasswordBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(z.null(), "Instruções enviadas por e-mail"),
+    400: error400,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/reset-password",
+  tags: ["Auth"],
+  summary: "Redefinir senha com código de recuperação",
+  request: {
+    body: { content: { "application/json": { schema: ResetPasswordBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(z.null(), "Senha redefinida com sucesso"),
+    400: errorResponse(
+      "Código inválido ou expirado",
+      "Código de recuperação inválido ou expirado.",
+      [{ path: "code", message: "Código de recuperação inválido ou expirado." }],
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/auth/change-password",
+  tags: ["Auth"],
+  summary: "Alterar senha do usuário logado",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: { content: { "application/json": { schema: ChangePasswordBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(z.null(), "Senha alterada com sucesso"),
+    400: error400,
+    401: errorResponse(
+      "Senha atual incorreta ou token inválido",
+      "Senha atual incorreta.",
+      [{ path: "currentPassword", message: "Senha atual incorreta." }],
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/logout",
+  tags: ["Auth"],
+  summary: "Logout",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(z.null(), "Logout realizado com sucesso"),
+    401: error401Token,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/revoke/{userId}",
+  tags: ["Auth"],
+  summary: "Revogar sessão de um usuário (admin)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: RevokeParamsSchema,
+  },
+  responses: {
+    200: commonResponse(z.null(), "Sessão revogada com sucesso"),
+    401: error401Token,
+    403: error403,
+    404: error404User,
   },
 });
 
