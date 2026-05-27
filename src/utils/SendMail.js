@@ -7,9 +7,9 @@ dotenv.config();
 class SendMail {
   static async enviaEmail(infoemail) {
     // Verifica se o serviço de email está desativado
-    if (process.env.DISABLED_EMAIL) {
+    if (process.env.DISABLED_EMAIL === "true") {
       console.log("Serviço de Email desativado");
-      return; // Adiciona o return para interromper a execução
+      return;
     }
 
 
@@ -18,7 +18,7 @@ class SendMail {
       let transporter = nodemailer.createTransport({
         host: process.env.EMAIL_HOST,
         port: process.env.EMAIL_PORT,
-        secure: false, // true para 465, false para outras portas
+        secure: process.env.EMAIL_SECURE === "true",
         auth: {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS,

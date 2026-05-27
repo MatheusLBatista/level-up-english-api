@@ -1,5 +1,6 @@
 // /src/utils/TokenUtil.js
 import jwt from "jsonwebtoken";
+import { promisify } from "util";
 
 class TokenUtil {
   generateAccessToken(id) {
@@ -35,9 +36,10 @@ class TokenUtil {
     });
   }
 
-  /**
-   * Gera token único para recuperação de senha com validade de 1 hora (retorna Promise<string>)
-   */
+  verifyRefreshToken(token) {
+    return promisify(jwt.verify)(token, process.env.JWT_SECRET_REFRESH_TOKEN);
+  }
+
   generatePasswordRecoveryToken(id) {
     return new Promise((resolve, reject) => {
       jwt.sign(
