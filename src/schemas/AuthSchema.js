@@ -25,6 +25,14 @@ export const RevokeParamsSchema = z
   })
   .openapi("RevokeParams");
 
+export const RegisterStudentBodySchema = z
+  .object({
+    name: z.string().min(2).openapi({ example: "João Silva" }),
+    email: z.string().email().openapi({ example: "joao@escola.com" }),
+    class: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+  })
+  .openapi("RegisterStudentBody");
+
 export const ForgotPasswordBodySchema = z
   .object({
     email: z.string().email().openapi({ example: "aluno@example.com" }),

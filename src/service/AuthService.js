@@ -4,7 +4,7 @@ import TokenUtil from "../utils/TokenUtil.js";
 import bcrypt from "bcrypt";
 import AuthHelper from "../utils/AuthHelper.js";
 import SendMail from "../utils/SendMail.js";
-import { forgotPasswordTemplate } from "../utils/emailTemplates.js";
+import { forgotPasswordTemplate, welcomeStudentTemplate } from "../utils/emailTemplates.js";
 import crypto from "crypto";
 
 class AuthService {
@@ -79,6 +79,36 @@ class AuthService {
     await this.userRepository.storeTokens(user._id, newAccessToken, newRefreshToken);
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  }
+
+  async registerStudent({ name, email, class: classId }) {
+    const emailExistente = await this.userRepository.findByEmail(email);
+    if (emailExistente) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "email",
+        details: [{ path: "email", message: "Este e-mail já está cadastrado." }],
+        customMessage: "Este e-mail já está cadastrado.",
+      });
+    }
+    
+    const userData = { name, email, role: "student" };
+    if (classId) userData.class = classId;
+    const student = await this.userRepository.create(userData);
+    
+    const code = crypto.randomBytes(32).toString("hex");
+    const expiresInHours = 24;
+    const expiry = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+    await this.userRepository.setRecoveryCode(student._id, code, expiry);
+    
+    const setupLink = `${process.env.FRONTEND_URL}/set-password?code=${code}`;
+    const template = welcomeStudentTemplate({ name, setupLink, expiresInHours });
+    await SendMail.enviaEmail({ to: email, ...template });
+
+    const studentObj = student.toObject();
+    delete studentObj.password;
+    return studentObj;
   }
 
   async forgotPassword(email) {    

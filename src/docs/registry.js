@@ -1,7 +1,7 @@
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 import { UserSchema, CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
-import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema, RegisterStudentBodySchema } from "../schemas/AuthSchema.js";
 
 const registry = new OpenAPIRegistry();
 
@@ -9,6 +9,7 @@ registry.register("User", UserSchema);
 registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
 registry.register("RevokeParams", RevokeParamsSchema);
+registry.register("RegisterStudentBody", RegisterStudentBodySchema);
 registry.register("ForgotPasswordBody", ForgotPasswordBodySchema);
 registry.register("ResetPasswordBody", ResetPasswordBodySchema);
 registry.register("ChangePasswordBody", ChangePasswordBodySchema);
@@ -96,6 +97,27 @@ registry.registerPath({
     200: commonResponse(LoginResponseSchema, "Login realizado com sucesso"),
     400: error400,
     401: error401Credentials,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/register-student",
+  tags: ["Auth"],
+  summary: "Cadastrar aluno (teacher/admin) — envia e-mail de boas-vindas",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: { content: { "application/json": { schema: RegisterStudentBodySchema } } },
+  },
+  responses: {
+    201: commonResponse(UserSchema, "Aluno cadastrado e e-mail enviado"),
+    400: errorResponse(
+      "E-mail já cadastrado",
+      "Este e-mail já está cadastrado.",
+      [{ path: "email", message: "Este e-mail já está cadastrado." }],
+    ),
+    401: error401Token,
+    403: errorResponse("Sem permissão", "Apenas professores e administradores podem cadastrar alunos."),
   },
 });
 

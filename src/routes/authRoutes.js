@@ -9,6 +9,7 @@ const authController = new AuthController();
 
 router
   .post("/auth/login", asyncWrapper(authController.login.bind(authController)))
+  .post("/auth/register-student", authMiddleware, asyncWrapper(authController.registerStudent.bind(authController)))
   .post("/auth/refresh", asyncWrapper(authController.refresh.bind(authController)))
   .post("/auth/forgot-password", asyncWrapper(authController.forgotPassword.bind(authController)))
   .post("/auth/reset-password", asyncWrapper(authController.resetPassword.bind(authController)))

@@ -1,5 +1,81 @@
 // src/utils/emailTemplates.js
 
+export function welcomeStudentTemplate({ name, setupLink, expiresInHours = 24 }) {
+  return {
+    subject: "🎮 Bem-vindo ao LevelUp English — Defina sua senha",
+
+    text:
+      `Olá, ${name}!\n\n` +
+      `Sua conta no LevelUp English foi criada por um professor.\n\n` +
+      `Acesse o link abaixo para definir sua senha e começar a aprender:\n${setupLink}\n\n` +
+      `Este link expira em ${expiresInHours} horas.\n\n` +
+      `Equipe LevelUp English`,
+
+    html: `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#6c63ff,#48c6ef);padding:32px 40px;text-align:center;">
+              <h1 style="margin:0;color:#fff;font-size:24px;letter-spacing:1px;">🎮 LevelUp English</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Plataforma de Gamificação</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px;">
+              <p style="margin:0 0 16px;color:#333;font-size:16px;">Olá, <strong>${name}</strong>! 👋</p>
+              <p style="margin:0 0 24px;color:#555;font-size:15px;line-height:1.6;">
+                Sua conta no <strong>LevelUp English</strong> foi criada pelo seu professor.<br/>
+                Clique no botão abaixo para definir sua senha e começar sua jornada!
+              </p>
+
+              <!-- CTA button -->
+              <div style="text-align:center;margin-bottom:28px;">
+                <a href="${setupLink}"
+                   style="display:inline-block;background:linear-gradient(135deg,#6c63ff,#48c6ef);color:#fff;text-decoration:none;padding:16px 40px;border-radius:8px;font-size:16px;font-weight:700;letter-spacing:0.5px;">
+                  🚀 Definir minha senha
+                </a>
+              </div>
+
+              <p style="margin:0 0 8px;color:#999;font-size:13px;text-align:center;">
+                ⏱️ Este link expira em <strong>${expiresInHours} horas</strong>.
+              </p>
+              <p style="margin:0;color:#bbb;font-size:12px;text-align:center;">
+                Se você não esperava este e-mail, pode ignorá-lo com segurança.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f9f9f9;padding:20px 40px;text-align:center;border-top:1px solid #eee;">
+              <p style="margin:0;color:#aaa;font-size:12px;">
+                © 2025 LevelUp English · Todos os direitos reservados
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+  };
+}
+
 export function forgotPasswordTemplate({ name, code, resetLink, expiresInMinutes = 30 }) {
   return {
     subject: "Redefinição de senha — LevelUp English",
