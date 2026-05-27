@@ -40,8 +40,44 @@ class AuthService {
     await this.userRepository.removeTokens(userId);
   }
 
-  async revoke(targetUserId) {
+  async refresh(refreshToken) {
 
+    let payload;
+
+    try {
+      payload = await this.tokenUtil.verifyRefreshToken(refreshToken);
+
+    } catch {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.UNAUTHORIZED.code,
+        errorType: "authenticationError",
+        field: "Token",
+        details: [],
+        customMessage: messages.auth.invalidToken,
+      });
+    }
+
+    const user = await this.userRepository.findById(payload.id, true);
+
+    if (!user.refreshtoken || user.refreshtoken !== refreshToken) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.UNAUTHORIZED.code,
+        errorType: "authenticationError",
+        field: "Token",
+        details: [],
+        customMessage: messages.auth.invalidToken,
+      });
+    }
+
+    const newAccessToken = await this.tokenUtil.generateAccessToken(user._id);
+    const newRefreshToken = await this.tokenUtil.generateRefreshToken(user._id);
+
+    await this.userRepository.storeTokens(user._id, newAccessToken, newRefreshToken);
+
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  }
+
+  async revoke(targetUserId) {
     await this.userRepository.removeTokens(targetUserId);
   }
 

@@ -9,6 +9,7 @@ const authController = new AuthController();
 
 router
   .post("/auth/login", asyncWrapper(authController.login.bind(authController)))
+  .post("/auth/refresh", asyncWrapper(authController.refresh.bind(authController)))
   .post("/auth/logout", authMiddleware, asyncWrapper(authController.logout.bind(authController)))
   .post("/auth/revoke/:userId", authMiddleware, asyncWrapper(authController.revoke.bind(authController)));
 

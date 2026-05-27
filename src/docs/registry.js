@@ -1,26 +1,25 @@
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 import { UserSchema, CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
-import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema } from "../schemas/AuthSchema.js";
 
 const registry = new OpenAPIRegistry();
 
-// Schemas
 registry.register("User", UserSchema);
 registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
 registry.register("RevokeParams", RevokeParamsSchema);
+registry.register("RefreshBody", RefreshBodySchema);
+registry.register("RefreshResponse", RefreshResponseSchema);
 registry.register("CreateUserBody", CreateUserBodySchema);
 registry.register("UpdateUserBody", UpdateUserBodySchema);
 
-// Segurança JWT
 registry.registerComponent("securitySchemes", "bearerAuth", {
   type: "http",
   scheme: "bearer",
   bearerFormat: "JWT",
 });
 
-// Helper: resposta de sucesso no padrão CommonResponse
 const commonResponse = (dataSchema, description) => ({
   description,
   content: {
@@ -34,7 +33,6 @@ const commonResponse = (dataSchema, description) => ({
   },
 });
 
-// Helper base para erros
 const errorResponse = (description, messageExample, errorsExample = []) => ({
   description,
   content: {
@@ -48,7 +46,6 @@ const errorResponse = (description, messageExample, errorsExample = []) => ({
   },
 });
 
-// Respostas de erro reutilizáveis
 const error400 = errorResponse(
   "Dados inválidos",
   "Erro de validação. 1 campo(s) inválido(s).",
@@ -96,6 +93,23 @@ registry.registerPath({
     200: commonResponse(LoginResponseSchema, "Login realizado com sucesso"),
     400: error400,
     401: error401Credentials,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/refresh",
+  tags: ["Auth"],
+  summary: "Renovar tokens (refresh rotation)",
+  request: {
+    body: { content: { "application/json": { schema: RefreshBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(RefreshResponseSchema, "Tokens renovados com sucesso"),
+    401: errorResponse(
+      "Refresh token inválido ou expirado",
+      "Token inválido. Faça login novamente.",
+    ),
   },
 });
 

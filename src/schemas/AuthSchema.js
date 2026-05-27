@@ -24,3 +24,16 @@ export const RevokeParamsSchema = z
     userId: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
   })
   .openapi("RevokeParams");
+
+export const RefreshBodySchema = z
+  .object({
+    refreshToken: z.string().openapi({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
+  })
+  .openapi("RefreshBody");
+
+export const RefreshResponseSchema = z
+  .object({
+    accessToken: z.string().openapi({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
+    refreshToken: z.string().openapi({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
+  })
+  .openapi("RefreshResponse");
