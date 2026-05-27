@@ -10,6 +10,9 @@ class MissionService {
   }
 
   async list(req) {
+    const id = req?.params?.id;
+    if (id) return await this.findById(id, req);
+
     const loggedUser = await this.userRepository.findById(req.user_id);
 
     if (loggedUser.role === "student") {

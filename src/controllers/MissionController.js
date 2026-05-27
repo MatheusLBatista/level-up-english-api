@@ -12,12 +12,6 @@ class MissionController {
     return CommonResponse.success(res, data);
   }
 
-  async findById(req, res) {
-    const { id } = req.params;
-    const data = await this.service.findById(id, req);
-    return CommonResponse.success(res, data);
-  }
-
   async create(req, res) {
     const body = CreateMissionBodySchema.parse(req.body);
     const data = await this.service.create(body, req);
