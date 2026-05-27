@@ -18,3 +18,9 @@ export const LoginResponseSchema = z
     user: UserSchema,
   })
   .openapi("LoginResponse");
+
+export const RevokeParamsSchema = z
+  .object({
+    userId: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+  })
+  .openapi("RevokeParams");

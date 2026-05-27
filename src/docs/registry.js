@@ -1,7 +1,7 @@
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 import { UserSchema, CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
-import { LoginBodySchema, LoginResponseSchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema } from "../schemas/AuthSchema.js";
 
 const registry = new OpenAPIRegistry();
 
@@ -9,6 +9,7 @@ const registry = new OpenAPIRegistry();
 registry.register("User", UserSchema);
 registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
+registry.register("RevokeParams", RevokeParamsSchema);
 registry.register("CreateUserBody", CreateUserBodySchema);
 registry.register("UpdateUserBody", UpdateUserBodySchema);
 
@@ -95,6 +96,35 @@ registry.registerPath({
     200: commonResponse(LoginResponseSchema, "Login realizado com sucesso"),
     400: error400,
     401: error401Credentials,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/logout",
+  tags: ["Auth"],
+  summary: "Logout",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(z.null(), "Logout realizado com sucesso"),
+    401: error401Token,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/revoke/{userId}",
+  tags: ["Auth"],
+  summary: "Revogar sessão de um usuário (admin)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: RevokeParamsSchema,
+  },
+  responses: {
+    200: commonResponse(z.null(), "Sessão revogada com sucesso"),
+    401: error401Token,
+    403: error403,
+    404: error404User,
   },
 });
 

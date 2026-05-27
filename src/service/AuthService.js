@@ -36,6 +36,15 @@ class AuthService {
     return { accessToken, refreshToken, user: userObj };
   }
 
+  async logout(userId) {
+    await this.userRepository.removeTokens(userId);
+  }
+
+  async revoke(targetUserId) {
+
+    await this.userRepository.removeTokens(targetUserId);
+  }
+
   async loadTokens(userId) {
     const data = await this.userRepository.findById(userId, true);
     return { data };
