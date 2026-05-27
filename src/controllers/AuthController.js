@@ -1,6 +1,6 @@
 import AuthService from "../service/AuthService.js";
 import { CommonResponse } from "../utils/helpers/index.js";
-import { LoginBodySchema, RevokeParamsSchema, RefreshBodySchema, ChangePasswordBodySchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, RevokeParamsSchema, RefreshBodySchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema } from "../schemas/AuthSchema.js";
 
 class AuthController {
   constructor() {
@@ -22,6 +22,19 @@ class AuthController {
   async logout(req, res) {
     await this.service.logout(req.user_id);
     return CommonResponse.success(res, null, 200, "Logout realizado com sucesso.");
+  }
+
+  async forgotPassword(req, res) {
+    const { email } = ForgotPasswordBodySchema.parse(req.body);
+    await this.service.forgotPassword(email);
+    
+    return CommonResponse.success(res, null, 200, "As instruções foram enviadas por e-mail.");
+  }
+
+  async resetPassword(req, res) {
+    const { code, newPassword } = ResetPasswordBodySchema.parse(req.body);
+    await this.service.resetPassword(code, newPassword);
+    return CommonResponse.success(res, null, 200, "Senha redefinida com sucesso.");
   }
 
   async changePassword(req, res) {

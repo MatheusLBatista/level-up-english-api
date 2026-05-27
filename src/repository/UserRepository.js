@@ -154,6 +154,22 @@ class UserRepository {
     return await this.userModel.findByIdAndDelete(id);
   }
 
+  async setRecoveryCode(userId, code, expiry) {
+    return await this.userModel.findByIdAndUpdate(
+      userId,
+      { password_recovery_code: code, exp_password_recovery_code: expiry },
+      { new: true },
+    );
+  }
+
+  async clearRecoveryCode(userId) {
+    return await this.userModel.findByIdAndUpdate(
+      userId,
+      { password_recovery_code: null, exp_password_recovery_code: null },
+      { new: true },
+    );
+  }
+
   async findByRecoveryCode(code) {
     return await this.userModel
       .findOne({ password_recovery_code: code })

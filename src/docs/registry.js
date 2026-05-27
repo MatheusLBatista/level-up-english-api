@@ -1,7 +1,7 @@
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 import { UserSchema, CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
-import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema, ChangePasswordBodySchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema } from "../schemas/AuthSchema.js";
 
 const registry = new OpenAPIRegistry();
 
@@ -9,6 +9,8 @@ registry.register("User", UserSchema);
 registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
 registry.register("RevokeParams", RevokeParamsSchema);
+registry.register("ForgotPasswordBody", ForgotPasswordBodySchema);
+registry.register("ResetPasswordBody", ResetPasswordBodySchema);
 registry.register("ChangePasswordBody", ChangePasswordBodySchema);
 registry.register("RefreshBody", RefreshBodySchema);
 registry.register("RefreshResponse", RefreshResponseSchema);
@@ -110,6 +112,38 @@ registry.registerPath({
     401: errorResponse(
       "Refresh token inválido ou expirado",
       "Token inválido. Faça login novamente.",
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/forgot-password",
+  tags: ["Auth"],
+  summary: "Solicitar redefinição de senha",
+  request: {
+    body: { content: { "application/json": { schema: ForgotPasswordBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(z.null(), "Instruções enviadas por e-mail"),
+    400: error400,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/reset-password",
+  tags: ["Auth"],
+  summary: "Redefinir senha com código de recuperação",
+  request: {
+    body: { content: { "application/json": { schema: ResetPasswordBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(z.null(), "Senha redefinida com sucesso"),
+    400: errorResponse(
+      "Código inválido ou expirado",
+      "Código de recuperação inválido ou expirado.",
+      [{ path: "code", message: "Código de recuperação inválido ou expirado." }],
     ),
   },
 });

@@ -25,6 +25,19 @@ export const RevokeParamsSchema = z
   })
   .openapi("RevokeParams");
 
+export const ForgotPasswordBodySchema = z
+  .object({
+    email: z.string().email().openapi({ example: "aluno@example.com" }),
+  })
+  .openapi("ForgotPasswordBody");
+
+export const ResetPasswordBodySchema = z
+  .object({
+    code: z.string().min(1).openapi({ example: "a3f9c2e1b7d04581..." }),
+    newPassword: z.string().min(6).openapi({ example: "novaSenha456" }),
+  })
+  .openapi("ResetPasswordBody");
+
 export const ChangePasswordBodySchema = z
   .object({
     currentPassword: z.string().min(6).openapi({ example: "senhaAtual123" }),
