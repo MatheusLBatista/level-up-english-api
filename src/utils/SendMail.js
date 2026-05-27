@@ -7,9 +7,9 @@ dotenv.config();
 class SendMail {
   static async enviaEmail(infoemail) {
     // Verifica se o serviço de email está desativado
-    if (process.env.DISABLED_EMAIL) {
+    if (process.env.DISABLED_EMAIL === "true") {
       console.log("Serviço de Email desativado");
-      return; // Adiciona o return para interromper a execução
+      return;
     }
 
 

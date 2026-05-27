@@ -2,7 +2,7 @@
 
 export function forgotPasswordTemplate({ name, code, resetLink, expiresInMinutes = 30 }) {
   return {
-    subject: "🔑 Redefinição de senha — LevelUp English",
+    subject: "Redefinição de senha — LevelUp English",
 
     text:
       `Olá, ${name}!\n\n` +
