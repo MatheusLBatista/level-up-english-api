@@ -2,6 +2,7 @@ import UserRepository from "../repository/UserRepository.js";
 import { CustomError, HttpStatusCodes, messages } from "../utils/helpers/index.js";
 import TokenUtil from "../utils/TokenUtil.js";
 import bcrypt from "bcrypt";
+import AuthHelper from "../utils/AuthHelper.js";
 
 class AuthService {
   constructor({ userRepository = new UserRepository() } = {}) {
@@ -75,6 +76,25 @@ class AuthService {
     await this.userRepository.storeTokens(user._id, newAccessToken, newRefreshToken);
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  }
+
+  async changePassword(userId, currentPassword, newPassword) {
+    const user = await this.userRepository.findByIdWithPassword(userId);
+
+    const senhaCorreta = await bcrypt.compare(currentPassword, user.password);
+    if (!senhaCorreta) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.UNAUTHORIZED.code,
+        errorType: "authenticationError",
+        field: "currentPassword",
+        details: [{ path: "currentPassword", message: "Senha atual incorreta." }],
+        customMessage: "Senha atual incorreta.",
+      });
+    }
+
+    const { hash } = await AuthHelper.hashPassword(newPassword);
+
+    await this.userRepository.update(userId, { password: hash });
   }
 
   async revoke(targetUserId) {

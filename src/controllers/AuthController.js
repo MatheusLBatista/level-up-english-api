@@ -1,6 +1,6 @@
 import AuthService from "../service/AuthService.js";
 import { CommonResponse } from "../utils/helpers/index.js";
-import { LoginBodySchema, RevokeParamsSchema, RefreshBodySchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, RevokeParamsSchema, RefreshBodySchema, ChangePasswordBodySchema } from "../schemas/AuthSchema.js";
 
 class AuthController {
   constructor() {
@@ -22,6 +22,12 @@ class AuthController {
   async logout(req, res) {
     await this.service.logout(req.user_id);
     return CommonResponse.success(res, null, 200, "Logout realizado com sucesso.");
+  }
+
+  async changePassword(req, res) {
+    const { currentPassword, newPassword } = ChangePasswordBodySchema.parse(req.body);
+    await this.service.changePassword(req.user_id, currentPassword, newPassword);
+    return CommonResponse.success(res, null, 200, "Senha alterada com sucesso.");
   }
 
   async revoke(req, res) {

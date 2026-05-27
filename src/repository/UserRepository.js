@@ -76,6 +76,22 @@ class UserRepository {
     return await this.userModel.findOne(filter);
   }
 
+  async findByIdWithPassword(id) {
+    const user = await this.userModel.findById(id).select("+password");
+
+    if (!user) {
+      throw new CustomError({
+        statusCode: 404,
+        errorType: "resourceNotFound",
+        field: "User",
+        details: [],
+        customMessage: messages.error.resourceNotFound("User"),
+      });
+    }
+
+    return user;
+  }
+
   async findByEmail(email, excludeId = null) {
     const filter = { email };
 

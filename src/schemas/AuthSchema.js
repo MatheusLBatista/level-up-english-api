@@ -25,6 +25,13 @@ export const RevokeParamsSchema = z
   })
   .openapi("RevokeParams");
 
+export const ChangePasswordBodySchema = z
+  .object({
+    currentPassword: z.string().min(6).openapi({ example: "senhaAtual123" }),
+    newPassword: z.string().min(6).openapi({ example: "novaSenha456" }),
+  })
+  .openapi("ChangePasswordBody");
+
 export const RefreshBodySchema = z
   .object({
     refreshToken: z.string().openapi({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),

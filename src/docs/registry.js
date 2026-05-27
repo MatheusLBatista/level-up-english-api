@@ -1,7 +1,7 @@
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 import { UserSchema, CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
-import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema, ChangePasswordBodySchema } from "../schemas/AuthSchema.js";
 
 const registry = new OpenAPIRegistry();
 
@@ -9,6 +9,7 @@ registry.register("User", UserSchema);
 registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
 registry.register("RevokeParams", RevokeParamsSchema);
+registry.register("ChangePasswordBody", ChangePasswordBodySchema);
 registry.register("RefreshBody", RefreshBodySchema);
 registry.register("RefreshResponse", RefreshResponseSchema);
 registry.register("CreateUserBody", CreateUserBodySchema);
@@ -109,6 +110,26 @@ registry.registerPath({
     401: errorResponse(
       "Refresh token inválido ou expirado",
       "Token inválido. Faça login novamente.",
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/auth/change-password",
+  tags: ["Auth"],
+  summary: "Alterar senha do usuário logado",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: { content: { "application/json": { schema: ChangePasswordBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(z.null(), "Senha alterada com sucesso"),
+    400: error400,
+    401: errorResponse(
+      "Senha atual incorreta ou token inválido",
+      "Senha atual incorreta.",
+      [{ path: "currentPassword", message: "Senha atual incorreta." }],
     ),
   },
 });
