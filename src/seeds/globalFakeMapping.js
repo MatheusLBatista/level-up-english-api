@@ -52,13 +52,14 @@ const fakeMappings = {
     title: () => faker.lorem.sentence({ min: 2, max: 5 }),
     description: () => faker.lorem.paragraph(),
     type: () => {
-      const types = ["video", "quiz", "reading"];
+      const types = ["quiz", "vocabulary", "audio"];
       return types[Math.floor(Math.random() * types.length)];
     },
     content_url: () => faker.internet.url(),
-    thumbnail: () => faker.image.url(),
+    content: () => null,
+    questions: () => undefined,
     xp_reward: () => faker.number.int({ min: 10, max: 500 }),
-    max_score: () => faker.number.int({ min: 10, max: 100 }),
+    class_id: () => new mongoose.Types.ObjectId().toString(),
     createdBy: () => new mongoose.Types.ObjectId().toString(),
   },
 

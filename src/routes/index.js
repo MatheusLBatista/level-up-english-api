@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 // Importação das rotas
 import userRoutes from "./userRoutes.js";
 import authRoutes from "./authRoutes.js";
+import missionRoutes from "./missionRoutes.js";
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ const routes = (app) => {
 
   app.use(express.json(), authRoutes);
   app.use(express.json(), userRoutes);
+  app.use(express.json(), missionRoutes);
 };
 
 export default routes;
