@@ -9,11 +9,10 @@ import seedAttitudeLog from "./attitudeLog_seeds.js";
 
 async function main() {
   try {
-    // TODO: rename seeds cascade to english
     await DbConnect.conectar();
     await seedUsuario();
-    await seedMission();
     await seedClass();
+    await seedMission();
     await seedRanking();
     await seedAttitude();
     await seedAttitudeLog();

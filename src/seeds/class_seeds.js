@@ -1,14 +1,12 @@
 import "dotenv/config";
 import Class from "../models/Class.js";
 import User from "../models/User.js";
-import Mission from "../models/Mission.js";
 
 async function classSeeds() {
   await Class.deleteMany();
 
   const teachers = await User.find({ role: "teacher" }).select("_id");
   const students = await User.find({ role: "student" }).select("_id");
-  const missions = await Mission.find({ active: true }).select("_id");
 
   if (!teachers.length) {
     throw new Error(
@@ -34,16 +32,13 @@ async function classSeeds() {
     const selectedStudents = pickMany(students, 8).map(
       (student) => student._id,
     );
-    const selectedMissions = pickMany(missions, 3).map(
-      (mission) => mission._id,
-    );
 
     classes.push({
       name: `Class ${i + 1}`,
       active: true,
       teacher: teacherId,
       students: selectedStudents,
-      missions: selectedMissions,
+      missions: [], // preenchido pelo seed de missions
     });
   }
 

@@ -2,10 +2,14 @@ import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-open
 import { z } from "zod";
 import { UserSchema, CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
 import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema, RegisterStudentBodySchema } from "../schemas/AuthSchema.js";
+import { MissionSchema, CreateMissionBodySchema, UpdateMissionBodySchema } from "../schemas/MissionSchema.js";
 
 const registry = new OpenAPIRegistry();
 
 registry.register("User", UserSchema);
+registry.register("Mission", MissionSchema);
+registry.register("CreateMissionBody", CreateMissionBodySchema);
+registry.register("UpdateMissionBody", UpdateMissionBodySchema);
 registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
 registry.register("RevokeParams", RevokeParamsSchema);
@@ -315,6 +319,108 @@ registry.registerPath({
     401: error401Token,
     403: error403,
     404: error404User,
+  },
+});
+
+// ─── Missions ────────────────────────────────────────────────────────────────
+
+const missionIdParam = z.object({
+  id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+});
+
+const error404Mission = errorResponse(
+  "Missão não encontrada",
+  "Recurso não encontrado em Mission.",
+);
+
+registry.registerPath({
+  method: "get",
+  path: "/missions",
+  tags: ["Missions"],
+  summary: "Listar missões",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      title: z.string().optional().openapi({ example: "Explorador" }),
+      type: z.enum(["quiz", "vocabulary", "audio"]).optional(),
+      class_id: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+      active: z.string().optional().openapi({ example: "true" }),
+      page: z.string().optional().openapi({ example: "1" }),
+      limit: z.string().optional().openapi({ example: "10" }),
+    }),
+  },
+  responses: {
+    200: commonResponse(z.array(MissionSchema), "Lista de missões"),
+    401: error401Token,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/missions/{id}",
+  tags: ["Missions"],
+  summary: "Buscar missão por ID",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: missionIdParam,
+  },
+  responses: {
+    200: commonResponse(MissionSchema, "Missão encontrada"),
+    401: error401Token,
+    404: error404Mission,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/missions",
+  tags: ["Missions"],
+  summary: "Criar missão",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: { content: { "application/json": { schema: CreateMissionBodySchema } } },
+  },
+  responses: {
+    201: commonResponse(MissionSchema, "Missão criada"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/missions/{id}",
+  tags: ["Missions"],
+  summary: "Atualizar missão",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: missionIdParam,
+    body: { content: { "application/json": { schema: UpdateMissionBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(MissionSchema, "Missão atualizada"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+    404: error404Mission,
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/missions/{id}",
+  tags: ["Missions"],
+  summary: "Deletar missão",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: missionIdParam,
+  },
+  responses: {
+    200: commonResponse(MissionSchema, "Missão deletada"),
+    401: error401Token,
+    403: error403,
+    404: error404Mission,
   },
 });
 
