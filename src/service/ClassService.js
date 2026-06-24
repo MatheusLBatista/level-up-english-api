@@ -23,8 +23,9 @@ class ClassService {
   }
 
   async create(parsedData, req) {
-    const loggedUser = await this.ensureManager(req.user_id);
     await this.ensureNameAvailable(parsedData.name);
+
+    const loggedUser = await this.userRepository.findById(req.user_id);
 
     if (loggedUser.role === "teacher") {
       parsedData.teacher = req.user_id;
@@ -34,7 +35,6 @@ class ClassService {
   }
 
   async update(id, parsedData, req) {
-    await this.ensureManager(req.user_id);
     await this.ensureClassExists(id);
 
     if (parsedData.name) {
@@ -45,28 +45,11 @@ class ClassService {
   }
 
   async delete(id, req) {
-    await this.ensureManager(req.user_id);
     await this.ensureClassExists(id);
 
     await this.repository.delete(id);
 
     return null;
-  }
-
-  async ensureManager(userId) {
-    const user = await this.userRepository.findById(userId);
-
-    if (!user || !["admin", "teacher"].includes(user.role)) {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.FORBIDDEN.code,
-        errorType: "permissionError",
-        field: "Class",
-        details: [],
-        customMessage: "Only teachers and admins can manage classes.",
-      });
-    }
-
-    return user;
   }
 
   async ensureNameAvailable(name, id = null) {
