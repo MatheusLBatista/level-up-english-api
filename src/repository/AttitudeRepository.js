@@ -1,5 +1,6 @@
 import Attitude from "../models/Attitude.js";
 import { CustomError, messages } from "../utils/helpers/index.js";
+import AttitudeFilterBuild from "./filters/AttitudeFilterBuild.js";
 
 class AttitudeRepository {
   constructor({ attitudeModel = Attitude } = {}) {
@@ -28,12 +29,11 @@ class AttitudeRepository {
     const { name, type, active, page = 1 } = req.query || {};
     const limit = Math.min(parseInt(req.query?.limit, 10) || 10, 100);
 
-    const filters = {};
-    if (name) filters.name = { $regex: name, $options: "i" };
-    if (type) filters.type = type;
-    if (active !== undefined) {
-      filters.active = active === "true" || active === "1" || active === true;
-    }
+    const filters = new AttitudeFilterBuild()
+      .withName(name)
+      .withType(type)
+      .withActive(active)
+      .build();
 
     const options = {
       page: parseInt(page, 10),
