@@ -38,7 +38,7 @@ class MissionController {
 
   async delete(req, res) {
     const { id } = req.params;
-    
+
     if (!id) {
       throw new CustomError({
         statusCode: HttpStatusCodes.BAD_REQUEST.code,

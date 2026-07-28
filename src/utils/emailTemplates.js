@@ -6,10 +6,10 @@ export function welcomeStudentTemplate({ name, setupLink, expiresInHours = 24 })
 
     text:
       `Olá, ${name}!\n\n` +
-      `Sua conta no LevelUp English foi criada por um professor.\n\n` +
+      "Sua conta no LevelUp English foi criada por um professor.\n\n" +
       `Acesse o link abaixo para definir sua senha e começar a aprender:\n${setupLink}\n\n` +
       `Este link expira em ${expiresInHours} horas.\n\n` +
-      `Equipe LevelUp English`,
+      "Equipe LevelUp English",
 
     html: `
 <!DOCTYPE html>
@@ -82,12 +82,12 @@ export function forgotPasswordTemplate({ name, code, resetLink, expiresInMinutes
 
     text:
       `Olá, ${name}!\n\n` +
-      `Recebemos uma solicitação para redefinir a senha da sua conta no LevelUp English.\n\n` +
+      "Recebemos uma solicitação para redefinir a senha da sua conta no LevelUp English.\n\n" +
       `Seu código de recuperação é:\n\n${code}\n\n` +
       `Ou acesse o link abaixo para redefinir sua senha:\n${resetLink}\n\n` +
       `Este código expira em ${expiresInMinutes} minutos.\n\n` +
-      `Se você não solicitou a redefinição, ignore este e-mail — sua senha permanece a mesma.\n\n` +
-      `Equipe LevelUp English`,
+      "Se você não solicitou a redefinição, ignore este e-mail — sua senha permanece a mesma.\n\n" +
+      "Equipe LevelUp English",
 
     html: `
 <!DOCTYPE html>

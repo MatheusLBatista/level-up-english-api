@@ -44,6 +44,17 @@ class AttitudeRepository {
 
     return await this.attitudeModel.paginate(filters, options);
   }
+
+  async findByName(name, excludeId = null) {
+    const filter = { name: { $regex: `^${name}$`, $options: "i" } };
+    if (excludeId) filter._id = { $ne: excludeId };
+    return await this.attitudeModel.findOne(filter);
+  }
+
+  async create(data) {
+    const attitude = new this.attitudeModel(data);
+    return await attitude.save();
+  }
 }
 
 export default AttitudeRepository;
