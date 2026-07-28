@@ -55,6 +55,22 @@ class AttitudeRepository {
     const attitude = new this.attitudeModel(data);
     return await attitude.save();
   }
+
+  async update(id, data) {
+    const attitude = await this.attitudeModel.findByIdAndUpdate(id, data, { new: true });
+
+    if (!attitude) {
+      throw new CustomError({
+        statusCode: 404,
+        errorType: "resourceNotFound",
+        field: "Attitude",
+        details: [],
+        customMessage: messages.error.resourceNotFound("Attitude"),
+      });
+    }
+
+    return attitude;
+  }
 }
 
 export default AttitudeRepository;

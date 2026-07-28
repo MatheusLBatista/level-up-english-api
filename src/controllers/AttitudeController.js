@@ -1,6 +1,6 @@
 import AttitudeService from "../service/AttitudeService.js";
-import { CommonResponse } from "../utils/helpers/index.js";
-import { CreateAttitudeBodySchema } from "../schemas/AttitudeSchema.js";
+import { CommonResponse, CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
+import { CreateAttitudeBodySchema, UpdateAttitudeBodySchema } from "../schemas/AttitudeSchema.js";
 
 class AttitudeController {
   constructor() {
@@ -16,6 +16,24 @@ class AttitudeController {
     const body = CreateAttitudeBodySchema.parse(req.body);
     const data = await this.service.create(body, req);
     return CommonResponse.created(res, data);
+  }
+
+  async update(req, res) {
+    const { id } = req.params;
+
+    if (!id) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "id",
+        details: [],
+        customMessage: "Attitude ID is required.",
+      });
+    }
+
+    const body = UpdateAttitudeBodySchema.parse(req.body);
+    const data = await this.service.update(id, body);
+    return CommonResponse.success(res, data, 200, "Attitude updated successfully.");
   }
 }
 

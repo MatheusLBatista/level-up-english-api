@@ -22,6 +22,20 @@ class AttitudeService {
     });
   }
 
+  async update(id, parsedData) {
+    await this.ensureAttitudeExists(id);
+
+    if (parsedData.name) {
+      await this.ensureNameAvailable(parsedData.name, id);
+    }
+
+    return await this.repository.update(id, parsedData);
+  }
+
+  async ensureAttitudeExists(id) {
+    return await this.repository.findById(id);
+  }
+
   async ensureNameAvailable(name, excludeId = null) {
     const existing = await this.repository.findByName(name, excludeId);
     if (existing) {
