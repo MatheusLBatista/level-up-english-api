@@ -10,6 +10,12 @@ export const CreateAttitudeLogBodySchema = z
   })
   .openapi("CreateAttitudeLogBody");
 
+export const UpdateAttitudeLogBodySchema = z
+  .object({
+    attitude: z.string().min(1).optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+  })
+  .openapi("UpdateAttitudeLogBody");
+
 export const AttitudeLogSchema = z
   .object({
     _id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),

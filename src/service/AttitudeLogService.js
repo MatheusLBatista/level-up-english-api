@@ -59,6 +59,43 @@ class AttitudeLogService {
 
     return log;
   }
+
+  async update(id, parsedData) {
+    const existingLog = await this.repository.findById(id);
+
+    if (!parsedData.attitude) {
+      return await this.repository.update(id, parsedData);
+    }
+
+    const newAttitude = await this.attitudeRepository.findById(parsedData.attitude);
+
+    if (!newAttitude.active) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "attitude",
+        details: [],
+        customMessage: "Esta atitude está inativa.",
+      });
+    }
+
+    const newXp = newAttitude.type === "negative"
+      ? -Math.abs(newAttitude.xp_value)
+      : Math.abs(newAttitude.xp_value);
+
+    const xpDiff = newXp - existingLog.xp_applied;
+
+    const log = await this.repository.update(id, {
+      attitude: parsedData.attitude,
+      xp_applied: newXp,
+    });
+
+    await this.userRepository.update(String(existingLog.student._id ?? existingLog.student), {
+      $inc: { xp: xpDiff },
+    });
+
+    return log;
+  }
 }
 
 export default AttitudeLogService;

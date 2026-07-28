@@ -55,6 +55,22 @@ class AttitudeLogRepository {
     const log = new this.attitudeLogModel(data);
     return await log.save();
   }
+
+  async update(id, data) {
+    const log = await this.attitudeLogModel.findByIdAndUpdate(id, data, { new: true });
+
+    if (!log) {
+      throw new CustomError({
+        statusCode: 404,
+        errorType: "resourceNotFound",
+        field: "AttitudeLog",
+        details: [],
+        customMessage: messages.error.resourceNotFound("AttitudeLog"),
+      });
+    }
+
+    return log;
+  }
 }
 
 export default AttitudeLogRepository;
