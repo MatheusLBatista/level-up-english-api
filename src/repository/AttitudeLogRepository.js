@@ -56,6 +56,10 @@ class AttitudeLogRepository {
     return await log.save();
   }
 
+  async delete(id) {
+    return await this.attitudeLogModel.findByIdAndDelete(id);
+  }
+
   async update(id, data) {
     const log = await this.attitudeLogModel.findByIdAndUpdate(id, data, { new: true });
 

@@ -60,6 +60,16 @@ class AttitudeLogService {
     return log;
   }
 
+  async delete(id) {
+    const existingLog = await this.repository.findById(id);
+
+    await this.repository.delete(id);
+
+    await this.userRepository.update(String(existingLog.student._id ?? existingLog.student), {
+      $inc: { xp: -existingLog.xp_applied },
+    });
+  }
+
   async update(id, parsedData) {
     const existingLog = await this.repository.findById(id);
 

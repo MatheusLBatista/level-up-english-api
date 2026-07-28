@@ -10,6 +10,7 @@ router
   .get("/attitude-logs", authMiddleware, asyncWrapper(attitudeLogController.list.bind(attitudeLogController)))
   .get("/attitude-logs/:id", authMiddleware, asyncWrapper(attitudeLogController.list.bind(attitudeLogController)))
   .post("/attitude-logs", authMiddleware, asyncWrapper(attitudeLogController.create.bind(attitudeLogController)))
-  .patch("/attitude-logs/:id", authMiddleware, asyncWrapper(attitudeLogController.update.bind(attitudeLogController)));
+  .patch("/attitude-logs/:id", authMiddleware, asyncWrapper(attitudeLogController.update.bind(attitudeLogController)))
+  .delete("/attitude-logs/:id", authMiddleware, asyncWrapper(attitudeLogController.delete.bind(attitudeLogController)));
 
 export default router;
