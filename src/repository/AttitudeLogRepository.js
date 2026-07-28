@@ -50,6 +50,11 @@ class AttitudeLogRepository {
 
     return await this.attitudeLogModel.paginate(filters, options);
   }
+
+  async create(data) {
+    const log = new this.attitudeLogModel(data);
+    return await log.save();
+  }
 }
 
 export default AttitudeLogRepository;

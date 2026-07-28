@@ -8,6 +8,7 @@ const attitudeLogController = new AttitudeLogController();
 
 router
   .get("/attitude-logs", authMiddleware, asyncWrapper(attitudeLogController.list.bind(attitudeLogController)))
-  .get("/attitude-logs/:id", authMiddleware, asyncWrapper(attitudeLogController.list.bind(attitudeLogController)));
+  .get("/attitude-logs/:id", authMiddleware, asyncWrapper(attitudeLogController.list.bind(attitudeLogController)))
+  .post("/attitude-logs", authMiddleware, asyncWrapper(attitudeLogController.create.bind(attitudeLogController)));
 
 export default router;
