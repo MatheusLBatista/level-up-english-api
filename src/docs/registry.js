@@ -1,15 +1,44 @@
-import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
+import {
+  OpenAPIRegistry,
+  OpenApiGeneratorV3,
+} from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
-import { UserSchema, CreateUserBodySchema, UpdateUserBodySchema } from "../schemas/UserSchema.js";
-import { LoginBodySchema, LoginResponseSchema, RevokeParamsSchema, RefreshBodySchema, RefreshResponseSchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema, RegisterStudentBodySchema } from "../schemas/AuthSchema.js";
-import { MissionSchema, CreateMissionBodySchema, UpdateMissionBodySchema } from "../schemas/MissionSchema.js";
+import {
+  UserSchema,
+  CreateUserBodySchema,
+  UpdateUserBodySchema,
+} from "../schemas/UserSchema.js";
+import {
+  LoginBodySchema,
+  LoginResponseSchema,
+  RevokeParamsSchema,
+  RefreshBodySchema,
+  RefreshResponseSchema,
+  ChangePasswordBodySchema,
+  ForgotPasswordBodySchema,
+  ResetPasswordBodySchema,
+  RegisterStudentBodySchema,
+} from "../schemas/AuthSchema.js";
+import {
+  MissionSchema,
+  CreateMissionBodySchema,
+  UpdateMissionBodySchema,
+} from "../schemas/MissionSchema.js";
+import {
+  ClassSchema,
+  CreateClassBodySchema,
+  UpdateClassBodySchema,
+} from "../schemas/ClassSchema.js";
 
 const registry = new OpenAPIRegistry();
 
 registry.register("User", UserSchema);
 registry.register("Mission", MissionSchema);
+registry.register("Class", ClassSchema);
 registry.register("CreateMissionBody", CreateMissionBodySchema);
 registry.register("UpdateMissionBody", UpdateMissionBodySchema);
+registry.register("CreateClassBody", CreateClassBodySchema);
+registry.register("UpdateClassBody", UpdateClassBodySchema);
 registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
 registry.register("RevokeParams", RevokeParamsSchema);
@@ -87,6 +116,15 @@ const error404User = errorResponse(
   "Recurso não encontrado em User.",
 );
 
+const classIdParam = z.object({
+  id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+});
+
+const error404Class = errorResponse(
+  "Turma não encontrada",
+  "Recurso não encontrado em Class.",
+);
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 registry.registerPath({
@@ -111,7 +149,9 @@ registry.registerPath({
   summary: "Cadastrar aluno (teacher/admin) — envia e-mail de boas-vindas",
   security: [{ bearerAuth: [] }],
   request: {
-    body: { content: { "application/json": { schema: RegisterStudentBodySchema } } },
+    body: {
+      content: { "application/json": { schema: RegisterStudentBodySchema } },
+    },
   },
   responses: {
     201: commonResponse(UserSchema, "Aluno cadastrado e e-mail enviado"),
@@ -121,7 +161,10 @@ registry.registerPath({
       [{ path: "email", message: "Este e-mail já está cadastrado." }],
     ),
     401: error401Token,
-    403: errorResponse("Sem permissão", "Apenas professores e administradores podem cadastrar alunos."),
+    403: errorResponse(
+      "Sem permissão",
+      "Apenas professores e administradores podem cadastrar alunos.",
+    ),
   },
 });
 
@@ -148,7 +191,9 @@ registry.registerPath({
   tags: ["Auth"],
   summary: "Solicitar redefinição de senha",
   request: {
-    body: { content: { "application/json": { schema: ForgotPasswordBodySchema } } },
+    body: {
+      content: { "application/json": { schema: ForgotPasswordBodySchema } },
+    },
   },
   responses: {
     200: commonResponse(z.null(), "Instruções enviadas por e-mail"),
@@ -162,14 +207,21 @@ registry.registerPath({
   tags: ["Auth"],
   summary: "Redefinir senha com código de recuperação",
   request: {
-    body: { content: { "application/json": { schema: ResetPasswordBodySchema } } },
+    body: {
+      content: { "application/json": { schema: ResetPasswordBodySchema } },
+    },
   },
   responses: {
     200: commonResponse(z.null(), "Senha redefinida com sucesso"),
     400: errorResponse(
       "Código inválido ou expirado",
       "Código de recuperação inválido ou expirado.",
-      [{ path: "code", message: "Código de recuperação inválido ou expirado." }],
+      [
+        {
+          path: "code",
+          message: "Código de recuperação inválido ou expirado.",
+        },
+      ],
     ),
   },
 });
@@ -181,7 +233,9 @@ registry.registerPath({
   summary: "Alterar senha do usuário logado",
   security: [{ bearerAuth: [] }],
   request: {
-    body: { content: { "application/json": { schema: ChangePasswordBodySchema } } },
+    body: {
+      content: { "application/json": { schema: ChangePasswordBodySchema } },
+    },
   },
   responses: {
     200: commonResponse(z.null(), "Senha alterada com sucesso"),
@@ -322,6 +376,105 @@ registry.registerPath({
   },
 });
 
+// ─── Classes ────────────────────────────────────────────────────────────────
+
+registry.registerPath({
+  method: "get",
+  path: "/classes",
+  tags: ["Classes"],
+  summary: "Listar turmas",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      name: z.string().optional().openapi({ example: "Turma A" }),
+      active: z.string().optional().openapi({ example: "true" }),
+      teacher: z
+        .string()
+        .optional()
+        .openapi({ example: "507f1f77bcf86cd799439011" }),
+      page: z.string().optional().openapi({ example: "1" }),
+      limit: z.string().optional().openapi({ example: "10" }),
+    }),
+  },
+  responses: {
+    200: commonResponse(z.array(ClassSchema), "Lista de turmas"),
+    401: error401Token,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/classes/{id}",
+  tags: ["Classes"],
+  summary: "Buscar turma por ID",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: classIdParam,
+  },
+  responses: {
+    200: commonResponse(ClassSchema, "Turma encontrada"),
+    401: error401Token,
+    404: error404Class,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/classes",
+  tags: ["Classes"],
+  summary: "Criar turma",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: { "application/json": { schema: CreateClassBodySchema } },
+    },
+  },
+  responses: {
+    201: commonResponse(ClassSchema, "Turma criada"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/classes/{id}",
+  tags: ["Classes"],
+  summary: "Atualizar turma",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: classIdParam,
+    body: {
+      content: { "application/json": { schema: UpdateClassBodySchema } },
+    },
+  },
+  responses: {
+    200: commonResponse(ClassSchema, "Turma atualizada"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+    404: error404Class,
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/classes/{id}",
+  tags: ["Classes"],
+  summary: "Deletar turma",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: classIdParam,
+  },
+  responses: {
+    200: commonResponse(ClassSchema, "Turma deletada"),
+    401: error401Token,
+    403: error403,
+    404: error404Class,
+  },
+});
+
 // ─── Missions ────────────────────────────────────────────────────────────────
 
 const missionIdParam = z.object({
@@ -343,7 +496,10 @@ registry.registerPath({
     query: z.object({
       title: z.string().optional().openapi({ example: "Explorador" }),
       type: z.enum(["quiz", "vocabulary", "audio"]).optional(),
-      class_id: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+      class_id: z
+        .string()
+        .optional()
+        .openapi({ example: "507f1f77bcf86cd799439011" }),
       active: z.string().optional().openapi({ example: "true" }),
       page: z.string().optional().openapi({ example: "1" }),
       limit: z.string().optional().openapi({ example: "10" }),
@@ -378,7 +534,9 @@ registry.registerPath({
   summary: "Criar missão",
   security: [{ bearerAuth: [] }],
   request: {
-    body: { content: { "application/json": { schema: CreateMissionBodySchema } } },
+    body: {
+      content: { "application/json": { schema: CreateMissionBodySchema } },
+    },
   },
   responses: {
     201: commonResponse(MissionSchema, "Missão criada"),
@@ -396,7 +554,9 @@ registry.registerPath({
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
-    body: { content: { "application/json": { schema: UpdateMissionBodySchema } } },
+    body: {
+      content: { "application/json": { schema: UpdateMissionBodySchema } },
+    },
   },
   responses: {
     200: commonResponse(MissionSchema, "Missão atualizada"),
