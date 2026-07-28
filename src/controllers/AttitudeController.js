@@ -18,6 +18,23 @@ class AttitudeController {
     return CommonResponse.created(res, data);
   }
 
+  async delete(req, res) {
+    const { id } = req.params;
+
+    if (!id) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "id",
+        details: [],
+        customMessage: "Attitude ID is required.",
+      });
+    }
+
+    await this.service.delete(id);
+    return CommonResponse.success(res, null, 200, "Attitude deleted successfully.");
+  }
+
   async update(req, res) {
     const { id } = req.params;
 

@@ -10,6 +10,7 @@ router
   .get("/attitudes", authMiddleware, asyncWrapper(attitudeController.list.bind(attitudeController)))
   .get("/attitudes/:id", authMiddleware, asyncWrapper(attitudeController.list.bind(attitudeController)))
   .post("/attitudes", authMiddleware, asyncWrapper(attitudeController.create.bind(attitudeController)))
-  .patch("/attitudes/:id", authMiddleware, asyncWrapper(attitudeController.update.bind(attitudeController)));
+  .patch("/attitudes/:id", authMiddleware, asyncWrapper(attitudeController.update.bind(attitudeController)))
+  .delete("/attitudes/:id", authMiddleware, asyncWrapper(attitudeController.delete.bind(attitudeController)));
 
 export default router;

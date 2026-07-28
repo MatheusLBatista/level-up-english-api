@@ -56,6 +56,10 @@ class AttitudeRepository {
     return await attitude.save();
   }
 
+  async delete(id) {
+    return await this.attitudeModel.findByIdAndDelete(id);
+  }
+
   async update(id, data) {
     const attitude = await this.attitudeModel.findByIdAndUpdate(id, data, { new: true });
 

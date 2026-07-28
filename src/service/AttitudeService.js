@@ -22,6 +22,11 @@ class AttitudeService {
     });
   }
 
+  async delete(id) {
+    await this.ensureAttitudeExists(id);
+    return await this.repository.delete(id);
+  }
+
   async update(id, parsedData) {
     await this.ensureAttitudeExists(id);
 
