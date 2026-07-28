@@ -8,6 +8,8 @@ import dotenv from "dotenv";
 import userRoutes from "./userRoutes.js";
 import authRoutes from "./authRoutes.js";
 import missionRoutes from "./missionRoutes.js";
+import classRoutes from "./classRoutes.js";
+import attitudeRoutes from "./attitudeRoutes.js";
 
 dotenv.config();
 
@@ -24,6 +26,8 @@ const routes = (app) => {
   app.use(express.json(), authRoutes);
   app.use(express.json(), userRoutes);
   app.use(express.json(), missionRoutes);
+  app.use(express.json(), classRoutes);
+  app.use(express.json(), attitudeRoutes);
 };
 
 export default routes;

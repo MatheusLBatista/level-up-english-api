@@ -33,7 +33,7 @@ class AuthController {
   async forgotPassword(req, res) {
     const { email } = ForgotPasswordBodySchema.parse(req.body);
     await this.service.forgotPassword(email);
-    
+
     return CommonResponse.success(res, null, 200, "As instruções foram enviadas por e-mail.");
   }
 
