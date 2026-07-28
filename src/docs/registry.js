@@ -29,10 +29,18 @@ import {
   CreateClassBodySchema,
   UpdateClassBodySchema,
 } from "../schemas/ClassSchema.js";
+import {
+  AttitudeSchema,
+  CreateAttitudeBodySchema,
+  UpdateAttitudeBodySchema,
+} from "../schemas/AttitudeSchema.js";
 
 const registry = new OpenAPIRegistry();
 
 registry.register("User", UserSchema);
+registry.register("Attitude", AttitudeSchema);
+registry.register("CreateAttitudeBody", CreateAttitudeBodySchema);
+registry.register("UpdateAttitudeBody", UpdateAttitudeBodySchema);
 registry.register("Mission", MissionSchema);
 registry.register("Class", ClassSchema);
 registry.register("CreateMissionBody", CreateMissionBodySchema);
@@ -369,7 +377,7 @@ registry.registerPath({
     }),
   },
   responses: {
-    200: commonResponse(UserSchema, "Usuário deletado"),
+    200: commonResponse(z.null(), "Usuário deletado"),
     401: error401Token,
     403: error403,
     404: error404User,
@@ -468,7 +476,7 @@ registry.registerPath({
     params: classIdParam,
   },
   responses: {
-    200: commonResponse(ClassSchema, "Turma deletada"),
+    200: commonResponse(z.null(), "Turma deletada"),
     401: error401Token,
     403: error403,
     404: error404Class,
@@ -577,10 +585,115 @@ registry.registerPath({
     params: missionIdParam,
   },
   responses: {
-    200: commonResponse(MissionSchema, "Missão deletada"),
+    200: commonResponse(z.null(), "Missão deletada"),
     401: error401Token,
     403: error403,
     404: error404Mission,
+  },
+});
+
+// ─── Attitudes ───────────────────────────────────────────────────────────────
+
+const attitudeIdParam = z.object({
+  id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+});
+
+const error404Attitude = errorResponse(
+  "Atitude não encontrada",
+  "Recurso não encontrado em Attitude.",
+);
+
+registry.registerPath({
+  method: "get",
+  path: "/attitudes",
+  tags: ["Attitudes"],
+  summary: "Listar atitudes",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      name: z.string().optional().openapi({ example: "Participação" }),
+      type: z.enum(["positive", "negative"]).optional(),
+      active: z.string().optional().openapi({ example: "true" }),
+      page: z.string().optional().openapi({ example: "1" }),
+      limit: z.string().optional().openapi({ example: "10" }),
+    }),
+  },
+  responses: {
+    200: commonResponse(z.array(AttitudeSchema), "Lista de atitudes"),
+    401: error401Token,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/attitudes/{id}",
+  tags: ["Attitudes"],
+  summary: "Buscar atitude por ID",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: attitudeIdParam,
+  },
+  responses: {
+    200: commonResponse(AttitudeSchema, "Atitude encontrada"),
+    401: error401Token,
+    404: error404Attitude,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/attitudes",
+  tags: ["Attitudes"],
+  summary: "Criar atitude",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: { "application/json": { schema: CreateAttitudeBodySchema } },
+    },
+  },
+  responses: {
+    201: commonResponse(AttitudeSchema, "Atitude criada"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/attitudes/{id}",
+  tags: ["Attitudes"],
+  summary: "Atualizar atitude",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: attitudeIdParam,
+    body: {
+      content: { "application/json": { schema: UpdateAttitudeBodySchema } },
+    },
+  },
+  responses: {
+    200: commonResponse(AttitudeSchema, "Atitude atualizada"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+    404: error404Attitude,
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/attitudes/{id}",
+  tags: ["Attitudes"],
+  summary: "Deletar atitude",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: attitudeIdParam,
+  },
+  responses: {
+    200: commonResponse(z.null(), "Atitude deletada"),
+    401: error401Token,
+    403: error403,
+    404: error404Attitude,
   },
 });
 

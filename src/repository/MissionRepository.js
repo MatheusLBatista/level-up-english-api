@@ -1,5 +1,6 @@
 import Mission from "../models/Mission.js";
 import { CustomError, messages } from "../utils/helpers/index.js";
+import MissionFilterBuild from "./filters/MissionFilterBuild.js";
 
 class MissionRepository {
   constructor({ missionModel = Mission } = {}) {
@@ -32,13 +33,12 @@ class MissionRepository {
     const { title, type, class_id, active, page = 1 } = req.query || {};
     const limit = Math.min(parseInt(req.query?.limit, 10) || 10, 100);
 
-    const filters = {};
-    if (title) filters.title = { $regex: title, $options: "i" };
-    if (type) filters.type = type;
-    if (class_id) filters.class_id = class_id;
-    if (active !== undefined) {
-      filters.active = active === "true" || active === "1" || active === true;
-    }
+    const filters = new MissionFilterBuild()
+      .withTitle(title)
+      .withType(type)
+      .withClassId(class_id)
+      .withActive(active)
+      .build();
 
     const options = {
       page: parseInt(page, 10),

@@ -1,10 +1,10 @@
-import MissionService from "../service/MissionService.js";
+import AttitudeService from "../service/AttitudeService.js";
 import { CommonResponse, CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
-import { CreateMissionBodySchema, UpdateMissionBodySchema } from "../schemas/MissionSchema.js";
+import { CreateAttitudeBodySchema, UpdateAttitudeBodySchema } from "../schemas/AttitudeSchema.js";
 
-class MissionController {
+class AttitudeController {
   constructor() {
-    this.service = new MissionService();
+    this.service = new AttitudeService();
   }
 
   async list(req, res) {
@@ -13,27 +13,9 @@ class MissionController {
   }
 
   async create(req, res) {
-    const body = CreateMissionBodySchema.parse(req.body);
+    const body = CreateAttitudeBodySchema.parse(req.body);
     const data = await this.service.create(body, req);
     return CommonResponse.created(res, data);
-  }
-
-  async update(req, res) {
-    const { id } = req.params;
-
-    if (!id) {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.BAD_REQUEST.code,
-        errorType: "validationError",
-        field: "id",
-        details: [],
-        customMessage: "ID da missão é obrigatório para atualizar.",
-      });
-    }
-
-    const body = UpdateMissionBodySchema.parse(req.body);
-    const data = await this.service.update(id, body, req);
-    return CommonResponse.success(res, data, 200, "Missão atualizada com sucesso.");
   }
 
   async delete(req, res) {
@@ -45,13 +27,31 @@ class MissionController {
         errorType: "validationError",
         field: "id",
         details: [],
-        customMessage: "ID da missão é obrigatório para excluir.",
+        customMessage: "Attitude ID is required.",
       });
     }
 
-    await this.service.delete(id, req);
-    return CommonResponse.success(res, null, 200, "Missão excluída com sucesso.");
+    await this.service.delete(id);
+    return CommonResponse.success(res, null, 200, "Attitude deleted successfully.");
+  }
+
+  async update(req, res) {
+    const { id } = req.params;
+
+    if (!id) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "id",
+        details: [],
+        customMessage: "Attitude ID is required.",
+      });
+    }
+
+    const body = UpdateAttitudeBodySchema.parse(req.body);
+    const data = await this.service.update(id, body);
+    return CommonResponse.success(res, data, 200, "Attitude updated successfully.");
   }
 }
 
-export default MissionController;
+export default AttitudeController;

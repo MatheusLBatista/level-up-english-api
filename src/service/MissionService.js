@@ -47,14 +47,14 @@ class MissionService {
 
   async create(parsedData, req) {
     await this.ensureClassExists(parsedData.class_id);
-    
+
     await this.validateTitle(parsedData.title);
 
     const mission = await this.repository.create({
       ...parsedData,
       createdBy: req.user_id,
     });
-    
+
     await Class.findByIdAndUpdate(parsedData.class_id, {
       $addToSet: { missions: mission._id },
     });
