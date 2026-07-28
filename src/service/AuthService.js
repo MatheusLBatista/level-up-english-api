@@ -92,16 +92,16 @@ class AuthService {
         customMessage: "Este e-mail já está cadastrado.",
       });
     }
-    
+
     const userData = { name, email, role: "student" };
     if (classId) userData.class = classId;
     const student = await this.userRepository.create(userData);
-    
+
     const code = crypto.randomBytes(32).toString("hex");
     const expiresInHours = 24;
     const expiry = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
     await this.userRepository.setRecoveryCode(student._id, code, expiry);
-    
+
     const setupLink = `${process.env.FRONTEND_URL}/set-password?code=${code}`;
     const template = welcomeStudentTemplate({ name, setupLink, expiresInHours });
     await SendMail.enviaEmail({ to: email, ...template });
@@ -111,23 +111,23 @@ class AuthService {
     return studentObj;
   }
 
-  async forgotPassword(email) {    
+  async forgotPassword(email) {
     const user = await this.userRepository.findByEmail(email);
     if (!user) return;
-    
+
     const code = crypto.randomBytes(32).toString("hex");
     const expiresInMinutes = 30;
     const expiry = new Date(Date.now() + expiresInMinutes * 60 * 1000);
-    
+
     await this.userRepository.setRecoveryCode(user._id, code, expiry);
-    
+
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?code=${code}`;
-    
+
     const template = forgotPasswordTemplate({ name: user.name, code, resetLink, expiresInMinutes });
     await SendMail.enviaEmail({ to: user.email, ...template });
   }
 
-  async resetPassword(code, newPassword) {    
+  async resetPassword(code, newPassword) {
     const user = await this.userRepository.findByRecoveryCode(code);
 
     const codigoInvalido = new CustomError({
@@ -139,13 +139,13 @@ class AuthService {
     });
 
     if (!user) throw codigoInvalido;
-    
+
     if (!user.exp_password_recovery_code || user.exp_password_recovery_code < new Date()) {
       throw codigoInvalido;
     }
-    
+
     const { hash } = await AuthHelper.hashPassword(newPassword);
-    
+
     await this.userRepository.update(user._id, { password: hash });
     await this.userRepository.clearRecoveryCode(user._id);
   }

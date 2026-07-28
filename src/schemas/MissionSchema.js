@@ -26,9 +26,9 @@ const MissionBaseSchema = z.object({
   class_id: z.string().min(1, "A turma alvo é obrigatória.").openapi({ example: "507f1f77bcf86cd799439011" }),
 });
 
-export const CreateMissionBodySchema = MissionBaseSchema.extend({  
-  questions: z.array(QuestionSchema).optional(),  
-  content: z.string().optional().openapi({ example: "The cat sat on the mat..." }),  
+export const CreateMissionBodySchema = MissionBaseSchema.extend({
+  questions: z.array(QuestionSchema).optional(),
+  content: z.string().optional().openapi({ example: "The cat sat on the mat..." }),
   content_url: z.string().url("URL inválida.").optional().openapi({ example: "https://www.youtube.com/embed/abc123" }),
 })
   .superRefine((data, ctx) => {
@@ -89,9 +89,9 @@ export const UpdateMissionBodySchema = z
     xp_reward: z.number().int().min(0).optional().openapi({ example: 150 }),
     class_id: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
     active: z.boolean().optional().openapi({ example: true }),
-    
-    questions: z.array(QuestionSchema).optional(),    
-    content: z.string().optional(),    
+
+    questions: z.array(QuestionSchema).optional(),
+    content: z.string().optional(),
     content_url: z.string().url("URL inválida.").optional(),
   })
   .openapi("UpdateMissionBody");
