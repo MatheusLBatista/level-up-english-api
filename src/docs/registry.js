@@ -34,6 +34,11 @@ import {
   CreateAttitudeBodySchema,
   UpdateAttitudeBodySchema,
 } from "../schemas/AttitudeSchema.js";
+import {
+  AttitudeLogSchema,
+  CreateAttitudeLogBodySchema,
+  UpdateAttitudeLogBodySchema,
+} from "../schemas/AttitudeLogSchema.js";
 
 const registry = new OpenAPIRegistry();
 
@@ -41,6 +46,9 @@ registry.register("User", UserSchema);
 registry.register("Attitude", AttitudeSchema);
 registry.register("CreateAttitudeBody", CreateAttitudeBodySchema);
 registry.register("UpdateAttitudeBody", UpdateAttitudeBodySchema);
+registry.register("AttitudeLog", AttitudeLogSchema);
+registry.register("CreateAttitudeLogBody", CreateAttitudeLogBodySchema);
+registry.register("UpdateAttitudeLogBody", UpdateAttitudeLogBodySchema);
 registry.register("Mission", MissionSchema);
 registry.register("Class", ClassSchema);
 registry.register("CreateMissionBody", CreateMissionBodySchema);
@@ -694,6 +702,112 @@ registry.registerPath({
     401: error401Token,
     403: error403,
     404: error404Attitude,
+  },
+});
+
+// ─── AttitudeLogs ────────────────────────────────────────────────────────────
+
+const attitudeLogIdParam = z.object({
+  id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+});
+
+const error404AttitudeLog = errorResponse(
+  "Log não encontrado",
+  "Recurso não encontrado em AttitudeLog.",
+);
+
+registry.registerPath({
+  method: "get",
+  path: "/attitude-logs",
+  tags: ["AttitudeLogs"],
+  summary: "Listar logs de atitudes",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      student: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+      teacher: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+      attitude: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+      page: z.string().optional().openapi({ example: "1" }),
+      limit: z.string().optional().openapi({ example: "10" }),
+    }),
+  },
+  responses: {
+    200: commonResponse(z.array(AttitudeLogSchema), "Lista de logs de atitudes"),
+    401: error401Token,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/attitude-logs/{id}",
+  tags: ["AttitudeLogs"],
+  summary: "Buscar log de atitude por ID",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: attitudeLogIdParam,
+  },
+  responses: {
+    200: commonResponse(AttitudeLogSchema, "Log encontrado"),
+    401: error401Token,
+    404: error404AttitudeLog,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/attitude-logs",
+  tags: ["AttitudeLogs"],
+  summary: "Aplicar atitude a um aluno",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: { "application/json": { schema: CreateAttitudeLogBodySchema } },
+    },
+  },
+  responses: {
+    201: commonResponse(AttitudeLogSchema, "Log criado e XP aplicado ao aluno"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+    404: errorResponse("Aluno ou atitude não encontrados", "Recurso não encontrado."),
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/attitude-logs/{id}",
+  tags: ["AttitudeLogs"],
+  summary: "Corrigir atitude aplicada",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: attitudeLogIdParam,
+    body: {
+      content: { "application/json": { schema: UpdateAttitudeLogBodySchema } },
+    },
+  },
+  responses: {
+    200: commonResponse(AttitudeLogSchema, "Log corrigido e XP do aluno ajustado"),
+    400: error400,
+    401: error401Token,
+    403: error403,
+    404: error404AttitudeLog,
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/attitude-logs/{id}",
+  tags: ["AttitudeLogs"],
+  summary: "Desfazer atitude aplicada",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: attitudeLogIdParam,
+  },
+  responses: {
+    200: commonResponse(z.null(), "Log deletado e XP do aluno revertido"),
+    401: error401Token,
+    403: error403,
+    404: error404AttitudeLog,
   },
 });
 
