@@ -11,6 +11,11 @@ router
   .get("/users", authMiddleware, asyncWrapper(userController.list.bind(userController)))
   .get("/users/:id", authMiddleware, asyncWrapper(userController.list.bind(userController)))
   .post("/users", authMiddleware, asyncWrapper(userController.create.bind(userController)))
+  .post(
+    "/users/recalculate-levels",
+    authMiddleware,
+    asyncWrapper(userController.recalculateLevels.bind(userController)),
+  )
   .patch("/users/:id", authMiddleware, asyncWrapper(userController.update.bind(userController)))
   .delete("/users/:id", authMiddleware, asyncWrapper(userController.delete.bind(userController)));
 

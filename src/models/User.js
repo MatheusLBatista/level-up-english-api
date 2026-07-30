@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { getProgress } from "../utils/LevelHelper.js";
 
 class User {
   constructor() {
@@ -42,8 +43,16 @@ class User {
       {
         timestamps: true,
         versionKey: false,
+        id: false,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
       },
     );
+
+    userSchema.virtual("progress").get(function() {
+      const { current_level_xp, next_level_xp, xp_to_next_level, percentage } = getProgress(this.xp);
+      return { current_level_xp, next_level_xp, xp_to_next_level, percentage };
+    });
 
     userSchema.plugin(mongoosePaginate);
 

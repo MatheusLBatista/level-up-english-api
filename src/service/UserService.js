@@ -4,6 +4,7 @@ import {
 } from "../utils/helpers/index.js";
 import AuthHelper from "../utils/AuthHelper.js";
 import UserRepository from "../repository/UserRepository.js";
+import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
 
 class UserService {
   constructor() {
@@ -103,6 +104,33 @@ class UserService {
     }
 
     return await this.repository.delete(id);
+  }
+
+  async recalculateLevels(req) {
+    const loggedUser = await this.repository.findById(req.user_id);
+
+    if (loggedUser.role !== "admin") {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "User",
+        details: [],
+        customMessage: "Only admins can recalculate levels.",
+      });
+    }
+
+    const updates = [];
+
+    for (let level = MIN_LEVEL; level <= MAX_LEVEL; level += 1) {
+      const minXp = level === MIN_LEVEL ? null : xpForLevel(level);
+      const maxXp = level === MAX_LEVEL ? null : xpForLevel(level + 1);
+
+      updates.push(this.repository.setLevelForXpRange(level, minXp, maxXp));
+    }
+
+    const results = await Promise.all(updates);
+
+    return { updated: results.reduce((total, count) => total + count, 0) };
   }
 
   async validateEmail(email, id = null) {
