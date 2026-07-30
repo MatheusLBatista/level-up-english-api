@@ -7,6 +7,7 @@ import {
   UserSchema,
   CreateUserBodySchema,
   UpdateUserBodySchema,
+  LevelProgressSchema,
 } from "../schemas/UserSchema.js";
 import {
   LoginBodySchema,
@@ -38,11 +39,16 @@ import {
   AttitudeLogSchema,
   CreateAttitudeLogBodySchema,
   UpdateAttitudeLogBodySchema,
+  AttitudeLogWithProgressionSchema,
+  LevelProgressionSchema,
 } from "../schemas/AttitudeLogSchema.js";
 
 const registry = new OpenAPIRegistry();
 
 registry.register("User", UserSchema);
+registry.register("LevelProgress", LevelProgressSchema);
+registry.register("LevelProgression", LevelProgressionSchema);
+registry.register("AttitudeLogWithProgression", AttitudeLogWithProgressionSchema);
 registry.register("Attitude", AttitudeSchema);
 registry.register("CreateAttitudeBody", CreateAttitudeBodySchema);
 registry.register("UpdateAttitudeBody", UpdateAttitudeBodySchema);
@@ -347,6 +353,22 @@ registry.registerPath({
   responses: {
     201: commonResponse(UserSchema, "Usuário criado"),
     400: error400,
+    401: error401Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/users/recalculate-levels",
+  tags: ["Users"],
+  summary: "Recalcular o nível de todos os usuários a partir do XP (admin)",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(
+      z.object({ updated: z.number().openapi({ example: 12 }) }),
+      "Níveis recalculados. updated é a quantidade de usuários que estavam desatualizados",
+    ),
     401: error401Token,
     403: error403,
   },
@@ -765,7 +787,10 @@ registry.registerPath({
     },
   },
   responses: {
-    201: commonResponse(AttitudeLogSchema, "Log criado e XP aplicado ao aluno"),
+    201: commonResponse(
+      AttitudeLogWithProgressionSchema,
+      "Log criado, XP aplicado e nível do aluno recalculado",
+    ),
     400: error400,
     401: error401Token,
     403: error403,
@@ -786,7 +811,10 @@ registry.registerPath({
     },
   },
   responses: {
-    200: commonResponse(AttitudeLogSchema, "Log corrigido e XP do aluno ajustado"),
+    200: commonResponse(
+      AttitudeLogWithProgressionSchema,
+      "Log corrigido, XP ajustado e nível do aluno recalculado. O campo progression só é retornado quando a atitude é trocada",
+    ),
     400: error400,
     401: error401Token,
     403: error403,
