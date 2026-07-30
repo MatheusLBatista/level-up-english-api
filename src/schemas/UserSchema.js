@@ -3,6 +3,15 @@ import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 
 extendZodWithOpenApi(z);
 
+export const LevelProgressSchema = z
+  .object({
+    current_level_xp: z.number().openapi({ example: 400 }),
+    next_level_xp: z.number().nullable().openapi({ example: 900 }),
+    xp_to_next_level: z.number().openapi({ example: 480 }),
+    percentage: z.number().openapi({ example: 4 }),
+  })
+  .openapi("LevelProgress");
+
 export const UserSchema = z
   .object({
     _id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
@@ -11,6 +20,7 @@ export const UserSchema = z
     role: z.enum(["student", "teacher", "admin"]).openapi({ example: "student" }),
     xp: z.number().openapi({ example: 0 }),
     level: z.number().openapi({ example: 1 }),
+    progress: LevelProgressSchema,
     streak: z.number().openapi({ example: 0 }),
     badges: z.array(z.string()).openapi({ example: [] }),
     active: z.boolean().openapi({ example: true }),

@@ -2,12 +2,34 @@ import AttitudeLogRepository from "../repository/AttitudeLogRepository.js";
 import AttitudeRepository from "../repository/AttitudeRepository.js";
 import UserRepository from "../repository/UserRepository.js";
 import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
+import { calculateLevel, getProgress } from "../utils/LevelHelper.js";
 
 class AttitudeLogService {
   constructor() {
     this.repository = new AttitudeLogRepository();
     this.attitudeRepository = new AttitudeRepository();
     this.userRepository = new UserRepository();
+  }
+
+  async applyXp(studentId, xpDelta) {
+    const student = await this.userRepository.update(studentId, {
+      $inc: { xp: xpDelta },
+    });
+
+    const previous_level = student.level;
+    const level = calculateLevel(student.xp);
+
+    const updated = level === previous_level
+      ? student
+      : await this.userRepository.update(studentId, { level });
+
+    return {
+      student: String(updated._id),
+      previous_level,
+      leveled_up: level > previous_level,
+      leveled_down: level < previous_level,
+      ...getProgress(updated.xp),
+    };
   }
 
   async list(req) {
@@ -53,11 +75,9 @@ class AttitudeLogService {
       xp_applied,
     });
 
-    await this.userRepository.update(parsedData.student, {
-      $inc: { xp: xp_applied },
-    });
+    const progression = await this.applyXp(parsedData.student, xp_applied);
 
-    return log;
+    return { ...log.toObject(), progression };
   }
 
   async delete(id) {
@@ -65,9 +85,10 @@ class AttitudeLogService {
 
     await this.repository.delete(id);
 
-    await this.userRepository.update(String(existingLog.student._id ?? existingLog.student), {
-      $inc: { xp: -existingLog.xp_applied },
-    });
+    await this.applyXp(
+      String(existingLog.student._id ?? existingLog.student),
+      -existingLog.xp_applied,
+    );
   }
 
   async update(id, parsedData) {
@@ -100,11 +121,12 @@ class AttitudeLogService {
       xp_applied: newXp,
     });
 
-    await this.userRepository.update(String(existingLog.student._id ?? existingLog.student), {
-      $inc: { xp: xpDiff },
-    });
+    const progression = await this.applyXp(
+      String(existingLog.student._id ?? existingLog.student),
+      xpDiff,
+    );
 
-    return log;
+    return { ...log.toObject(), progression };
   }
 }
 

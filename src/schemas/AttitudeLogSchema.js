@@ -16,6 +16,21 @@ export const UpdateAttitudeLogBodySchema = z
   })
   .openapi("UpdateAttitudeLogBody");
 
+export const LevelProgressionSchema = z
+  .object({
+    student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    previous_level: z.number().openapi({ example: 2 }),
+    leveled_up: z.boolean().openapi({ example: true }),
+    leveled_down: z.boolean().openapi({ example: false }),
+    xp: z.number().openapi({ example: 420 }),
+    level: z.number().openapi({ example: 3 }),
+    current_level_xp: z.number().openapi({ example: 400 }),
+    next_level_xp: z.number().nullable().openapi({ example: 900 }),
+    xp_to_next_level: z.number().openapi({ example: 480 }),
+    percentage: z.number().openapi({ example: 4 }),
+  })
+  .openapi("LevelProgression");
+
 export const AttitudeLogSchema = z
   .object({
     _id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
@@ -28,3 +43,7 @@ export const AttitudeLogSchema = z
     updatedAt: z.string().openapi({ example: "2024-01-01T00:00:00.000Z" }),
   })
   .openapi("AttitudeLog");
+
+export const AttitudeLogWithProgressionSchema = AttitudeLogSchema.extend({
+  progression: LevelProgressionSchema,
+}).openapi("AttitudeLogWithProgression");

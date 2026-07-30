@@ -154,6 +154,19 @@ class UserRepository {
     return await this.userModel.findByIdAndDelete(id);
   }
 
+  async setLevelForXpRange(level, minXp, maxXp) {
+    const xpFilter = {};
+    if (minXp !== null) xpFilter.$gte = minXp;
+    if (maxXp !== null) xpFilter.$lt = maxXp;
+
+    const filter = { level: { $ne: level } };
+    if (Object.keys(xpFilter).length) filter.xp = xpFilter;
+
+    const result = await this.userModel.updateMany(filter, { level });
+
+    return result.modifiedCount ?? 0;
+  }
+
   async setRecoveryCode(userId, code, expiry) {
     return await this.userModel.findByIdAndUpdate(
       userId,
