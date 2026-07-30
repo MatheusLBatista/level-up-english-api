@@ -2,7 +2,7 @@ import AttitudeLogRepository from "../repository/AttitudeLogRepository.js";
 import AttitudeRepository from "../repository/AttitudeRepository.js";
 import UserRepository from "../repository/UserRepository.js";
 import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
-import { calculateLevel } from "../utils/LevelHelper.js";
+import { calculateLevel, getProgress } from "../utils/LevelHelper.js";
 
 class AttitudeLogService {
   constructor() {
@@ -16,11 +16,20 @@ class AttitudeLogService {
       $inc: { xp: xpDelta },
     });
 
+    const previous_level = student.level;
     const level = calculateLevel(student.xp);
 
-    if (student.level === level) return student;
+    const updated = level === previous_level
+      ? student
+      : await this.userRepository.update(studentId, { level });
 
-    return await this.userRepository.update(studentId, { level });
+    return {
+      student: String(updated._id),
+      previous_level,
+      leveled_up: level > previous_level,
+      leveled_down: level < previous_level,
+      ...getProgress(updated.xp),
+    };
   }
 
   async list(req) {
@@ -66,9 +75,9 @@ class AttitudeLogService {
       xp_applied,
     });
 
-    await this.applyXp(parsedData.student, xp_applied);
+    const progression = await this.applyXp(parsedData.student, xp_applied);
 
-    return log;
+    return { ...log.toObject(), progression };
   }
 
   async delete(id) {
@@ -112,9 +121,12 @@ class AttitudeLogService {
       xp_applied: newXp,
     });
 
-    await this.applyXp(String(existingLog.student._id ?? existingLog.student), xpDiff);
+    const progression = await this.applyXp(
+      String(existingLog.student._id ?? existingLog.student),
+      xpDiff,
+    );
 
-    return log;
+    return { ...log.toObject(), progression };
   }
 }
 
