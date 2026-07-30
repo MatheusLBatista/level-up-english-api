@@ -57,6 +57,11 @@ class UserController {
     return CommonResponse.success(res, cleanUser, 200, "User updated successfully.");
   }
 
+  async recalculateLevels(req, res) {
+    const data = await this.service.recalculateLevels(req);
+    return CommonResponse.success(res, data, 200, "Levels recalculated successfully.");
+  }
+
   async delete(req, res) {
     const id = req?.params?.id;
     if (!id) {
