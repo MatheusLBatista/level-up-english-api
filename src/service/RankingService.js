@@ -66,6 +66,13 @@ class RankingService {
       });
     }
 
+    return await this.refreshFromUsers();
+  }
+
+  /**
+   * Recálculo puro, sem checagem de permissão — usado pelo seed e por rotinas internas.
+   */
+  async refreshFromUsers() {
     const global = await this.refreshGlobal();
 
     const classes = await this.repository.findActiveClasses();

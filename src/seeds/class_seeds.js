@@ -47,6 +47,17 @@ async function classSeeds() {
     `${Object.keys(result.insertedIds).length} classes inserted successfully!`,
   );
 
+  // Mantém user.class em sincronia com class.students — o seed de usuários gera
+  // um ObjectId aleatório, o que deixaria os alunos sem turma real.
+  const insertedIds = Object.values(result.insertedIds);
+
+  for (let i = 0; i < insertedIds.length; i++) {
+    await User.updateMany(
+      { _id: { $in: classes[i].students } },
+      { $set: { class: insertedIds[i] } },
+    );
+  }
+
   return Class.find();
 }
 
