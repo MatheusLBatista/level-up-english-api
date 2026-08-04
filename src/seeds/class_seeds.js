@@ -20,27 +20,26 @@ async function classSeeds() {
     );
   }
 
-  const pickMany = (array, quantity) => {
-    const shuffled = [...array].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(quantity, shuffled.length));
-  };
+  const TOTAL_CLASSES = 10;
 
+  // Cada aluno pertence a uma única turma (user.class é uma referência única),
+  // então os alunos são distribuídos entre as turmas em vez de sorteados por turma.
+  const shuffledStudents = [...students].sort(() => Math.random() - 0.5);
   const classes = [];
 
-  for (let i = 0; i < 10; i++) {
-    const teacherId = teachers[i % teachers.length]._id;
-    const selectedStudents = pickMany(students, 8).map(
-      (student) => student._id,
-    );
-
+  for (let i = 0; i < TOTAL_CLASSES; i++) {
     classes.push({
       name: `Class ${i + 1}`,
       active: true,
-      teacher: teacherId,
-      students: selectedStudents,
+      teacher: teachers[i % teachers.length]._id,
+      students: [],
       missions: [], // preenchido pelo seed de missions
     });
   }
+
+  shuffledStudents.forEach((student, index) => {
+    classes[index % TOTAL_CLASSES].students.push(student._id);
+  });
 
   const result = await Class.collection.insertMany(classes);
   console.log(

@@ -46,7 +46,6 @@ async function userSeeds() {
       role: "student",
       xp: globalFakeMapping.xp(),
       level: globalFakeMapping.level(),
-      class: globalFakeMapping.class(),
       mission_progress: globalFakeMapping.mission_progress(),
       streak: globalFakeMapping.streak(),
       badges: globalFakeMapping.badges(),
