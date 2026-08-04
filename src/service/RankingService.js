@@ -53,7 +53,19 @@ class RankingService {
   /**
    * Recalcula o ranking global e o de cada turma ativa a partir do XP atual dos alunos.
    */
-  async refreshAll() {
+  async refreshAll(req) {
+    const loggedUser = await this.userRepository.findById(req.user_id);
+
+    if (loggedUser.role !== "admin") {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "Ranking",
+        details: [],
+        customMessage: "Apenas administradores podem recalcular os rankings.",
+      });
+    }
+
     const global = await this.refreshGlobal();
 
     const classes = await this.repository.findActiveClasses();
