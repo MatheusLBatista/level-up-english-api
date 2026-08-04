@@ -42,6 +42,12 @@ import {
   AttitudeLogWithProgressionSchema,
   LevelProgressionSchema,
 } from "../schemas/AttitudeLogSchema.js";
+import {
+  RankingSchema,
+  RankingEntrySchema,
+  RefreshRankingResponseSchema,
+  RankingClassIdParamSchema,
+} from "../schemas/RankingSchema.js";
 
 const registry = new OpenAPIRegistry();
 
@@ -72,6 +78,9 @@ registry.register("RefreshBody", RefreshBodySchema);
 registry.register("RefreshResponse", RefreshResponseSchema);
 registry.register("CreateUserBody", CreateUserBodySchema);
 registry.register("UpdateUserBody", UpdateUserBodySchema);
+registry.register("Ranking", RankingSchema);
+registry.register("RankingEntry", RankingEntrySchema);
+registry.register("RefreshRankingResponse", RefreshRankingResponseSchema);
 
 registry.registerComponent("securitySchemes", "bearerAuth", {
   type: "http",
@@ -836,6 +845,82 @@ registry.registerPath({
     401: error401Token,
     403: error403,
     404: error404AttitudeLog,
+  },
+});
+
+// ─── Rankings ────────────────────────────────────────────────────────────────
+
+const error404Ranking = errorResponse(
+  "Ranking não encontrado",
+  "Recurso não encontrado em Ranking.",
+);
+
+registry.registerPath({
+  method: "get",
+  path: "/rankings/global",
+  tags: ["Rankings"],
+  summary: "Ranking global (top 30 alunos por XP)",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(RankingSchema, "Ranking global encontrado"),
+    401: error401Token,
+    404: error404Ranking,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/rankings/me",
+  tags: ["Rankings"],
+  summary: "Ranking da turma do usuário logado",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(RankingSchema, "Ranking da turma encontrado"),
+    401: error401Token,
+    404: errorResponse(
+      "Usuário sem turma ou ranking inexistente",
+      "Você não está matriculado em nenhuma turma.",
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/rankings/class/{classId}",
+  tags: ["Rankings"],
+  summary: "Ranking de uma turma específica",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: RankingClassIdParamSchema,
+  },
+  responses: {
+    200: commonResponse(RankingSchema, "Ranking da turma encontrado"),
+    400: error400,
+    401: error401Token,
+    403: errorResponse(
+      "Sem permissão",
+      "Você só pode ver o ranking da sua própria turma.",
+    ),
+    404: error404Ranking,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/rankings/refresh",
+  tags: ["Rankings"],
+  summary: "Recalcular o ranking global e o de todas as turmas ativas (admin)",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(
+      RefreshRankingResponseSchema,
+      "Rankings recalculados a partir do XP atual dos alunos",
+    ),
+    401: error401Token,
+    403: errorResponse(
+      "Sem permissão",
+      "Apenas administradores podem recalcular os rankings.",
+    ),
   },
 });
 
