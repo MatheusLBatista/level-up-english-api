@@ -38,7 +38,7 @@ async function userSeeds() {
   }
 
   //students
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 40; i++) {
     users.push({
       name: `Student ${i + 1}`,
       email: `student${i + 1}@example.com`,
