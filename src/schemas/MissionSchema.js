@@ -82,6 +82,69 @@ export const MissionSchema = z
   })
   .openapi("Mission");
 
+export const SubmitMissionProgressBodySchema = z
+  .object({
+    score: z
+      .number()
+      .int("O score deve ser um número inteiro.")
+      .min(0, "O score mínimo é 0.")
+      .max(100, "O score máximo é 100.")
+      .optional()
+      .openapi({
+        example: 80,
+        description: "Obrigatório para missões de vocabulário e áudio. Ignorado em quiz, onde o score é calculado pelo servidor.",
+      }),
+    answers: z
+      .array(z.enum(["a", "b", "c", "d"]))
+      .optional()
+      .openapi({
+        example: ["a", "c", "b", "d", "a"],
+        description: "Obrigatório em missões do tipo quiz: uma resposta por questão, na ordem em que foram cadastradas.",
+      }),
+    done: z.boolean().default(true).openapi({ example: true }),
+  })
+  .openapi("SubmitMissionProgressBody");
+
+export const MissionProgressSchema = z
+  .object({
+    mission: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    done: z.boolean().openapi({ example: true }),
+    score: z.number().openapi({ example: 80 }),
+    correct_answers: z
+      .number()
+      .nullable()
+      .openapi({ example: 4, description: "Acertos no quiz; null nos demais tipos." }),
+    total_questions: z
+      .number()
+      .nullable()
+      .openapi({ example: 5, description: "Total de questões do quiz; null nos demais tipos." }),
+    xp_earned: z
+      .number()
+      .openapi({ example: 80, description: "XP creditado nesta submissão." }),
+    credited_so_far: z
+      .number()
+      .openapi({ example: 80, description: "Total de XP já creditado por esta missão." }),
+    already_rewarded: z
+      .boolean()
+      .openapi({ example: false, description: "true se a missão já havia rendido XP antes." }),
+    progression: z
+      .object({
+        student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+        previous_level: z.number().openapi({ example: 3 }),
+        leveled_up: z.boolean().openapi({ example: true }),
+        leveled_down: z.boolean().openapi({ example: false }),
+        xp: z.number().openapi({ example: 480 }),
+        level: z.number().openapi({ example: 3 }),
+        current_level_xp: z.number().openapi({ example: 400 }),
+        next_level_xp: z.number().nullable().openapi({ example: 900 }),
+        xp_to_next_level: z.number().openapi({ example: 420 }),
+        percentage: z.number().openapi({ example: 16 }),
+      })
+      .nullable(),
+  })
+  .openapi("MissionProgress");
+
 export const UpdateMissionBodySchema = z
   .object({
     title: z.string().min(1).optional().openapi({ example: "Explorador de Palavras" }),

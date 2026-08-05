@@ -24,10 +24,15 @@ const fakeMappings = {
       const missions = [];
       const numMissions = faker.number.int({ min: 1, max: 5 });
       for (let i = 0; i < numMissions; i++) {
+        const done = faker.datatype.boolean();
+        const score = faker.number.int({ min: 0, max: 100 });
+
         missions.push({
           mission_id: new mongoose.Types.ObjectId().toString(),
-          done: faker.datatype.boolean(),
-          score: faker.number.int({ min: 0, max: 100 }),
+          done,
+          score,
+          xp_earned: done ? score : 0,
+          completed_at: done ? faker.date.recent({ days: 30 }) : null,
         });
       }
       return missions;
@@ -38,8 +43,6 @@ const fakeMappings = {
         ["beginner", "intermediate", "advanced", "veteran"],
         { min: 0, max: 4 },
       ),
-    // Os usuários são semeados antes das turmas existirem, então o vínculo real
-    // é feito pelo class_seeds, que grava user.class junto com class.students.
     class: () => null,
 
     uniqueToken: () => "",
@@ -57,8 +60,21 @@ const fakeMappings = {
       return types[Math.floor(Math.random() * types.length)];
     },
     content_url: () => faker.internet.url(),
-    content: () => null,
-    questions: () => undefined,
+    content: () => faker.lorem.paragraphs({ min: 1, max: 3 }),
+    questions: () => {
+      const letters = ["a", "b", "c", "d"];
+
+      return [...Array(faker.number.int({ min: 5, max: 8 }))].map(() => ({
+        question: faker.lorem.sentence({ min: 4, max: 8 }) + "?",
+        options: {
+          a: faker.lorem.word(),
+          b: faker.lorem.word(),
+          c: faker.lorem.word(),
+          d: faker.lorem.word(),
+        },
+        correct_answer: faker.helpers.arrayElement(letters),
+      }));
+    },
     xp_reward: () => faker.number.int({ min: 10, max: 500 }),
     class_id: () => new mongoose.Types.ObjectId().toString(),
     createdBy: () => new mongoose.Types.ObjectId().toString(),

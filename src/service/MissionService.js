@@ -1,12 +1,14 @@
 import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
 import MissionRepository from "../repository/MissionRepository.js";
 import UserRepository from "../repository/UserRepository.js";
+import ProgressionService from "./ProgressionService.js";
 import Class from "../models/Class.js";
 
 class MissionService {
   constructor() {
     this.repository = new MissionRepository();
     this.userRepository = new UserRepository();
+    this.progressionService = new ProgressionService();
   }
 
   async list(req) {
@@ -15,14 +17,19 @@ class MissionService {
 
     const loggedUser = await this.userRepository.findById(req.user_id);
 
+    // No Express 5 req.query é somente-leitura, então o filtro do aluno é
+    // repassado num objeto próprio em vez de sobrescrever o da requisição.
+    let query = req.query;
+
     if (loggedUser.role === "student") {
       if (!loggedUser.class) {
         return { docs: [], totalDocs: 0, page: 1, totalPages: 0 };
       }
-      req.query = { ...req.query, class_id: String(loggedUser.class) };
+      // class_id vai por último: o aluno não consegue forçar outra turma via querystring.
+      query = { ...req.query, class_id: String(loggedUser.class) };
     }
 
-    return await this.repository.list(req);
+    return await this.repository.list({ query });
   }
 
   async findById(id, req) {
@@ -120,6 +127,125 @@ class MissionService {
     });
 
     return await this.repository.delete(id);
+  }
+
+  async submitProgress(missionId, parsedData, req) {
+    const loggedUser = await this.userRepository.findById(req.user_id);
+
+    if (loggedUser.role !== "student") {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "Mission",
+        details: [],
+        customMessage: "Apenas alunos podem registrar progresso em missões.",
+      });
+    }
+
+    // Reaproveita a checagem de turma já existente em findById.
+    const mission = await this.findById(missionId, req);
+
+    if (!mission.active) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "mission",
+        details: [],
+        customMessage: "Esta missão está inativa.",
+      });
+    }
+
+    const previous = await this.userRepository.findMissionProgress(loggedUser._id, missionId);
+    const credited_so_far = previous?.xp_earned ?? 0;
+
+    const { done } = parsedData;
+    const { score, correct_answers, total_questions } = this.resolveScore(mission, parsedData);
+
+    const entitled = done
+      ? Math.round((mission.xp_reward ?? 0) * (score / 100))
+      : 0;
+
+    const xp_earned = Math.max(entitled - credited_so_far, 0);
+
+    const progressData = { done, score };
+
+    if (xp_earned > 0) {
+      progressData.xp_earned = credited_so_far + xp_earned;
+      progressData.completed_at = previous?.completed_at ?? new Date();
+    }
+
+    await this.userRepository.upsertMissionProgress(loggedUser._id, missionId, progressData);
+
+    const progression = xp_earned > 0
+      ? await this.progressionService.applyXp(String(loggedUser._id), xp_earned)
+      : null;
+
+    return {
+      mission: String(mission._id),
+      student: String(loggedUser._id),
+      done,
+      score,
+      correct_answers,
+      total_questions,
+      xp_earned,
+      credited_so_far: credited_so_far + xp_earned,
+      already_rewarded: credited_so_far > 0,
+      progression,
+    };
+  }
+
+  /**
+   * Em missões de quiz o score é apurado aqui, comparando as respostas do aluno
+   * com o gabarito — o valor enviado no corpo é ignorado. Vocabulário e áudio não
+   * têm gabarito no model, então seguem dependendo do score informado.
+   */
+  resolveScore(mission, { score, answers }) {
+    if (mission.type !== "quiz") {
+      if (score === undefined) {
+        throw new CustomError({
+          statusCode: HttpStatusCodes.BAD_REQUEST.code,
+          errorType: "validationError",
+          field: "score",
+          details: [],
+          customMessage: "O score é obrigatório para missões que não são do tipo quiz.",
+        });
+      }
+
+      return { score, correct_answers: null, total_questions: null };
+    }
+
+    const questions = mission.questions ?? [];
+
+    if (questions.length === 0) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "mission",
+        details: [],
+        customMessage: "Esta missão de quiz não possui questões cadastradas.",
+      });
+    }
+
+    if (!answers || answers.length !== questions.length) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "answers",
+        details: [],
+        customMessage: `Envie exatamente ${questions.length} respostas, na ordem das questões.`,
+      });
+    }
+
+    const correct_answers = questions.reduce(
+      (total, question, index) => total + (question.correct_answer === answers[index] ? 1 : 0),
+      0,
+    );
+
+    return {
+      score: Math.round((correct_answers / questions.length) * 100),
+      correct_answers,
+      total_questions: questions.length,
+    };
   }
 
   async validateTitle(title, excludeId = null) {

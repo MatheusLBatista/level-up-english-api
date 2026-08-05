@@ -154,6 +154,43 @@ class UserRepository {
     return await this.userModel.findByIdAndDelete(id);
   }
 
+  /**
+   * Progresso do aluno em uma missão específica, ou null se ele ainda não a tentou.
+   */
+  async findMissionProgress(userId, missionId) {
+    const user = await this.findById(userId);
+
+    return user.mission_progress?.find(
+      (entry) => String(entry.mission_id) === String(missionId),
+    ) ?? null;
+  }
+
+  /**
+   * Cria ou atualiza a entrada de mission_progress do aluno.
+   * O upsert é feito em duas etapas porque o array é de subdocumentos:
+   * primeiro tenta atualizar a entrada existente, e só insere se não houver.
+   */
+  async upsertMissionProgress(userId, missionId, data) {
+    const fields = Object.entries(data).reduce(
+      (acc, [key, value]) => ({ ...acc, [`mission_progress.$[entry].${key}`]: value }),
+      {},
+    );
+
+    const updated = await this.userModel.findOneAndUpdate(
+      { _id: userId, "mission_progress.mission_id": missionId },
+      { $set: fields },
+      { new: true, arrayFilters: [{ "entry.mission_id": missionId }] },
+    );
+
+    if (updated) return updated;
+
+    return await this.userModel.findByIdAndUpdate(
+      userId,
+      { $push: { mission_progress: { mission_id: missionId, ...data } } },
+      { new: true },
+    );
+  }
+
   async setLevelForXpRange(level, minXp, maxXp) {
     const xpFilter = {};
     if (minXp !== null) xpFilter.$gte = minXp;
