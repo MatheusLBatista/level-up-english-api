@@ -82,6 +82,43 @@ export const MissionSchema = z
   })
   .openapi("Mission");
 
+export const SubmitMissionProgressBodySchema = z
+  .object({
+    score: z
+      .number()
+      .int("O score deve ser um número inteiro.")
+      .min(0, "O score mínimo é 0.")
+      .max(100, "O score máximo é 100.")
+      .openapi({ example: 80 }),
+    done: z.boolean().default(true).openapi({ example: true }),
+  })
+  .openapi("SubmitMissionProgressBody");
+
+export const MissionProgressSchema = z
+  .object({
+    mission: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    done: z.boolean().openapi({ example: true }),
+    score: z.number().openapi({ example: 80 }),
+    xp_earned: z.number().openapi({ example: 80 }),
+    already_rewarded: z.boolean().openapi({ example: false }),
+    progression: z
+      .object({
+        student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+        previous_level: z.number().openapi({ example: 3 }),
+        leveled_up: z.boolean().openapi({ example: true }),
+        leveled_down: z.boolean().openapi({ example: false }),
+        xp: z.number().openapi({ example: 480 }),
+        level: z.number().openapi({ example: 3 }),
+        current_level_xp: z.number().openapi({ example: 400 }),
+        next_level_xp: z.number().nullable().openapi({ example: 900 }),
+        xp_to_next_level: z.number().openapi({ example: 420 }),
+        percentage: z.number().openapi({ example: 16 }),
+      })
+      .nullable(),
+  })
+  .openapi("MissionProgress");
+
 export const UpdateMissionBodySchema = z
   .object({
     title: z.string().min(1).optional().openapi({ example: "Explorador de Palavras" }),
