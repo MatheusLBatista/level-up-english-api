@@ -24,6 +24,8 @@ import {
   MissionSchema,
   CreateMissionBodySchema,
   UpdateMissionBodySchema,
+  SubmitMissionProgressBodySchema,
+  MissionProgressSchema,
 } from "../schemas/MissionSchema.js";
 import {
   ClassSchema,
@@ -65,6 +67,8 @@ registry.register("Mission", MissionSchema);
 registry.register("Class", ClassSchema);
 registry.register("CreateMissionBody", CreateMissionBodySchema);
 registry.register("UpdateMissionBody", UpdateMissionBodySchema);
+registry.register("SubmitMissionProgressBody", SubmitMissionProgressBodySchema);
+registry.register("MissionProgress", MissionProgressSchema);
 registry.register("CreateClassBody", CreateClassBodySchema);
 registry.register("UpdateClassBody", UpdateClassBodySchema);
 registry.register("LoginBody", LoginBodySchema);
@@ -590,6 +594,34 @@ registry.registerPath({
     400: error400,
     401: error401Token,
     403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/missions/{id}/progress",
+  tags: ["Missions"],
+  summary: "Registrar progresso do aluno logado em uma missão",
+  description:
+    "O XP creditado é proporcional ao score sobre o xp_reward da missão e concedido "
+    + "apenas na primeira conclusão. Reenvios atualizam o score, mas retornam "
+    + "xp_earned igual a 0 e already_rewarded igual a true.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: missionIdParam,
+    body: {
+      content: { "application/json": { schema: SubmitMissionProgressBodySchema } },
+    },
+  },
+  responses: {
+    200: commonResponse(MissionProgressSchema, "Progresso registrado"),
+    400: error400,
+    401: error401Token,
+    403: errorResponse(
+      "Sem permissão",
+      "Apenas alunos podem registrar progresso em missões.",
+    ),
+    404: error404Mission,
   },
 });
 
