@@ -17,14 +17,19 @@ class MissionService {
 
     const loggedUser = await this.userRepository.findById(req.user_id);
 
+    // No Express 5 req.query é somente-leitura, então o filtro do aluno é
+    // repassado num objeto próprio em vez de sobrescrever o da requisição.
+    let query = req.query;
+
     if (loggedUser.role === "student") {
       if (!loggedUser.class) {
         return { docs: [], totalDocs: 0, page: 1, totalPages: 0 };
       }
-      req.query = { ...req.query, class_id: String(loggedUser.class) };
+      // class_id vai por último: o aluno não consegue forçar outra turma via querystring.
+      query = { ...req.query, class_id: String(loggedUser.class) };
     }
 
-    return await this.repository.list(req);
+    return await this.repository.list({ query });
   }
 
   async findById(id, req) {
