@@ -38,8 +38,9 @@ const fakeMappings = {
         ["beginner", "intermediate", "advanced", "veteran"],
         { min: 0, max: 4 },
       ),
-    // TODO: after creating class, refer to it properly instead of generating random ObjectId
-    class: () => new mongoose.Types.ObjectId().toString(),
+    // Os usuários são semeados antes das turmas existirem, então o vínculo real
+    // é feito pelo class_seeds, que grava user.class junto com class.students.
+    class: () => null,
 
     uniqueToken: () => "",
     accesstoken: () => "",

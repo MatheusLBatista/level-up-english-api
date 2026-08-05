@@ -38,7 +38,7 @@ async function userSeeds() {
   }
 
   //students
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 40; i++) {
     users.push({
       name: `Student ${i + 1}`,
       email: `student${i + 1}@example.com`,
@@ -46,7 +46,6 @@ async function userSeeds() {
       role: "student",
       xp: globalFakeMapping.xp(),
       level: globalFakeMapping.level(),
-      class: globalFakeMapping.class(),
       mission_progress: globalFakeMapping.mission_progress(),
       streak: globalFakeMapping.streak(),
       badges: globalFakeMapping.badges(),

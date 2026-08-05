@@ -11,6 +11,7 @@ import missionRoutes from "./missionRoutes.js";
 import classRoutes from "./classRoutes.js";
 import attitudeRoutes from "./attitudeRoutes.js";
 import attitudeLogRoutes from "./attitudeLogRoutes.js";
+import rankingRoutes from "./rankingRoutes.js";
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ const routes = (app) => {
   app.use(express.json(), classRoutes);
   app.use(express.json(), attitudeRoutes);
   app.use(express.json(), attitudeLogRoutes);
+  app.use(express.json(), rankingRoutes);
 };
 
 export default routes;
