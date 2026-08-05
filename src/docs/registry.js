@@ -24,6 +24,8 @@ import {
   MissionSchema,
   CreateMissionBodySchema,
   UpdateMissionBodySchema,
+  SubmitMissionProgressBodySchema,
+  MissionProgressSchema,
 } from "../schemas/MissionSchema.js";
 import {
   ClassSchema,
@@ -65,6 +67,8 @@ registry.register("Mission", MissionSchema);
 registry.register("Class", ClassSchema);
 registry.register("CreateMissionBody", CreateMissionBodySchema);
 registry.register("UpdateMissionBody", UpdateMissionBodySchema);
+registry.register("SubmitMissionProgressBody", SubmitMissionProgressBodySchema);
+registry.register("MissionProgress", MissionProgressSchema);
 registry.register("CreateClassBody", CreateClassBodySchema);
 registry.register("UpdateClassBody", UpdateClassBodySchema);
 registry.register("LoginBody", LoginBodySchema);
@@ -590,6 +594,37 @@ registry.registerPath({
     400: error400,
     401: error401Token,
     403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/missions/{id}/progress",
+  tags: ["Missions"],
+  summary: "Registrar progresso do aluno logado em uma missão",
+  description:
+    "Em missões do tipo quiz o aluno envia answers e o score é apurado pelo servidor "
+    + "contra o gabarito (um score enviado no corpo é ignorado); nos tipos vocabulário "
+    + "e áudio o score é obrigatório no corpo. O XP é proporcional ao score sobre o "
+    + "xp_reward e segue o melhor desempenho: cada submissão credita apenas a diferença "
+    + "em relação ao que já foi pago antes (campo credited_so_far). Repetir ou piorar "
+    + "o score retorna xp_earned igual a 0.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: missionIdParam,
+    body: {
+      content: { "application/json": { schema: SubmitMissionProgressBodySchema } },
+    },
+  },
+  responses: {
+    200: commonResponse(MissionProgressSchema, "Progresso registrado"),
+    400: error400,
+    401: error401Token,
+    403: errorResponse(
+      "Sem permissão",
+      "Apenas alunos podem registrar progresso em missões.",
+    ),
+    404: error404Mission,
   },
 });
 

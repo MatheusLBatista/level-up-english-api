@@ -28,6 +28,10 @@ class User {
             },
             done: Boolean,
             score: Number,
+            // XP já creditado por esta missão — garante que refazer a missão
+            // não premie o aluno duas vezes.
+            xp_earned: { type: Number, default: 0 },
+            completed_at: { type: Date, default: null },
           },
         ],
         streak: { type: Number, default: 0 },

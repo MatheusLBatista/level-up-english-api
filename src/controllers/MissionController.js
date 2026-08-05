@@ -1,6 +1,10 @@
 import MissionService from "../service/MissionService.js";
 import { CommonResponse, CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
-import { CreateMissionBodySchema, UpdateMissionBodySchema } from "../schemas/MissionSchema.js";
+import {
+  CreateMissionBodySchema,
+  SubmitMissionProgressBodySchema,
+  UpdateMissionBodySchema,
+} from "../schemas/MissionSchema.js";
 
 class MissionController {
   constructor() {
@@ -34,6 +38,24 @@ class MissionController {
     const body = UpdateMissionBodySchema.parse(req.body);
     const data = await this.service.update(id, body, req);
     return CommonResponse.success(res, data, 200, "Missão atualizada com sucesso.");
+  }
+
+  async progress(req, res) {
+    const { id } = req.params;
+
+    if (!id) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "id",
+        details: [],
+        customMessage: "ID da missão é obrigatório para registrar progresso.",
+      });
+    }
+
+    const body = SubmitMissionProgressBodySchema.parse(req.body);
+    const data = await this.service.submitProgress(id, body, req);
+    return CommonResponse.success(res, data, 200, "Progresso registrado com sucesso.");
   }
 
   async delete(req, res) {

@@ -1,58 +1,19 @@
 import AttitudeLogRepository from "../repository/AttitudeLogRepository.js";
 import AttitudeRepository from "../repository/AttitudeRepository.js";
 import UserRepository from "../repository/UserRepository.js";
-import RankingService from "./RankingService.js";
+import ProgressionService from "./ProgressionService.js";
 import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
-import { calculateLevel, getProgress } from "../utils/LevelHelper.js";
-import logger from "../utils/logger.js";
 
 class AttitudeLogService {
   constructor() {
     this.repository = new AttitudeLogRepository();
     this.attitudeRepository = new AttitudeRepository();
     this.userRepository = new UserRepository();
-    this.rankingService = new RankingService();
+    this.progressionService = new ProgressionService();
   }
 
   async applyXp(studentId, xpDelta) {
-    const student = await this.userRepository.update(studentId, {
-      $inc: { xp: xpDelta },
-    });
-
-    const previous_level = student.level;
-    const level = calculateLevel(student.xp);
-
-    const updated = level === previous_level
-      ? student
-      : await this.userRepository.update(studentId, { level });
-
-    await this.refreshRankings(updated);
-
-    return {
-      student: String(updated._id),
-      previous_level,
-      leveled_up: level > previous_level,
-      leveled_down: level < previous_level,
-      ...getProgress(updated.xp),
-    };
-  }
-
-  /**
-   * Mantém o ranking global e o da turma do aluno em dia após uma mudança de XP.
-   * Falhas aqui não invalidam a atitude já aplicada — apenas ficam registradas no log.
-   */
-  async refreshRankings(student) {
-    try {
-      await this.rankingService.refreshGlobal();
-
-      if (student.class) {
-        await this.rankingService.refreshClass(student.class);
-      }
-    } catch (error) {
-      logger.error(
-        `Falha ao atualizar rankings após mudança de XP do aluno ${student._id}: ${error.message}`,
-      );
-    }
+    return await this.progressionService.applyXp(studentId, xpDelta);
   }
 
   async list(req) {
