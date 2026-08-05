@@ -158,7 +158,8 @@ class MissionService {
     const previous = await this.userRepository.findMissionProgress(loggedUser._id, missionId);
     const credited_so_far = previous?.xp_earned ?? 0;
 
-    const { score, done } = parsedData;
+    const { done } = parsedData;
+    const { score, correct_answers, total_questions } = this.resolveScore(mission, parsedData);
 
     const entitled = done
       ? Math.round((mission.xp_reward ?? 0) * (score / 100))
@@ -184,10 +185,66 @@ class MissionService {
       student: String(loggedUser._id),
       done,
       score,
+      correct_answers,
+      total_questions,
       xp_earned,
       credited_so_far: credited_so_far + xp_earned,
       already_rewarded: credited_so_far > 0,
       progression,
+    };
+  }
+
+  /**
+   * Em missões de quiz o score é apurado aqui, comparando as respostas do aluno
+   * com o gabarito — o valor enviado no corpo é ignorado. Vocabulário e áudio não
+   * têm gabarito no model, então seguem dependendo do score informado.
+   */
+  resolveScore(mission, { score, answers }) {
+    if (mission.type !== "quiz") {
+      if (score === undefined) {
+        throw new CustomError({
+          statusCode: HttpStatusCodes.BAD_REQUEST.code,
+          errorType: "validationError",
+          field: "score",
+          details: [],
+          customMessage: "O score é obrigatório para missões que não são do tipo quiz.",
+        });
+      }
+
+      return { score, correct_answers: null, total_questions: null };
+    }
+
+    const questions = mission.questions ?? [];
+
+    if (questions.length === 0) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "mission",
+        details: [],
+        customMessage: "Esta missão de quiz não possui questões cadastradas.",
+      });
+    }
+
+    if (!answers || answers.length !== questions.length) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "answers",
+        details: [],
+        customMessage: `Envie exatamente ${questions.length} respostas, na ordem das questões.`,
+      });
+    }
+
+    const correct_answers = questions.reduce(
+      (total, question, index) => total + (question.correct_answer === answers[index] ? 1 : 0),
+      0,
+    );
+
+    return {
+      score: Math.round((correct_answers / questions.length) * 100),
+      correct_answers,
+      total_questions: questions.length,
     };
   }
 

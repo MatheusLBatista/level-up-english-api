@@ -89,7 +89,18 @@ export const SubmitMissionProgressBodySchema = z
       .int("O score deve ser um número inteiro.")
       .min(0, "O score mínimo é 0.")
       .max(100, "O score máximo é 100.")
-      .openapi({ example: 80 }),
+      .optional()
+      .openapi({
+        example: 80,
+        description: "Obrigatório para missões de vocabulário e áudio. Ignorado em quiz, onde o score é calculado pelo servidor.",
+      }),
+    answers: z
+      .array(z.enum(["a", "b", "c", "d"]))
+      .optional()
+      .openapi({
+        example: ["a", "c", "b", "d", "a"],
+        description: "Obrigatório em missões do tipo quiz: uma resposta por questão, na ordem em que foram cadastradas.",
+      }),
     done: z.boolean().default(true).openapi({ example: true }),
   })
   .openapi("SubmitMissionProgressBody");
@@ -100,6 +111,14 @@ export const MissionProgressSchema = z
     student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
     done: z.boolean().openapi({ example: true }),
     score: z.number().openapi({ example: 80 }),
+    correct_answers: z
+      .number()
+      .nullable()
+      .openapi({ example: 4, description: "Acertos no quiz; null nos demais tipos." }),
+    total_questions: z
+      .number()
+      .nullable()
+      .openapi({ example: 5, description: "Total de questões do quiz; null nos demais tipos." }),
     xp_earned: z
       .number()
       .openapi({ example: 80, description: "XP creditado nesta submissão." }),

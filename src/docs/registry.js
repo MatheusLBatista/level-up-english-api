@@ -603,10 +603,12 @@ registry.registerPath({
   tags: ["Missions"],
   summary: "Registrar progresso do aluno logado em uma missão",
   description:
-    "O XP creditado é proporcional ao score sobre o xp_reward da missão e segue o "
-    + "melhor desempenho: cada submissão credita apenas a diferença em relação ao "
-    + "que já foi pago antes (campo credited_so_far). Repetir ou piorar o score "
-    + "retorna xp_earned igual a 0.",
+    "Em missões do tipo quiz o aluno envia answers e o score é apurado pelo servidor "
+    + "contra o gabarito (um score enviado no corpo é ignorado); nos tipos vocabulário "
+    + "e áudio o score é obrigatório no corpo. O XP é proporcional ao score sobre o "
+    + "xp_reward e segue o melhor desempenho: cada submissão credita apenas a diferença "
+    + "em relação ao que já foi pago antes (campo credited_so_far). Repetir ou piorar "
+    + "o score retorna xp_earned igual a 0.",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
