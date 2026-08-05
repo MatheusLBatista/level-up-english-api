@@ -24,10 +24,15 @@ const fakeMappings = {
       const missions = [];
       const numMissions = faker.number.int({ min: 1, max: 5 });
       for (let i = 0; i < numMissions; i++) {
+        const done = faker.datatype.boolean();
+        const score = faker.number.int({ min: 0, max: 100 });
+
         missions.push({
           mission_id: new mongoose.Types.ObjectId().toString(),
-          done: faker.datatype.boolean(),
-          score: faker.number.int({ min: 0, max: 100 }),
+          done,
+          score,
+          xp_earned: done ? score : 0,
+          completed_at: done ? faker.date.recent({ days: 30 }) : null,
         });
       }
       return missions;
@@ -38,8 +43,6 @@ const fakeMappings = {
         ["beginner", "intermediate", "advanced", "veteran"],
         { min: 0, max: 4 },
       ),
-    // Os usuários são semeados antes das turmas existirem, então o vínculo real
-    // é feito pelo class_seeds, que grava user.class junto com class.students.
     class: () => null,
 
     uniqueToken: () => "",

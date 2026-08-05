@@ -129,12 +129,6 @@ class MissionService {
     return await this.repository.delete(id);
   }
 
-  /**
-   * Registra a tentativa do aluno logado em uma missão.
-   *
-   * O XP é proporcional ao score (RF-006) e creditado uma única vez, na primeira
-   * conclusão: refazer a missão atualiza o score registrado, mas não premia de novo.
-   */
   async submitProgress(missionId, parsedData, req) {
     const loggedUser = await this.userRepository.findById(req.user_id);
 
@@ -162,18 +156,21 @@ class MissionService {
     }
 
     const previous = await this.userRepository.findMissionProgress(loggedUser._id, missionId);
-    const alreadyRewarded = Boolean(previous?.completed_at);
+    const credited_so_far = previous?.xp_earned ?? 0;
 
     const { score, done } = parsedData;
-    const xp_earned = done && !alreadyRewarded
+
+    const entitled = done
       ? Math.round((mission.xp_reward ?? 0) * (score / 100))
       : 0;
 
+    const xp_earned = Math.max(entitled - credited_so_far, 0);
+
     const progressData = { done, score };
 
-    if (done && !alreadyRewarded) {
-      progressData.xp_earned = xp_earned;
-      progressData.completed_at = new Date();
+    if (xp_earned > 0) {
+      progressData.xp_earned = credited_so_far + xp_earned;
+      progressData.completed_at = previous?.completed_at ?? new Date();
     }
 
     await this.userRepository.upsertMissionProgress(loggedUser._id, missionId, progressData);
@@ -188,7 +185,8 @@ class MissionService {
       done,
       score,
       xp_earned,
-      already_rewarded: alreadyRewarded,
+      credited_so_far: credited_so_far + xp_earned,
+      already_rewarded: credited_so_far > 0,
       progression,
     };
   }

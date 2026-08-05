@@ -100,8 +100,15 @@ export const MissionProgressSchema = z
     student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
     done: z.boolean().openapi({ example: true }),
     score: z.number().openapi({ example: 80 }),
-    xp_earned: z.number().openapi({ example: 80 }),
-    already_rewarded: z.boolean().openapi({ example: false }),
+    xp_earned: z
+      .number()
+      .openapi({ example: 80, description: "XP creditado nesta submissão." }),
+    credited_so_far: z
+      .number()
+      .openapi({ example: 80, description: "Total de XP já creditado por esta missão." }),
+    already_rewarded: z
+      .boolean()
+      .openapi({ example: false, description: "true se a missão já havia rendido XP antes." }),
     progression: z
       .object({
         student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),

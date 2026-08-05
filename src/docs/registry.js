@@ -603,9 +603,10 @@ registry.registerPath({
   tags: ["Missions"],
   summary: "Registrar progresso do aluno logado em uma missão",
   description:
-    "O XP creditado é proporcional ao score sobre o xp_reward da missão e concedido "
-    + "apenas na primeira conclusão. Reenvios atualizam o score, mas retornam "
-    + "xp_earned igual a 0 e already_rewarded igual a true.",
+    "O XP creditado é proporcional ao score sobre o xp_reward da missão e segue o "
+    + "melhor desempenho: cada submissão credita apenas a diferença em relação ao "
+    + "que já foi pago antes (campo credited_so_far). Repetir ou piorar o score "
+    + "retorna xp_earned igual a 0.",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
