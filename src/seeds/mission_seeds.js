@@ -26,7 +26,22 @@ async function missionSeeds() {
     title: "Default Mission",
     description: "This is a default mission.",
     type: "vocabulary",
-    content_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    content: "cat, dog, bird, horse, fish",
+    xp_reward: 100,
+    class_id: classes[0]._id,
+    createdBy: teachers[0]._id,
+    active: true,
+  });
+
+  missions.push({
+    title: "Default Quiz",
+    description: "Quiz de exemplo com gabarito conhecido: a, b, c, d, a.",
+    type: "quiz",
+    questions: ["a", "b", "c", "d", "a"].map((correct_answer, index) => ({
+      question: `Questão ${index + 1} — a resposta certa é "${correct_answer}".`,
+      options: { a: "Opção A", b: "Opção B", c: "Opção C", d: "Opção D" },
+      correct_answer,
+    })),
     xp_reward: 100,
     class_id: classes[0]._id,
     createdBy: teachers[0]._id,
@@ -34,11 +49,15 @@ async function missionSeeds() {
   });
 
   for (let i = 0; i < 10; i++) {
+    const type = globalFakeMapping.type();
+
     missions.push({
       title: globalFakeMapping.title(),
       description: globalFakeMapping.description(),
-      type: globalFakeMapping.type(),
-      content_url: globalFakeMapping.content_url(),
+      type,
+      ...(type === "quiz" && { questions: globalFakeMapping.questions() }),
+      ...(type === "vocabulary" && { content: globalFakeMapping.content() }),
+      ...(type === "audio" && { content_url: globalFakeMapping.content_url() }),
       xp_reward: globalFakeMapping.xp_reward(),
       class_id: classes[i % classes.length]._id,
       createdBy: teachers[i % teachers.length]._id,

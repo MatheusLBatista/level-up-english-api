@@ -60,8 +60,21 @@ const fakeMappings = {
       return types[Math.floor(Math.random() * types.length)];
     },
     content_url: () => faker.internet.url(),
-    content: () => null,
-    questions: () => undefined,
+    content: () => faker.lorem.paragraphs({ min: 1, max: 3 }),
+    questions: () => {
+      const letters = ["a", "b", "c", "d"];
+
+      return [...Array(faker.number.int({ min: 5, max: 8 }))].map(() => ({
+        question: faker.lorem.sentence({ min: 4, max: 8 }) + "?",
+        options: {
+          a: faker.lorem.word(),
+          b: faker.lorem.word(),
+          c: faker.lorem.word(),
+          d: faker.lorem.word(),
+        },
+        correct_answer: faker.helpers.arrayElement(letters),
+      }));
+    },
     xp_reward: () => faker.number.int({ min: 10, max: 500 }),
     class_id: () => new mongoose.Types.ObjectId().toString(),
     createdBy: () => new mongoose.Types.ObjectId().toString(),
