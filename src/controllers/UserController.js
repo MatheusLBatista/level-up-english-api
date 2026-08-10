@@ -18,7 +18,7 @@ class UserController {
 
   async create(req, res) {
     const body = CreateUserBodySchema.parse(req.body);
-    const data = await this.service.create(body, req);
+    const data = await this.service.create(body);
 
     const cleanUser = data.toObject();
     delete cleanUser.password;
@@ -58,7 +58,7 @@ class UserController {
   }
 
   async recalculateLevels(req, res) {
-    const data = await this.service.recalculateLevels(req);
+    const data = await this.service.recalculateLevels();
     return CommonResponse.success(res, data, 200, "Levels recalculated successfully.");
   }
 

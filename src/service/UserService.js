@@ -21,19 +21,7 @@ class UserService {
     return await this.repository.list(req);
   }
 
-  async create(parsedData, req) {
-    const loggedUser = await this.repository.findById(req.user_id);
-
-    if (loggedUser.role === "student") {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.FORBIDDEN.code,
-        errorType: "permissionError",
-        field: "User",
-        details: [],
-        customMessage: "Students cannot create users.",
-      });
-    }
-
+  async create(parsedData) {
     await this.validateEmail(parsedData.email);
 
     if (parsedData.password) {
@@ -106,19 +94,7 @@ class UserService {
     return await this.repository.delete(id);
   }
 
-  async recalculateLevels(req) {
-    const loggedUser = await this.repository.findById(req.user_id);
-
-    if (loggedUser.role !== "admin") {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.FORBIDDEN.code,
-        errorType: "permissionError",
-        field: "User",
-        details: [],
-        customMessage: "Only admins can recalculate levels.",
-      });
-    }
-
+  async recalculateLevels() {
     const updates = [];
 
     for (let level = MIN_LEVEL; level <= MAX_LEVEL; level += 1) {
