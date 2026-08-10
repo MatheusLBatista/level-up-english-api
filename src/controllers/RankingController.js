@@ -34,7 +34,7 @@ class RankingController {
   }
 
   async refresh(req, res) {
-    const data = await this.service.refreshAll(req);
+    const data = await this.service.refreshFromUsers();
     return CommonResponse.success(res, data, 200, "Rankings recalculados com sucesso.");
   }
 }

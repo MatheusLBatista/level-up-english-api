@@ -132,16 +132,6 @@ class MissionService {
   async submitProgress(missionId, parsedData, req) {
     const loggedUser = await this.userRepository.findById(req.user_id);
 
-    if (loggedUser.role !== "student") {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.FORBIDDEN.code,
-        errorType: "permissionError",
-        field: "Mission",
-        details: [],
-        customMessage: "Apenas alunos podem registrar progresso em missões.",
-      });
-    }
-
     // Reaproveita a checagem de turma já existente em findById.
     const mission = await this.findById(missionId, req);
 
