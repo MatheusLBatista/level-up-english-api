@@ -35,7 +35,25 @@ class ClassService {
   }
 
   async update(id, parsedData, req) {
-    await this.ensureClassExists(id);
+    const existingClass = await this.ensureClassExists(id);
+
+    const loggedUser = await this.userRepository.findById(req.user_id);
+
+    if (loggedUser.role === "teacher") {
+      const ownerId = existingClass.teacher?._id ?? existingClass.teacher;
+
+      if (String(ownerId) !== String(req.user_id)) {
+        throw new CustomError({
+          statusCode: HttpStatusCodes.FORBIDDEN.code,
+          errorType: "permissionError",
+          field: "Class",
+          details: [],
+          customMessage: "Teachers can only update their own classes.",
+        });
+      }
+
+      delete parsedData.teacher;
+    }
 
     if (parsedData.name) {
       await this.ensureNameAvailable(parsedData.name, id);
@@ -73,7 +91,7 @@ class ClassService {
   }
 
   async ensureClassExists(id) {
-    await this.repository.findById(id);
+    return await this.repository.findById(id);
   }
 }
 
