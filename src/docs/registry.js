@@ -443,7 +443,7 @@ registry.registerPath({
   method: "get",
   path: "/classes",
   tags: ["Classes"],
-  summary: "Listar turmas",
+  summary: "Listar turmas (aluno recebe apenas a própria)",
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -467,7 +467,7 @@ registry.registerPath({
   method: "get",
   path: "/classes/{id}",
   tags: ["Classes"],
-  summary: "Buscar turma por ID",
+  summary: "Buscar turma por ID (aluno só a própria turma)",
   security: [{ bearerAuth: [] }],
   request: {
     params: classIdParam,
@@ -475,6 +475,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(ClassSchema, "Turma encontrada"),
     401: error401Token,
+    403: errorResponse(
+      "Aluno consultando turma que não é a dele",
+      "Students can only view their own class.",
+    ),
     404: error404Class,
   },
 });
