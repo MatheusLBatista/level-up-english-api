@@ -15,6 +15,18 @@ class UserService {
     const id = req?.params?.id;
 
     if (id) {
+      const loggedUser = await this.repository.findById(req.user_id);
+
+      if (loggedUser.role === "student" && String(loggedUser._id) !== String(id)) {
+        throw new CustomError({
+          statusCode: HttpStatusCodes.FORBIDDEN.code,
+          errorType: "permissionError",
+          field: "User",
+          details: [],
+          customMessage: "Students can only view their own profile.",
+        });
+      }
+
       return await this.repository.findById(id);
     }
 

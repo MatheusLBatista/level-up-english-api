@@ -340,7 +340,7 @@ registry.registerPath({
   method: "get",
   path: "/users/{id}",
   tags: ["Users"],
-  summary: "Buscar usuário por ID",
+  summary: "Buscar usuário por ID (aluno só o próprio perfil)",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -350,6 +350,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(UserSchema, "Usuário encontrado"),
     401: error401Token,
+    403: errorResponse(
+      "Aluno consultando o perfil de outro usuário",
+      "Students can only view their own profile.",
+    ),
     404: error404User,
   },
 });
