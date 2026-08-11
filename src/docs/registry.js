@@ -125,7 +125,7 @@ const error400 = errorResponse(
 );
 
 const error401Credentials = errorResponse(
-  "Credenciais inválidas",
+  "Credenciais inválidas ou conta desativada",
   "Credenciais inválidas. Verifique seu usuário e senha.",
 );
 
@@ -141,9 +141,10 @@ const error401TokenExpired = errorResponse(
   [{ message: "O token JWT está expirado!" }],
 );
 
-// 403 devolvido pelo authorize(), quando o papel do usuário não está na lista da rota.
+// 403 devolvido pelo authorize(), quando a conta está desativada ou o papel do
+// usuário não está na lista da rota.
 const error403 = errorResponse(
-  "Sem permissão para o papel do usuário",
+  "Conta desativada, ou papel sem acesso à rota",
   "Permissão insuficiente para executar a operação.",
 );
 
@@ -212,7 +213,7 @@ registry.registerPath({
   responses: {
     200: commonResponse(RefreshResponseSchema, "Tokens renovados com sucesso"),
     401: errorResponse(
-      "Refresh token inválido ou expirado",
+      "Refresh token inválido ou expirado, ou conta desativada",
       "Token inválido. Faça login novamente.",
     ),
   },
@@ -985,7 +986,8 @@ export function generateOpenAPIDocument() {
       description:
         "Plataforma de gamificação para aprendizado de inglês.\n\n"
         + "**Permissões.** Todas as rotas autenticadas declaram quais papéis podem "
-        + "chamá-las (student, teacher e admin); o papel fora da lista recebe 403. "
+        + "chamá-las (student, teacher e admin); o papel fora da lista recebe 403, "
+        + "assim como qualquer usuário com active igual a false. "
         + "A posse do recurso é verificada depois, no service: professor só altera a "
         + "turma e as missões dele, e aluno só enxerga missão e ranking da própria "
         + "turma. Os resumos indicam entre parênteses quem pode chamar cada rota; "

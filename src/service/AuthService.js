@@ -29,6 +29,9 @@ class AuthService {
     const senhaCorreta = await bcrypt.compare(password, user.password);
     if (!senhaCorreta) throw credenciaisInvalidas;
 
+    // Só depois de validar a senha, para não revelar quais contas estão desativadas.
+    this.ensureActive(user);
+
     const accessToken = await this.tokenUtil.generateAccessToken(user._id);
     const refreshToken = await this.tokenUtil.generateRefreshToken(user._id);
 
@@ -72,6 +75,8 @@ class AuthService {
         customMessage: messages.auth.invalidToken,
       });
     }
+
+    this.ensureActive(user);
 
     const newAccessToken = await this.tokenUtil.generateAccessToken(user._id);
     const newRefreshToken = await this.tokenUtil.generateRefreshToken(user._id);
@@ -171,6 +176,18 @@ class AuthService {
 
   async revoke(targetUserId) {
     await this.userRepository.removeTokens(targetUserId);
+  }
+
+  ensureActive(user) {
+    if (!user.active) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.UNAUTHORIZED.code,
+        errorType: "authenticationError",
+        field: "User",
+        details: [],
+        customMessage: messages.auth.accountLocked,
+      });
+    }
   }
 
   async loadTokens(userId) {

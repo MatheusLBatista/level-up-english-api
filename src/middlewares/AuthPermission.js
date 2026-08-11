@@ -7,6 +7,16 @@ const authorize = (...roles) => async(req, res, next) => {
   try {
     const user = await repository.findById(req.user_id);
 
+    if (!user.active) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "User",
+        details: [],
+        customMessage: messages.auth.accountLocked,
+      });
+    }
+
     if (!roles.includes(user.role)) {
       throw new CustomError({
         statusCode: HttpStatusCodes.FORBIDDEN.code,
