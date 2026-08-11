@@ -34,7 +34,10 @@ export const CreateUserBodySchema = z
     name: z.string().openapi({ example: "John Doe" }),
     email: z.string().email().openapi({ example: "john@example.com" }),
     password: z.string().min(6).openapi({ example: "senha123" }),
-    role: z.enum(["student", "teacher", "admin"]).optional().openapi({ example: "student" }),
+    role: z.enum(["student", "teacher", "admin"]).optional().openapi({
+      example: "student",
+      description: "Apenas admin pode informar um papel diferente de student.",
+    }),
     class: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
   })
   .openapi("CreateUserBody");

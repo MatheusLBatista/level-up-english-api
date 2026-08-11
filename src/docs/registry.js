@@ -362,7 +362,7 @@ registry.registerPath({
   method: "post",
   path: "/users",
   tags: ["Users"],
-  summary: "Criar usuário (teacher/admin)",
+  summary: "Criar usuário (teacher/admin; professor só cria aluno)",
   security: [{ bearerAuth: [] }],
   request: {
     body: { content: { "application/json": { schema: CreateUserBodySchema } } },
@@ -371,7 +371,10 @@ registry.registerPath({
     201: commonResponse(UserSchema, "Usuário criado"),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou professor tentando criar teacher/admin",
+      "Only admins can create users with a role other than student.",
+    ),
   },
 });
 

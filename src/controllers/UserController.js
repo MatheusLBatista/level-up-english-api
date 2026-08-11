@@ -18,7 +18,7 @@ class UserController {
 
   async create(req, res) {
     const body = CreateUserBodySchema.parse(req.body);
-    const data = await this.service.create(body);
+    const data = await this.service.create(body, req);
 
     const cleanUser = data.toObject();
     delete cleanUser.password;

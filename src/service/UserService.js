@@ -33,7 +33,19 @@ class UserService {
     return await this.repository.list(req);
   }
 
-  async create(parsedData) {
+  async create(parsedData, req) {
+    const loggedUser = await this.repository.findById(req.user_id);
+
+    if (loggedUser.role !== "admin" && parsedData.role && parsedData.role !== "student") {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "role",
+        details: [],
+        customMessage: "Only admins can create users with a role other than student.",
+      });
+    }
+
     await this.validateEmail(parsedData.email);
 
     if (parsedData.password) {
