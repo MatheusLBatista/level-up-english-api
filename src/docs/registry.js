@@ -783,6 +783,11 @@ registry.registerPath({
   path: "/attitudes/{id}",
   tags: ["Attitudes"],
   summary: "Deletar atitude (admin)",
+  description:
+    "Restrito a admin porque a exclusão deixa os attitudeLogs apontando para uma "
+    + "atitude inexistente, sem desfazer o XP já aplicado. Para tirar uma atitude de "
+    + "circulação preservando o histórico, o professor deve marcar active como false "
+    + "pelo PATCH.",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeIdParam,
@@ -872,7 +877,7 @@ registry.registerPath({
   method: "patch",
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
-  summary: "Corrigir atitude aplicada (teacher/admin)",
+  summary: "Corrigir atitude aplicada (teacher/admin; professor só os logs que aplicou)",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
@@ -887,7 +892,10 @@ registry.registerPath({
     ),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou log aplicado por outro professor",
+      "Teachers can only change logs they applied.",
+    ),
     404: error404AttitudeLog,
   },
 });
@@ -896,7 +904,7 @@ registry.registerPath({
   method: "delete",
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
-  summary: "Desfazer atitude aplicada (teacher/admin)",
+  summary: "Desfazer atitude aplicada (teacher/admin; professor só os logs que aplicou)",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
@@ -904,7 +912,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.null(), "Log deletado e XP do aluno revertido"),
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou log aplicado por outro professor",
+      "Teachers can only change logs they applied.",
+    ),
     404: error404AttitudeLog,
   },
 });

@@ -31,7 +31,7 @@ class AttitudeLogController {
       });
     }
 
-    await this.service.delete(id);
+    await this.service.delete(id, req);
     return CommonResponse.success(res, null, 200, "AttitudeLog deleted successfully.");
   }
 
@@ -49,7 +49,7 @@ class AttitudeLogController {
     }
 
     const body = UpdateAttitudeLogBodySchema.parse(req.body);
-    const data = await this.service.update(id, body);
+    const data = await this.service.update(id, body, req);
     return CommonResponse.success(res, data, 200, "AttitudeLog updated successfully.");
   }
 }
