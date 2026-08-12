@@ -16,6 +16,28 @@ class AttitudeLogService {
     return await this.progressionService.applyXp(studentId, xpDelta);
   }
 
+  /**
+   * Admin mexe em qualquer log; professor, apenas nos que ele mesmo aplicou.
+   */
+  async ensureCanManage(log, req) {
+    const loggedUser = await this.userRepository.findById(req.user_id);
+
+    if (loggedUser.role !== "teacher") return;
+
+    // teacher vem populado do repositório, então a comparação é pelo _id
+    const authorId = log.teacher?._id ?? log.teacher;
+
+    if (String(authorId) !== String(req.user_id)) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "AttitudeLog",
+        details: [],
+        customMessage: "Teachers can only change logs they applied.",
+      });
+    }
+  }
+
   async list(req) {
     const id = req?.params?.id;
     if (id) return await this.repository.findById(id);
@@ -64,8 +86,10 @@ class AttitudeLogService {
     return { ...log.toObject(), progression };
   }
 
-  async delete(id) {
+  async delete(id, req) {
     const existingLog = await this.repository.findById(id);
+
+    await this.ensureCanManage(existingLog, req);
 
     await this.repository.delete(id);
 
@@ -75,8 +99,10 @@ class AttitudeLogService {
     );
   }
 
-  async update(id, parsedData) {
+  async update(id, parsedData, req) {
     const existingLog = await this.repository.findById(id);
+
+    await this.ensureCanManage(existingLog, req);
 
     if (!parsedData.attitude) {
       return await this.repository.update(id, parsedData);

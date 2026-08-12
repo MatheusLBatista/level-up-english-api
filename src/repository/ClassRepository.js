@@ -10,7 +10,8 @@ class ClassRepository {
     const classDoc = await this.classModel
       .findById(id)
       .populate("teacher", "name email role")
-      .populate("students", "name email role")
+      // sem e-mail: a lista de alunos da turma não é lista de contatos.
+      .populate("students", "name role")
       .populate("missions", "title type active");
 
     if (!classDoc) {
@@ -37,12 +38,13 @@ class ClassRepository {
   }
 
   async list(req) {
-    const { name, active, teacher, page = 1 } = req.query || {};
+    const { name, active, teacher, id, page = 1 } = req.query || {};
     const limit = Math.min(parseInt(req.query?.limit, 10) || 10, 100);
 
     const filters = {};
     if (name) filters.name = { $regex: name, $options: "i" };
     if (teacher) filters.teacher = teacher;
+    if (id) filters._id = id;
     if (active !== undefined) {
       filters.active = active === "true" || active === "1" || active === true;
     }

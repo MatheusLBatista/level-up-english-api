@@ -15,6 +15,18 @@ class UserService {
     const id = req?.params?.id;
 
     if (id) {
+      const loggedUser = await this.repository.findById(req.user_id);
+
+      if (loggedUser.role === "student" && String(loggedUser._id) !== String(id)) {
+        throw new CustomError({
+          statusCode: HttpStatusCodes.FORBIDDEN.code,
+          errorType: "permissionError",
+          field: "User",
+          details: [],
+          customMessage: "Students can only view their own profile.",
+        });
+      }
+
       return await this.repository.findById(id);
     }
 
@@ -24,13 +36,13 @@ class UserService {
   async create(parsedData, req) {
     const loggedUser = await this.repository.findById(req.user_id);
 
-    if (loggedUser.role === "student") {
+    if (loggedUser.role !== "admin" && parsedData.role && parsedData.role !== "student") {
       throw new CustomError({
         statusCode: HttpStatusCodes.FORBIDDEN.code,
         errorType: "permissionError",
-        field: "User",
+        field: "role",
         details: [],
-        customMessage: "Students cannot create users.",
+        customMessage: "Only admins can create users with a role other than student.",
       });
     }
 
@@ -79,10 +91,15 @@ class UserService {
       });
     }
 
+    // Campos que definem privilégio ou alcance do usuário só o admin altera.
+    // class fica aqui porque as restrições de turma (missões, ranking, classes)
+    // são todas ancoradas nela — se o aluno editasse a própria, escolheria o que vê.
     if (!isAdmin) {
       delete parsedData.role;
       delete parsedData.xp;
       delete parsedData.level;
+      delete parsedData.class;
+      delete parsedData.active;
     }
 
     return await this.repository.update(id, parsedData);
@@ -106,19 +123,7 @@ class UserService {
     return await this.repository.delete(id);
   }
 
-  async recalculateLevels(req) {
-    const loggedUser = await this.repository.findById(req.user_id);
-
-    if (loggedUser.role !== "admin") {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.FORBIDDEN.code,
-        errorType: "permissionError",
-        field: "User",
-        details: [],
-        customMessage: "Only admins can recalculate levels.",
-      });
-    }
-
+  async recalculateLevels() {
     const updates = [];
 
     for (let level = MIN_LEVEL; level <= MAX_LEVEL; level += 1) {

@@ -58,7 +58,7 @@ class UserController {
   }
 
   async recalculateLevels(req, res) {
-    const data = await this.service.recalculateLevels(req);
+    const data = await this.service.recalculateLevels();
     return CommonResponse.success(res, data, 200, "Levels recalculated successfully.");
   }
 
