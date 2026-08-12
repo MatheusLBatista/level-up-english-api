@@ -91,10 +91,15 @@ class UserService {
       });
     }
 
+    // Campos que definem privilégio ou alcance do usuário só o admin altera.
+    // class fica aqui porque as restrições de turma (missões, ranking, classes)
+    // são todas ancoradas nela — se o aluno editasse a própria, escolheria o que vê.
     if (!isAdmin) {
       delete parsedData.role;
       delete parsedData.xp;
       delete parsedData.level;
+      delete parsedData.class;
+      delete parsedData.active;
     }
 
     return await this.repository.update(id, parsedData);

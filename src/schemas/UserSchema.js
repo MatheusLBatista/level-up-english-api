@@ -47,7 +47,13 @@ export const UpdateUserBodySchema = z
     name: z.string().optional().openapi({ example: "John Doe Updated" }),
     streak: z.number().optional().openapi({ example: 5 }),
     badges: z.array(z.string()).optional().openapi({ example: ["first_login"] }),
-    active: z.boolean().optional().openapi({ example: true }),
-    class: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+    active: z.boolean().optional().openapi({
+      example: true,
+      description: "Apenas admin. Ignorado nos demais papéis.",
+    }),
+    class: z.string().optional().openapi({
+      example: "507f1f77bcf86cd799439011",
+      description: "Apenas admin. Ignorado nos demais papéis.",
+    }),
   })
   .openapi("UpdateUserBody");
