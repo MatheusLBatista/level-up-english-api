@@ -53,7 +53,10 @@ class MissionService {
   }
 
   async create(parsedData, req) {
-    await this.ensureClassExists(parsedData.class_id);
+    const loggedUser = await this.userRepository.findById(req.user_id);
+    const classDoc = await this.ensureClassExists(parsedData.class_id);
+
+    this.ensureOwnsClass(classDoc, loggedUser);
 
     await this.validateTitle(parsedData.title);
 
@@ -91,7 +94,9 @@ class MissionService {
     }
 
     if (parsedData.class_id) {
-      await this.ensureClassExists(parsedData.class_id);
+      const targetClass = await this.ensureClassExists(parsedData.class_id);
+
+      this.ensureOwnsClass(targetClass, loggedUser);
 
       const oldClassId = String(mission.class_id?._id ?? mission.class_id);
       const newClassId = String(parsedData.class_id);
@@ -247,6 +252,26 @@ class MissionService {
         field: "title",
         details: [{ path: "title", message: "Já existe uma missão com este título." }],
         customMessage: "Título já cadastrado.",
+      });
+    }
+  }
+
+  /**
+   * Professor só põe missão em turma que é dele; admin não tem essa amarra.
+   * Mesma regra que o ClassService aplica no update da turma.
+   */
+  ensureOwnsClass(classDoc, loggedUser) {
+    if (loggedUser.role !== "teacher") return;
+
+    const ownerId = classDoc.teacher?._id ?? classDoc.teacher;
+
+    if (String(ownerId) !== String(loggedUser._id)) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "class_id",
+        details: [],
+        customMessage: "Você só pode criar missões nas suas turmas.",
       });
     }
   }

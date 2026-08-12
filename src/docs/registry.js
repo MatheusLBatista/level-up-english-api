@@ -606,7 +606,7 @@ registry.registerPath({
   method: "post",
   path: "/missions",
   tags: ["Missions"],
-  summary: "Criar missão (teacher/admin)",
+  summary: "Criar missão (teacher/admin; professor só nas turmas dele)",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -617,7 +617,10 @@ registry.registerPath({
     201: commonResponse(MissionSchema, "Missão criada"),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou class_id de uma turma de outro professor",
+      "Você só pode criar missões nas suas turmas.",
+    ),
   },
 });
 
@@ -666,7 +669,8 @@ registry.registerPath({
     400: error400,
     401: error401Token,
     403: errorResponse(
-      "Papel sem acesso à rota, ou missão criada por outro professor",
+      "Papel sem acesso à rota, missão criada por outro professor, "
+      + "ou class_id de destino de uma turma de outro professor",
       "Você só pode editar missões que criou.",
     ),
     404: error404Mission,
