@@ -2,6 +2,7 @@ import express from "express";
 import AuthController from "../controllers/AuthController.js";
 import { asyncWrapper } from "../utils/helpers/index.js";
 import authMiddleware from "../middlewares/AuthMiddleware.js";
+import authorize from "../middlewares/AuthPermission.js";
 
 const router = express.Router();
 
@@ -9,12 +10,22 @@ const authController = new AuthController();
 
 router
   .post("/auth/login", asyncWrapper(authController.login.bind(authController)))
-  .post("/auth/register-student", authMiddleware, asyncWrapper(authController.registerStudent.bind(authController)))
+  .post(
+    "/auth/register-student",
+    authMiddleware,
+    authorize("teacher", "admin"),
+    asyncWrapper(authController.registerStudent.bind(authController)),
+  )
   .post("/auth/refresh", asyncWrapper(authController.refresh.bind(authController)))
   .post("/auth/forgot-password", asyncWrapper(authController.forgotPassword.bind(authController)))
   .post("/auth/reset-password", asyncWrapper(authController.resetPassword.bind(authController)))
   .patch("/auth/change-password", authMiddleware, asyncWrapper(authController.changePassword.bind(authController)))
   .post("/auth/logout", authMiddleware, asyncWrapper(authController.logout.bind(authController)))
-  .post("/auth/revoke/:userId", authMiddleware, asyncWrapper(authController.revoke.bind(authController)));
+  .post(
+    "/auth/revoke/:userId",
+    authMiddleware,
+    authorize("admin"),
+    asyncWrapper(authController.revoke.bind(authController)),
+  );
 
 export default router;

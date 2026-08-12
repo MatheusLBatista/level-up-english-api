@@ -14,9 +14,32 @@ class ClassService {
 
   async list(req) {
     const id = req?.params?.id;
+    const loggedUser = await this.userRepository.findById(req.user_id);
+    const isStudent = loggedUser.role === "student";
 
     if (id) {
+      if (isStudent && String(loggedUser.class) !== String(id)) {
+        throw new CustomError({
+          statusCode: HttpStatusCodes.FORBIDDEN.code,
+          errorType: "permissionError",
+          field: "Class",
+          details: [],
+          customMessage: "Students can only view their own class.",
+        });
+      }
+
       return await this.repository.findById(id);
+    }
+
+    if (isStudent) {
+      if (!loggedUser.class) {
+        return { docs: [], totalDocs: 0, page: 1, totalPages: 0 };
+      }
+
+      // id vai por último: o aluno não consegue forçar outra turma via querystring.
+      return await this.repository.list({
+        query: { ...req.query, id: String(loggedUser.class) },
+      });
     }
 
     return await this.repository.list(req);
@@ -35,7 +58,25 @@ class ClassService {
   }
 
   async update(id, parsedData, req) {
-    await this.ensureClassExists(id);
+    const existingClass = await this.ensureClassExists(id);
+
+    const loggedUser = await this.userRepository.findById(req.user_id);
+
+    if (loggedUser.role === "teacher") {
+      const ownerId = existingClass.teacher?._id ?? existingClass.teacher;
+
+      if (String(ownerId) !== String(req.user_id)) {
+        throw new CustomError({
+          statusCode: HttpStatusCodes.FORBIDDEN.code,
+          errorType: "permissionError",
+          field: "Class",
+          details: [],
+          customMessage: "Teachers can only update their own classes.",
+        });
+      }
+
+      delete parsedData.teacher;
+    }
 
     if (parsedData.name) {
       await this.ensureNameAvailable(parsedData.name, id);
@@ -73,7 +114,7 @@ class ClassService {
   }
 
   async ensureClassExists(id) {
-    await this.repository.findById(id);
+    return await this.repository.findById(id);
   }
 }
 

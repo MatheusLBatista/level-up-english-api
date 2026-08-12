@@ -125,7 +125,7 @@ const error400 = errorResponse(
 );
 
 const error401Credentials = errorResponse(
-  "Credenciais inválidas",
+  "Credenciais inválidas ou conta desativada",
   "Credenciais inválidas. Verifique seu usuário e senha.",
 );
 
@@ -141,9 +141,11 @@ const error401TokenExpired = errorResponse(
   [{ message: "O token JWT está expirado!" }],
 );
 
+// 403 devolvido pelo authorize(), quando a conta está desativada ou o papel do
+// usuário não está na lista da rota.
 const error403 = errorResponse(
-  "Sem permissão",
-  "You do not have permission to perform this action.",
+  "Conta desativada, ou papel sem acesso à rota",
+  "Permissão insuficiente para executar a operação.",
 );
 
 const error404User = errorResponse(
@@ -196,10 +198,7 @@ registry.registerPath({
       [{ path: "email", message: "Este e-mail já está cadastrado." }],
     ),
     401: error401Token,
-    403: errorResponse(
-      "Sem permissão",
-      "Apenas professores e administradores podem cadastrar alunos.",
-    ),
+    403: error403,
   },
 });
 
@@ -214,7 +213,7 @@ registry.registerPath({
   responses: {
     200: commonResponse(RefreshResponseSchema, "Tokens renovados com sucesso"),
     401: errorResponse(
-      "Refresh token inválido ou expirado",
+      "Refresh token inválido ou expirado, ou conta desativada",
       "Token inválido. Faça login novamente.",
     ),
   },
@@ -318,7 +317,7 @@ registry.registerPath({
   method: "get",
   path: "/users",
   tags: ["Users"],
-  summary: "Listar usuários",
+  summary: "Listar usuários (teacher/admin)",
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -333,6 +332,7 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.array(UserSchema), "Lista de usuários"),
     401: error401Token,
+    403: error403,
   },
 });
 
@@ -340,7 +340,7 @@ registry.registerPath({
   method: "get",
   path: "/users/{id}",
   tags: ["Users"],
-  summary: "Buscar usuário por ID",
+  summary: "Buscar usuário por ID (aluno só o próprio perfil)",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -350,6 +350,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(UserSchema, "Usuário encontrado"),
     401: error401Token,
+    403: errorResponse(
+      "Aluno consultando o perfil de outro usuário",
+      "Students can only view their own profile.",
+    ),
     404: error404User,
   },
 });
@@ -358,7 +362,7 @@ registry.registerPath({
   method: "post",
   path: "/users",
   tags: ["Users"],
-  summary: "Criar usuário (teacher/admin)",
+  summary: "Criar usuário (teacher/admin; professor só cria aluno)",
   security: [{ bearerAuth: [] }],
   request: {
     body: { content: { "application/json": { schema: CreateUserBodySchema } } },
@@ -367,7 +371,10 @@ registry.registerPath({
     201: commonResponse(UserSchema, "Usuário criado"),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou professor tentando criar teacher/admin",
+      "Only admins can create users with a role other than student.",
+    ),
   },
 });
 
@@ -403,7 +410,10 @@ registry.registerPath({
     200: commonResponse(UserSchema, "Usuário atualizado"),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Tentativa de atualizar outro usuário sem ser admin",
+      "You do not have permission to update another user.",
+    ),
     404: error404User,
   },
 });
@@ -422,7 +432,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.null(), "Usuário deletado"),
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Aluno tentando deletar a conta de outro usuário",
+      "Students can only delete their own account.",
+    ),
     404: error404User,
   },
 });
@@ -433,7 +446,7 @@ registry.registerPath({
   method: "get",
   path: "/classes",
   tags: ["Classes"],
-  summary: "Listar turmas",
+  summary: "Listar turmas (aluno recebe apenas a própria)",
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -457,7 +470,7 @@ registry.registerPath({
   method: "get",
   path: "/classes/{id}",
   tags: ["Classes"],
-  summary: "Buscar turma por ID",
+  summary: "Buscar turma por ID (aluno só a própria turma)",
   security: [{ bearerAuth: [] }],
   request: {
     params: classIdParam,
@@ -465,6 +478,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(ClassSchema, "Turma encontrada"),
     401: error401Token,
+    403: errorResponse(
+      "Aluno consultando turma que não é a dele",
+      "Students can only view their own class.",
+    ),
     404: error404Class,
   },
 });
@@ -473,7 +490,7 @@ registry.registerPath({
   method: "post",
   path: "/classes",
   tags: ["Classes"],
-  summary: "Criar turma",
+  summary: "Criar turma (teacher/admin)",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -492,7 +509,7 @@ registry.registerPath({
   method: "patch",
   path: "/classes/{id}",
   tags: ["Classes"],
-  summary: "Atualizar turma",
+  summary: "Atualizar turma (teacher/admin; professor só a própria turma)",
   security: [{ bearerAuth: [] }],
   request: {
     params: classIdParam,
@@ -504,7 +521,10 @@ registry.registerPath({
     200: commonResponse(ClassSchema, "Turma atualizada"),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou turma de outro professor",
+      "Teachers can only update their own classes.",
+    ),
     404: error404Class,
   },
 });
@@ -513,7 +533,7 @@ registry.registerPath({
   method: "delete",
   path: "/classes/{id}",
   tags: ["Classes"],
-  summary: "Deletar turma",
+  summary: "Deletar turma (admin)",
   security: [{ bearerAuth: [] }],
   request: {
     params: classIdParam,
@@ -574,6 +594,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(MissionSchema, "Missão encontrada"),
     401: error401Token,
+    403: errorResponse(
+      "Missão de outra turma (aluno)",
+      "Você não tem acesso a esta missão.",
+    ),
     404: error404Mission,
   },
 });
@@ -582,7 +606,7 @@ registry.registerPath({
   method: "post",
   path: "/missions",
   tags: ["Missions"],
-  summary: "Criar missão",
+  summary: "Criar missão (teacher/admin; professor só nas turmas dele)",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -593,7 +617,10 @@ registry.registerPath({
     201: commonResponse(MissionSchema, "Missão criada"),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou class_id de uma turma de outro professor",
+      "Você só pode criar missões nas suas turmas.",
+    ),
   },
 });
 
@@ -601,7 +628,7 @@ registry.registerPath({
   method: "post",
   path: "/missions/{id}/progress",
   tags: ["Missions"],
-  summary: "Registrar progresso do aluno logado em uma missão",
+  summary: "Registrar progresso do aluno logado em uma missão (student)",
   description:
     "Em missões do tipo quiz o aluno envia answers e o score é apurado pelo servidor "
     + "contra o gabarito (um score enviado no corpo é ignorado); nos tipos vocabulário "
@@ -620,10 +647,7 @@ registry.registerPath({
     200: commonResponse(MissionProgressSchema, "Progresso registrado"),
     400: error400,
     401: error401Token,
-    403: errorResponse(
-      "Sem permissão",
-      "Apenas alunos podem registrar progresso em missões.",
-    ),
+    403: error403,
     404: error404Mission,
   },
 });
@@ -632,7 +656,7 @@ registry.registerPath({
   method: "patch",
   path: "/missions/{id}",
   tags: ["Missions"],
-  summary: "Atualizar missão",
+  summary: "Atualizar missão (teacher/admin; professor só as que criou)",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
@@ -644,7 +668,11 @@ registry.registerPath({
     200: commonResponse(MissionSchema, "Missão atualizada"),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, missão criada por outro professor, "
+      + "ou class_id de destino de uma turma de outro professor",
+      "Você só pode editar missões que criou.",
+    ),
     404: error404Mission,
   },
 });
@@ -653,7 +681,7 @@ registry.registerPath({
   method: "delete",
   path: "/missions/{id}",
   tags: ["Missions"],
-  summary: "Deletar missão",
+  summary: "Deletar missão (teacher/admin; professor só as que criou)",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
@@ -661,7 +689,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.null(), "Missão deletada"),
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou missão criada por outro professor",
+      "Você só pode excluir missões que criou.",
+    ),
     404: error404Mission,
   },
 });
@@ -718,7 +749,7 @@ registry.registerPath({
   method: "post",
   path: "/attitudes",
   tags: ["Attitudes"],
-  summary: "Criar atitude",
+  summary: "Criar atitude (teacher/admin)",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -737,7 +768,7 @@ registry.registerPath({
   method: "patch",
   path: "/attitudes/{id}",
   tags: ["Attitudes"],
-  summary: "Atualizar atitude",
+  summary: "Atualizar atitude (teacher/admin)",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeIdParam,
@@ -758,7 +789,12 @@ registry.registerPath({
   method: "delete",
   path: "/attitudes/{id}",
   tags: ["Attitudes"],
-  summary: "Deletar atitude",
+  summary: "Deletar atitude (admin)",
+  description:
+    "Restrito a admin porque a exclusão deixa os attitudeLogs apontando para uma "
+    + "atitude inexistente, sem desfazer o XP já aplicado. Para tirar uma atitude de "
+    + "circulação preservando o histórico, o professor deve marcar active como false "
+    + "pelo PATCH.",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeIdParam,
@@ -786,7 +822,7 @@ registry.registerPath({
   method: "get",
   path: "/attitude-logs",
   tags: ["AttitudeLogs"],
-  summary: "Listar logs de atitudes",
+  summary: "Listar logs de atitudes (teacher/admin)",
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -800,6 +836,7 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.array(AttitudeLogSchema), "Lista de logs de atitudes"),
     401: error401Token,
+    403: error403,
   },
 });
 
@@ -807,7 +844,7 @@ registry.registerPath({
   method: "get",
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
-  summary: "Buscar log de atitude por ID",
+  summary: "Buscar log de atitude por ID (teacher/admin)",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
@@ -815,6 +852,7 @@ registry.registerPath({
   responses: {
     200: commonResponse(AttitudeLogSchema, "Log encontrado"),
     401: error401Token,
+    403: error403,
     404: error404AttitudeLog,
   },
 });
@@ -823,7 +861,7 @@ registry.registerPath({
   method: "post",
   path: "/attitude-logs",
   tags: ["AttitudeLogs"],
-  summary: "Aplicar atitude a um aluno",
+  summary: "Aplicar atitude a um aluno (teacher/admin)",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -846,7 +884,7 @@ registry.registerPath({
   method: "patch",
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
-  summary: "Corrigir atitude aplicada",
+  summary: "Corrigir atitude aplicada (teacher/admin; professor só os logs que aplicou)",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
@@ -861,7 +899,10 @@ registry.registerPath({
     ),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou log aplicado por outro professor",
+      "Teachers can only change logs they applied.",
+    ),
     404: error404AttitudeLog,
   },
 });
@@ -870,7 +911,7 @@ registry.registerPath({
   method: "delete",
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
-  summary: "Desfazer atitude aplicada",
+  summary: "Desfazer atitude aplicada (teacher/admin; professor só os logs que aplicou)",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
@@ -878,7 +919,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.null(), "Log deletado e XP do aluno revertido"),
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou log aplicado por outro professor",
+      "Teachers can only change logs they applied.",
+    ),
     404: error404AttitudeLog,
   },
 });
@@ -952,10 +996,7 @@ registry.registerPath({
       "Rankings recalculados a partir do XP atual dos alunos",
     ),
     401: error401Token,
-    403: errorResponse(
-      "Sem permissão",
-      "Apenas administradores podem recalcular os rankings.",
-    ),
+    403: error403,
   },
 });
 
@@ -968,7 +1009,15 @@ export function generateOpenAPIDocument() {
     info: {
       title: "LevelUp English API",
       version: "1.0.0",
-      description: "Plataforma de gamificação para aprendizado de inglês.",
+      description:
+        "Plataforma de gamificação para aprendizado de inglês.\n\n"
+        + "**Permissões.** Todas as rotas autenticadas declaram quais papéis podem "
+        + "chamá-las (student, teacher e admin); o papel fora da lista recebe 403, "
+        + "assim como qualquer usuário com active igual a false. "
+        + "A posse do recurso é verificada depois, no service: professor só altera a "
+        + "turma e as missões dele, e aluno só enxerga missão e ranking da própria "
+        + "turma. Os resumos indicam entre parênteses quem pode chamar cada rota; "
+        + "sem indicação, os três papéis podem.",
     },
     servers: [{ url: `http://localhost:${process.env.APP_PORT || 5011}` }],
   });
