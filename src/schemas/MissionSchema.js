@@ -18,6 +18,29 @@ const QuestionSchema = z
   })
   .openapi("Question");
 
+const QuestionResponseSchema = z
+  .object({
+    question: z.string().openapi({ example: "What color is the sky?" }),
+    options: z
+      .object({
+        a: z.string().openapi({ example: "Blue" }),
+        b: z.string().openapi({ example: "Red" }),
+        c: z.string().openapi({ example: "Green" }),
+        d: z.string().openapi({ example: "Yellow" }),
+      })
+      .openapi({ example: { a: "Blue", b: "Red", c: "Green", d: "Yellow" } }),
+    correct_answer: z
+      .enum(["a", "b", "c", "d"])
+      .optional()
+      .openapi({
+        example: "a",
+        description:
+          "Gabarito da questão. Presente apenas para teacher e admin — é omitido nas respostas ao aluno, "
+          + "que envia suas answers e recebe o score apurado pelo servidor.",
+      }),
+  })
+  .openapi("QuestionResponse");
+
 const MissionBaseSchema = z.object({
   title: z.string().min(1, "Título obrigatório.").openapi({ example: "Explorador de Palavras" }),
   description: z.string().optional().openapi({ example: "Aprenda 10 nomes de animais" }),
@@ -74,7 +97,7 @@ export const MissionSchema = z
     class_id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
     active: z.boolean().openapi({ example: true }),
     createdBy: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
-    questions: z.array(QuestionSchema).optional(),
+    questions: z.array(QuestionResponseSchema).optional(),
     content: z.string().nullable().optional(),
     content_url: z.string().nullable().optional(),
     createdAt: z.string().openapi({ example: "2024-01-01T00:00:00.000Z" }),
