@@ -91,9 +91,6 @@ class UserService {
       });
     }
 
-    // Campos que definem privilégio ou alcance do usuário só o admin altera.
-    // class fica aqui porque as restrições de turma (missões, ranking, classes)
-    // são todas ancoradas nela — se o aluno editasse a própria, escolheria o que vê.
     if (!isAdmin) {
       delete parsedData.role;
       delete parsedData.xp;
@@ -106,17 +103,28 @@ class UserService {
   }
 
   async delete(id, req) {
-    const user = await this.repository.findById(req.user_id);
+    const loggedUser = await this.repository.findById(req.user_id);
+    const target = await this.ensureUserExists(id);
 
-    await this.ensureUserExists(id);
+    const isSelf = String(loggedUser._id) === String(id);
 
-    if (user.role === "student" && user._id.toString() !== id.toString()) {
+    if (loggedUser.role === "student" && !isSelf) {
       throw new CustomError({
         statusCode: HttpStatusCodes.FORBIDDEN.code,
         errorType: "permissionError",
         field: "User",
         details: [],
         customMessage: "Students can only delete their own account.",
+      });
+    }
+
+    if (loggedUser.role === "teacher" && !isSelf && target.role !== "student") {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "User",
+        details: [],
+        customMessage: "Teachers can only delete student accounts.",
       });
     }
 
