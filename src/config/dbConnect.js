@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { URL } from "url";
 import logger from "../utils/logger.js";
+import SendMail from "../utils/SendMail.js";
 
 dotenv.config();
 
