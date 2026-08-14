@@ -562,6 +562,9 @@ registry.registerPath({
   path: "/missions",
   tags: ["Missions"],
   summary: "Listar missões",
+  description:
+    "O aluno recebe apenas as missões da própria turma, e sem o gabarito: o campo "
+    + "questions[].correct_answer é omitido. Teacher e admin recebem a missão completa.",
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -587,6 +590,9 @@ registry.registerPath({
   path: "/missions/{id}",
   tags: ["Missions"],
   summary: "Buscar missão por ID",
+  description:
+    "O aluno só acessa missão da própria turma, e a resposta vem sem o gabarito: o campo "
+    + "questions[].correct_answer é omitido. Teacher e admin recebem a missão completa.",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,

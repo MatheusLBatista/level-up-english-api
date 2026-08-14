@@ -17,22 +17,29 @@ class MissionService {
 
     const loggedUser = await this.userRepository.findById(req.user_id);
 
-    // No Express 5 req.query é somente-leitura, então o filtro do aluno é
-    // repassado num objeto próprio em vez de sobrescrever o da requisição.
     let query = req.query;
 
     if (loggedUser.role === "student") {
       if (!loggedUser.class) {
         return { docs: [], totalDocs: 0, page: 1, totalPages: 0 };
       }
-      // class_id vai por último: o aluno não consegue forçar outra turma via querystring.
       query = { ...req.query, class_id: String(loggedUser.class) };
     }
 
-    return await this.repository.list({ query });
+    const result = await this.repository.list({ query });
+
+    if (loggedUser.role !== "student") return result;
+
+    return { ...result, docs: result.docs.map((mission) => this.hideAnswers(mission)) };
   }
 
   async findById(id, req) {
+    const { mission, loggedUser } = await this.findAccessible(id, req);
+
+    return loggedUser.role === "student" ? this.hideAnswers(mission) : mission;
+  }
+
+  async findAccessible(id, req) {
     const mission = await this.repository.findById(id);
     const loggedUser = await this.userRepository.findById(req.user_id);
 
@@ -49,7 +56,18 @@ class MissionService {
       });
     }
 
-    return mission;
+    return { mission, loggedUser };
+  }
+
+  hideAnswers(mission) {
+    const plain = typeof mission.toObject === "function" ? mission.toObject() : mission;
+
+    if (!plain.questions?.length) return plain;
+
+    return {
+      ...plain,
+      questions: plain.questions.map(({ correct_answer, ...question }) => question),
+    };
   }
 
   async create(parsedData, req) {
@@ -135,10 +153,7 @@ class MissionService {
   }
 
   async submitProgress(missionId, parsedData, req) {
-    const loggedUser = await this.userRepository.findById(req.user_id);
-
-    // Reaproveita a checagem de turma já existente em findById.
-    const mission = await this.findById(missionId, req);
+    const { mission, loggedUser } = await this.findAccessible(missionId, req);
 
     if (!mission.active) {
       throw new CustomError({
@@ -189,11 +204,6 @@ class MissionService {
     };
   }
 
-  /**
-   * Em missões de quiz o score é apurado aqui, comparando as respostas do aluno
-   * com o gabarito — o valor enviado no corpo é ignorado. Vocabulário e áudio não
-   * têm gabarito no model, então seguem dependendo do score informado.
-   */
   resolveScore(mission, { score, answers }) {
     if (mission.type !== "quiz") {
       if (score === undefined) {
