@@ -422,7 +422,7 @@ registry.registerPath({
   method: "delete",
   path: "/users/{id}",
   tags: ["Users"],
-  summary: "Deletar usuário",
+  summary: "Deletar usuário (aluno só a própria conta; professor, contas de aluno e a dele)",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -433,8 +433,9 @@ registry.registerPath({
     200: commonResponse(z.null(), "Usuário deletado"),
     401: error401Token,
     403: errorResponse(
-      "Aluno tentando deletar a conta de outro usuário",
-      "Students can only delete their own account.",
+      "Aluno tentando deletar a conta de outro usuário, ou professor tentando deletar "
+      + "conta de teacher/admin",
+      "Teachers can only delete student accounts.",
     ),
     404: error404User,
   },
@@ -867,7 +868,10 @@ registry.registerPath({
   method: "post",
   path: "/attitude-logs",
   tags: ["AttitudeLogs"],
-  summary: "Aplicar atitude a um aluno (teacher/admin)",
+  summary: "Aplicar atitude a um aluno (teacher/admin; professor só nos alunos das turmas dele)",
+  description:
+    "O aluno alvo precisa estar em uma turma do professor que está aplicando — aluno de "
+    + "outra turma, ou sem turma nenhuma, devolve 403. O admin alcança qualquer aluno.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -881,7 +885,10 @@ registry.registerPath({
     ),
     400: error400,
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou aluno de uma turma de outro professor",
+      "Você só pode aplicar atitudes a alunos das suas turmas.",
+    ),
     404: errorResponse("Aluno ou atitude não encontrados", "Recurso não encontrado."),
   },
 });
@@ -1021,7 +1028,8 @@ export function generateOpenAPIDocument() {
         + "chamá-las (student, teacher e admin); o papel fora da lista recebe 403, "
         + "assim como qualquer usuário com active igual a false. "
         + "A posse do recurso é verificada depois, no service: professor só altera a "
-        + "turma e as missões dele, e aluno só enxerga missão e ranking da própria "
+        + "turma e as missões dele, só aplica atitude a aluno das turmas dele e só "
+        + "deleta conta de aluno; o aluno só enxerga missão e ranking da própria "
         + "turma. Os resumos indicam entre parênteses quem pode chamar cada rota; "
         + "sem indicação, os três papéis podem.",
     },
