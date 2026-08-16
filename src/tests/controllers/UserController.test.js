@@ -2,9 +2,6 @@ import UserController from "../../controllers/UserController.js";
 import UserService from "../../service/UserService.js";
 import { CustomError } from "../../utils/helpers/index.js";
 
-// O service é substituído por um dublê: aqui só interessa o que o controller
-// faz sozinho — validar o corpo com Zod, repassar os dados certos e limpar a
-// resposta. A regra de permissão é julgada em UserService.test.js.
 jest.mock("../../service/UserService.js");
 
 describe("UserController", () => {
