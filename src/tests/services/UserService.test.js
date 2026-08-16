@@ -4,9 +4,6 @@ import UserRepository from "../../repository/UserRepository.js";
 import { CustomError } from "../../utils/helpers/index.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../../utils/LevelHelper.js";
 
-// O UserService instancia o repositório no construtor, então o dublê entra pelo
-// mock do módulo. Aqui se julga a regra de posse — quem pode ver, criar, alterar
-// e apagar quem —, que é a parte que a rota apenas confirma.
 jest.mock("../../repository/UserRepository.js");
 
 describe("UserService", () => {

@@ -1,11 +1,6 @@
 import UserRepository from "../../repository/UserRepository.js";
 import { CustomError } from "../../utils/helpers/index.js";
 
-/**
- * O model entra injetado como dublê: o que está em julgamento é o filtro que o
- * repositório monta e o erro que ele levanta, não o Mongoose. A ida ao banco de
- * verdade é verificada nos testes de rota.
- */
 describe("UserRepository", () => {
   let modelo;
   let repository;
@@ -13,10 +8,6 @@ describe("UserRepository", () => {
   const USER_ID = "507f1f77bcf86cd799439011";
   const MISSION_ID = "507f1f77bcf86cd799439022";
 
-  /**
-   * Imita a query encadeável do Mongoose: `.select()` devolve ela mesma e o
-   * `await` resolve no resultado, exatamente como o repositório usa.
-   */
   const query = (resultado) => {
     const encadeavel = {
       select: jest.fn(() => encadeavel),
