@@ -26,13 +26,10 @@ describe("Rotas de usuários", () => {
   beforeAll(async() => {
     await connectTestDatabase();
 
-    // Custo baixo de propósito: é só a senha de seed, e o padrão (10) deixaria
-    // a suíte lenta por reidratar os usuários a cada teste.
     senhaHash = await bcrypt.hash(SENHA_PADRAO, 4);
 
     app = express();
     app.use(express.json());
-    // As rotas de auth entram junto porque é por elas que o teste pega o token.
     app.use(authRoutes);
     app.use(userRoutes);
     app.use(errorHandler);
