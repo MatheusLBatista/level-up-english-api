@@ -277,7 +277,11 @@ Todas as metas foram atingidas. O único arquivo abaixo de 100% que não é meta
 
 ### Uma ressalva sobre o número
 
-O Jest está configurado sem `collectCoverageFrom`, então **a cobertura é medida apenas sobre os arquivos que algum teste importa**. Arquivos que ninguém importa não aparecem na tabela — e existem quatro deles em `src/utils/` (`handleQuery.js`, `Validator.js`, `DateHelper.js`, `getFirstLine.js`), sendo que os dois primeiros nem carregam, porque importam dependências que não estão no projeto. Os 99,68% são honestos sobre o código em uso, mas silenciosos sobre o código morto. Configurar `collectCoverageFrom` faz o número cair e passar a refletir o projeto inteiro; é o ajuste que deve acompanhar a limpeza desses arquivos.
+O Jest está configurado sem `collectCoverageFrom`, então **a cobertura é medida apenas sobre os arquivos que algum teste importa**. Arquivo que ninguém importa simplesmente não aparece na tabela, e por isso a métrica não distingue "código testado" de "código que ninguém usa".
+
+Em 19/08/2026 essa lacuna foi fechada pelo outro lado: os cinco arquivos que a varredura de referências apontou como órfãos foram removidos do projeto (`utils/handleQuery.js`, `utils/Validator.js`, `utils/DateHelper.js`, `utils/getFirstLine.js` e `repository/filters/UserFilterBuild.js`). Os dois primeiros nem carregavam, porque importavam dependências ausentes; o último tinha sido substituído por um filtro montado direto no `UserRepository`. Com eles fora, os 99,68% passam a descrever o projeto inteiro, e não apenas a parte dele que algum teste alcança.
+
+Configurar `collectCoverageFrom` continua sendo o ajuste correto: ele faz a garantia valer para frente, apontando o próximo arquivo órfão assim que ele aparecer, em vez de depender de uma varredura manual.
 
 ### Métricas de qualidade da suíte
 
