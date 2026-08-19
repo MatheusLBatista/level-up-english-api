@@ -54,6 +54,8 @@ class User {
     );
 
     userSchema.virtual("progress").get(function() {
+      if (typeof this.xp !== "number") return undefined;
+
       const { current_level_xp, next_level_xp, xp_to_next_level, percentage } = getProgress(this.xp);
       return { current_level_xp, next_level_xp, xp_to_next_level, percentage };
     });
