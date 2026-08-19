@@ -26,14 +26,18 @@ import {
   UpdateMissionBodySchema,
   SubmitMissionProgressBodySchema,
   MissionProgressSchema,
+  MissionWriteResponseSchema,
 } from "../schemas/MissionSchema.js";
 import {
   ClassSchema,
+  ClassListItemSchema,
+  ClassWriteResponseSchema,
   CreateClassBodySchema,
   UpdateClassBodySchema,
 } from "../schemas/ClassSchema.js";
 import {
   AttitudeSchema,
+  AttitudeWriteResponseSchema,
   CreateAttitudeBodySchema,
   UpdateAttitudeBodySchema,
 } from "../schemas/AttitudeSchema.js";
@@ -42,6 +46,7 @@ import {
   CreateAttitudeLogBodySchema,
   UpdateAttitudeLogBodySchema,
   AttitudeLogWithProgressionSchema,
+  UpdatedAttitudeLogSchema,
   LevelProgressionSchema,
 } from "../schemas/AttitudeLogSchema.js";
 import {
@@ -50,21 +55,45 @@ import {
   RefreshRankingResponseSchema,
   RankingClassIdParamSchema,
 } from "../schemas/RankingSchema.js";
+import {
+  TeacherRefSchema,
+  StudentRefSchema,
+  UserContactRefSchema,
+  UserNameRefSchema,
+  ClassRefSchema,
+  MissionRefSchema,
+  AttitudeRefSchema,
+} from "../schemas/PopulatedRefSchemas.js";
 
 const registry = new OpenAPIRegistry();
+
+// Referências populadas — campos que o model declara como ObjectId e a API
+// devolve como objeto. Registrados antes dos schemas que os usam.
+registry.register("TeacherRef", TeacherRefSchema);
+registry.register("StudentRef", StudentRefSchema);
+registry.register("UserContactRef", UserContactRefSchema);
+registry.register("UserNameRef", UserNameRefSchema);
+registry.register("ClassRef", ClassRefSchema);
+registry.register("MissionRef", MissionRefSchema);
+registry.register("AttitudeRef", AttitudeRefSchema);
 
 registry.register("User", UserSchema);
 registry.register("LevelProgress", LevelProgressSchema);
 registry.register("LevelProgression", LevelProgressionSchema);
 registry.register("AttitudeLogWithProgression", AttitudeLogWithProgressionSchema);
 registry.register("Attitude", AttitudeSchema);
+registry.register("AttitudeWriteResponse", AttitudeWriteResponseSchema);
 registry.register("CreateAttitudeBody", CreateAttitudeBodySchema);
 registry.register("UpdateAttitudeBody", UpdateAttitudeBodySchema);
 registry.register("AttitudeLog", AttitudeLogSchema);
+registry.register("UpdatedAttitudeLog", UpdatedAttitudeLogSchema);
 registry.register("CreateAttitudeLogBody", CreateAttitudeLogBodySchema);
 registry.register("UpdateAttitudeLogBody", UpdateAttitudeLogBodySchema);
 registry.register("Mission", MissionSchema);
+registry.register("MissionWriteResponse", MissionWriteResponseSchema);
 registry.register("Class", ClassSchema);
+registry.register("ClassListItem", ClassListItemSchema);
+registry.register("ClassWriteResponse", ClassWriteResponseSchema);
 registry.register("CreateMissionBody", CreateMissionBodySchema);
 registry.register("UpdateMissionBody", UpdateMissionBodySchema);
 registry.register("SubmitMissionProgressBody", SubmitMissionProgressBodySchema);
@@ -462,7 +491,7 @@ registry.registerPath({
     }),
   },
   responses: {
-    200: commonResponse(z.array(ClassSchema), "Lista de turmas"),
+    200: commonResponse(z.array(ClassListItemSchema), "Lista de turmas (students e missions vêm como ids)"),
     401: error401Token,
   },
 });
@@ -499,7 +528,7 @@ registry.registerPath({
     },
   },
   responses: {
-    201: commonResponse(ClassSchema, "Turma criada"),
+    201: commonResponse(ClassWriteResponseSchema, "Turma criada (relacionamentos como ids)"),
     400: error400,
     401: error401Token,
     403: error403,
@@ -519,7 +548,7 @@ registry.registerPath({
     },
   },
   responses: {
-    200: commonResponse(ClassSchema, "Turma atualizada"),
+    200: commonResponse(ClassWriteResponseSchema, "Turma atualizada (relacionamentos como ids)"),
     400: error400,
     401: error401Token,
     403: errorResponse(
@@ -621,7 +650,7 @@ registry.registerPath({
     },
   },
   responses: {
-    201: commonResponse(MissionSchema, "Missão criada"),
+    201: commonResponse(MissionWriteResponseSchema, "Missão criada (class_id e createdBy como ids)"),
     400: error400,
     401: error401Token,
     403: errorResponse(
@@ -672,7 +701,7 @@ registry.registerPath({
     },
   },
   responses: {
-    200: commonResponse(MissionSchema, "Missão atualizada"),
+    200: commonResponse(MissionWriteResponseSchema, "Missão atualizada (class_id e createdBy como ids)"),
     400: error400,
     401: error401Token,
     403: errorResponse(
@@ -764,7 +793,7 @@ registry.registerPath({
     },
   },
   responses: {
-    201: commonResponse(AttitudeSchema, "Atitude criada"),
+    201: commonResponse(AttitudeWriteResponseSchema, "Atitude criada (createdBy como id)"),
     400: error400,
     401: error401Token,
     403: error403,
@@ -784,7 +813,7 @@ registry.registerPath({
     },
   },
   responses: {
-    200: commonResponse(AttitudeSchema, "Atitude atualizada"),
+    200: commonResponse(AttitudeWriteResponseSchema, "Atitude atualizada (createdBy como id)"),
     400: error400,
     401: error401Token,
     403: error403,
@@ -907,7 +936,7 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(
-      AttitudeLogWithProgressionSchema,
+      UpdatedAttitudeLogSchema,
       "Log corrigido, XP ajustado e nível do aluno recalculado. O campo progression só é retornado quando a atitude é trocada",
     ),
     400: error400,

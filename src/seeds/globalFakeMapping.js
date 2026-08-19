@@ -37,12 +37,6 @@ const fakeMappings = {
       }
       return missions;
     },
-    streak: () => faker.number.int({ min: 0, max: 30 }),
-    badges: () =>
-      faker.helpers.arrayElements(
-        ["beginner", "intermediate", "advanced", "veteran"],
-        { min: 0, max: 4 },
-      ),
     class: () => null,
 
     uniqueToken: () => "",

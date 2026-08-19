@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
+import { ClassRefSchema, UserNameRefSchema } from "./PopulatedRefSchemas.js";
 
 extendZodWithOpenApi(z);
 
@@ -94,9 +95,9 @@ export const MissionSchema = z
     description: z.string().nullable().openapi({ example: "Aprenda 10 nomes de animais" }),
     type: z.enum(["quiz", "vocabulary", "audio"]).openapi({ example: "quiz" }),
     xp_reward: z.number().openapi({ example: 100 }),
-    class_id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    class_id: ClassRefSchema.nullable().optional(),
     active: z.boolean().openapi({ example: true }),
-    createdBy: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    createdBy: UserNameRefSchema.nullable().optional(),
     questions: z.array(QuestionResponseSchema).optional(),
     content: z.string().nullable().optional(),
     content_url: z.string().nullable().optional(),
@@ -104,6 +105,16 @@ export const MissionSchema = z
     updatedAt: z.string().openapi({ example: "2024-01-01T00:00:00.000Z" }),
   })
   .openapi("Mission");
+
+/**
+ * Missão como sai da **escrita** (`POST /missions` e `PATCH /missions/{id}`).
+ * O `create` e o `update` do repositório não aplicam populate, então `class_id`
+ * e `createdBy` voltam como ids — ao contrário da leitura, que os popula.
+ */
+export const MissionWriteResponseSchema = MissionSchema.extend({
+  class_id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+  createdBy: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+}).openapi("MissionWriteResponse");
 
 export const SubmitMissionProgressBodySchema = z
   .object({
