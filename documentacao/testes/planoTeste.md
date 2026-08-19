@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.0_
+_versão 3.0_
 
 ## Histórico das alterações
 
@@ -10,6 +10,7 @@ _versão 2.0_
 | ---------- | ------ | ----------------------------------------------------------------------------------------------------------- | ------------- |
 | 25/06/2025 | 1.0    | Primeira versão do plano de teste                                                                            | Matheus Lucas |
 | 14/08/2026 | 2.0    | Atualização após os módulos de atitudes, ranking, progresso de missão e controle de acesso por papel e posse | Matheus Lucas |
+| 19/08/2026 | 3.0    | Suíte implementada: estrutura real, cobertura medida, RNF-005 atendido e o que ficou fora do plano original  | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -101,7 +102,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | Parcial — limite aplicado nos 5 repositórios; o p95 ainda não foi medido |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
-| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | Pendente                        |
+| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,67% de linhas e as 39 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Fora do escopo desta versão     |
 
 ## 4 - Casos de Teste
@@ -123,6 +124,8 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 
 Além destes, 4 casos ficam **bloqueados** enquanto badges, streak e rate limiting não existirem (seção 10 do catálogo).
 
+**Situação em 19/08/2026: 140 dos 146 casos estão automatizados (95,9%).** As seis pendências são o token expirado em rota (`CT-AUTH-012`), a célula restritiva de `GET /attitude-logs/{id}` (`CT-PERM-033`) e os quatro fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
+
 A matriz `CT-PERM` cobre uma linha por operação da API, com o status esperado para cada um dos três papéis. Ela é a rede de segurança contra regressão de permissão: qualquer rota nova entra ali antes de ser considerada pronta.
 
 ## 5 - Estratégia de Teste
@@ -139,8 +142,9 @@ A estratégia busca garantir qualidade funcional e de segurança através de ní
   - `LevelHelper`: curva de nível, XP por nível, progresso e limites (nível mínimo 1, máximo 50)
   - `MissionService.resolveScore`: correção do quiz e obrigatoriedade do score fora do quiz
   - `RankingService.buildEntries`: ordenação e corte no top 30
-  - Schemas Zod: campos obrigatórios, enums e regras condicionais (quiz exige no mínimo 5 questões)
-  - Helpers e utilitários (`AuthHelper`, `handleQuery`, filtros de repositório)
+  - `ProgressionService`: aplicação do XP com `$inc`, recálculo de nível e resiliência quando o ranking falha
+  - Schemas Zod: campos obrigatórios, enums e regras condicionais (quiz exige no mínimo 5 questões). São exercitados **através dos controllers**, que é onde o `parse` acontece — não há suíte própria de schema, e a cobertura deles vem daí
+  - Helpers e utilitários (`AuthHelper`, `TokenUtil`, `CustomError`, `CommonResponse`, `errorHandler`, filtros de repositório)
 
 **Testes de integração**
 
@@ -207,7 +211,7 @@ npm install
 npm run test
 
 # Um arquivo específico
-npm run test -- src/__tests__/integration/missions.test.js
+npm run test -- src/tests/routes/missionRoutes.test.js
 
 # Modo watch durante o desenvolvimento
 npm run test -- --watch
@@ -216,65 +220,78 @@ npm run test -- --watch
 npm run fix
 ```
 
-### Estrutura pretendida
+### Estrutura da suíte
+
+A suíte foi organizada **espelhando as camadas do projeto**, e não separando unitário de integração. Um arquivo de teste tem o nome do arquivo que ele cobre, no mesmo caminho relativo, o que torna óbvio tanto onde escrever um teste novo quanto o que ficou sem teste:
 
 ```
 src/
-└── __tests__/
-    ├── unit/
-    │   ├── services/
-    │   ├── repository/
-    │   └── utils/
-    ├── integration/
-    │   ├── auth.test.js
-    │   ├── users.test.js
-    │   ├── classes.test.js
-    │   ├── missions.test.js
-    │   ├── attitudes.test.js
-    │   ├── attitudeLogs.test.js
-    │   ├── rankings.test.js
-    │   └── permissions.test.js
-    ├── e2e/
-    └── helpers/
-        ├── setupDatabase.js   # sobe e derruba o MongoDB em memória
-        ├── factories.js       # cria usuário, turma, missão e atitude de teste
-        └── auth.js            # devolve token pronto para cada papel
+└── tests/
+    ├── setup/
+    │   └── testDatabase.js       # sobe, limpa e derruba o MongoDB em memória
+    ├── routes/                   # 7 arquivos — nível Int, a pilha completa via Supertest
+    ├── controllers/              # 7 arquivos — validação Zod e envelope de resposta
+    ├── services/                 # 8 arquivos — regra de negócio e posse, com dublês
+    ├── repository/               # 6 arquivos + filters/ com 3
+    ├── models/                   # 1 arquivo
+    └── utils/                    # 3 arquivos + errors/ com 3 e helpers/ com 3
 ```
 
-Três apoios valem mais que qualquer caso isolado, e são a primeira coisa a implementar:
+O `jest.setup.js`, na raiz, roda antes de cada arquivo: fixa `NODE_ENV=test`, `DISABLED_EMAIL=true` e `LOG_ENABLED=false`, garante um valor de teste para cada segredo JWT e silencia `console.log`/`console.error` para que a saída da suíte mostre só o que falhou.
 
-1. `setupDatabase`: `beforeAll` sobe o banco em memória e aponta `DB_URL` para ele; `afterEach` limpa as coleções; `afterAll` derruba tudo. Sem isso os testes vazam estado entre si.
-2. `factories`: montar usuário/turma/missão em uma linha, para o caso de teste falar do que está verificando e não de preparação.
-3. `auth`: `tokenDe("teacher")` — como quase todo caso precisa de um token por papel, isso encurta a suíte inteira.
+Dos três apoios previstos na v2.0 deste plano, **um foi construído e dois não**:
+
+1. `setup/testDatabase.js` — construído. `connectTestDatabase` levanta o `MongoMemoryServer`, `clearTestDatabase` esvazia as coleções entre testes e `disconnectTestDatabase` derruba tudo. Como cada arquivo de teste roda em um processo próprio do Jest, cada um levanta a própria instância e nenhum disputa dados com outro.
+2. `factories` e `auth` — **não foram extraídos**. Cada suíte de rota monta o próprio elenco no `beforeEach` e tem a própria função de autenticação. É duplicação assumida: o custo de manter sete cópias apareceu como aceitável perto do risco de um helper compartilhado esconder o que cada teste realmente prepara. Se um oitavo módulo entrar, a conta muda e vale extrair.
+
+Uma consequência dessa estrutura merece registro: **nenhuma suíte carrega `src/app.js` nem `routes/index.js`**. Cada teste de rota monta o próprio Express com o router que vai exercitar. Ficam sem cobertura o handler 404, o `helmet`/`cors`/`compression`, a ordem de montagem dos routers e o `LogRoutesMiddleware`. A causa é o `await DbConnect.conectar()` no topo do módulo de `app.js`, que conecta ao banco só de importar o arquivo; extrair uma função `createApp()` destrava esse teste.
 
 ### Cuidados com o ambiente
 
-- **`npm run seed` apaga dados.** O seed roda `deleteMany()` em usuários, turmas, missões, atitudes e logs antes de recriar tudo, e as turmas recriadas ganham ids novos. Ele serve para popular o ambiente de testes manuais, nunca para preparar teste automatizado — estes montam o próprio cenário pelas factories.
+- **`npm run seed` apaga dados.** O seed roda `deleteMany()` em usuários, turmas, missões, atitudes e logs antes de recriar tudo, e as turmas recriadas ganham ids novos. Ele serve para popular o ambiente de testes manuais, nunca para preparar teste automatizado — estes montam o próprio cenário no `beforeEach`, contra o banco em memória, e nunca tocam o banco de desenvolvimento.
 - **Variáveis de ambiente**: a suíte roda com `NODE_ENV=test` e `DISABLED_EMAIL=true`, para não disparar e-mail real em cadastro de aluno e recuperação de senha.
 - **Segredos JWT**: os testes usam os mesmos nomes de variável do `.env.example`, com valores próprios de teste.
 
 ## 7 - Cobertura de Testes e Métricas
 
-### Metas de cobertura por camada
+### Metas de cobertura por camada, e o que foi alcançado
 
-| Camada             | Cobertura esperada | Prioridade | Justificativa                                              |
-| ------------------ | ------------------ | ---------- | ---------------------------------------------------------- |
-| Services           | 85%                | Alta       | Concentram regra de negócio e verificação de posse         |
-| Middlewares        | 90%                | Alta       | `authorize` é a porta de entrada de toda rota autenticada  |
-| Schemas/Validators | 95%                | Alta       | Baratos de testar e a primeira barreira contra dado inválido |
-| Repositories       | 80%                | Alta       | Filtros e paginação são fonte recorrente de erro sutil     |
-| Controllers        | 70%                | Média      | Camada fina; o essencial já passa pela integração          |
-| Utils/Helpers      | 75%                | Média      | `LevelHelper` é exceção: cobertura alta, é regra de XP     |
-| **Total**          | **~80%**           | -          | Piso contratual de 70% no RNF-005                          |
+Medição de 19/08/2026, com 41 arquivos de teste e 879 testes:
+
+| Camada             | Meta  | Realizado (stmts)  | Prioridade | Justificativa                                                |
+| ------------------ | ----- | ------------------ | ---------- | ------------------------------------------------------------ |
+| Services           | 85%   | **99,73%**         | Alta       | Concentram regra de negócio e verificação de posse           |
+| Middlewares        | 90%   | **94,59%**         | Alta       | `authorize` é a porta de entrada de toda rota autenticada    |
+| Schemas/Validators | 95%   | **100%**           | Alta       | Baratos de testar e a primeira barreira contra dado inválido |
+| Repositories       | 80%   | **100%**           | Alta       | Filtros e paginação são fonte recorrente de erro sutil       |
+| Controllers        | 70%   | **100%**           | Média      | Camada fina; o essencial já passa pela integração            |
+| Utils/Helpers      | 75%   | **100%**           | Média      | `LevelHelper` é exceção: cobertura alta, é regra de XP       |
+| Routes             | —     | **100%**           | —          | Consequência das 7 suítes de rota                            |
+| Models             | —     | **100%**           | —          | Consequência dos testes que gravam de verdade                |
+| **Total**          | **~80%** | **99,68% stmts / 98,88% branches / 100% funcs / 99,67% linhas** | - | Piso contratual de 70% no RNF-005 |
+
+Todas as metas foram atingidas. O único arquivo abaixo de 100% que não é meta agregada é o `AuthMiddleware.js`, com 90,9%, e as duas linhas descobertas são conhecidas:
+
+- **linha 39** — o `if (!decoded)` depois de um `jwt.verify` que já lança quando o token não presta. É código inalcançável, não lacuna de teste: a forma de fechá-la é apagar o `if`, não escrever um teste para ele.
+- **linha 63** — o `else next(err)`, caminho de um access token válido cujo usuário não tem mais refresh token no banco. Esse é lacuna real, e está registrado como `CT-AUTH-012` no catálogo.
+
+### Uma ressalva sobre o número
+
+O Jest está configurado sem `collectCoverageFrom`, então **a cobertura é medida apenas sobre os arquivos que algum teste importa**. Arquivos que ninguém importa não aparecem na tabela — e existem quatro deles em `src/utils/` (`handleQuery.js`, `Validator.js`, `DateHelper.js`, `getFirstLine.js`), sendo que os dois primeiros nem carregam, porque importam dependências que não estão no projeto. Os 99,68% são honestos sobre o código em uso, mas silenciosos sobre o código morto. Configurar `collectCoverageFrom` faz o número cair e passar a refletir o projeto inteiro; é o ajuste que deve acompanhar a limpeza desses arquivos.
 
 ### Métricas de qualidade da suíte
 
-- **Pass rate**: mínimo de 95% na `main`
-- **Flakiness**: máximo de 5% de testes instáveis — teste que falha de forma intermitente é tratado como bug da suíte
-- **Tempo de execução**: suíte completa em menos de 60 s
-- **Cobertura mínima**: 70% de linhas e 65% de branches
+| Métrica              | Alvo                     | Medido em 19/08/2026     |
+| -------------------- | ------------------------ | ------------------------ |
+| Pass rate na `main`  | mínimo de 95%            | **100%** (879/879)       |
+| Flakiness            | máximo de 5%             | **0** casos instáveis observados |
+| Tempo de execução    | menos de 60 s            | **~7 s**                 |
+| Cobertura de linhas  | mínimo de 70%            | **99,67%**               |
+| Cobertura de branches | mínimo de 65%           | **98,88%**               |
 
-O relatório sai em `coverage/` a cada `npm run test`. A configuração do Jest, no `package.json`, exclui da contagem os arquivos sem regra própria (helpers de resposta, logger, conexão com o banco) para que a métrica reflita código de negócio.
+O relatório sai em `coverage/` a cada `npm run test`. A configuração do Jest, no `package.json`, exclui da contagem os arquivos sem regra própria (helpers de resposta, logger, conexão com o banco, seeds e a documentação Swagger) para que a métrica reflita código de negócio.
+
+O tempo de execução ficou uma ordem de grandeza abaixo do alvo por dois motivos que valem registro: o `bcrypt` roda com custo 4 nas suítes de rota, em vez do padrão 10, já que ali a senha é só dado de cenário; e cada arquivo de teste levanta a própria instância do Mongo em memória, o que deixa o Jest paralelizar por processo em vez de serializar tudo num banco compartilhado.
 
 ## 8 - Classificação de Bugs
 
@@ -321,17 +338,25 @@ O campo **Teste de regressão** é obrigatório para severidade Blocker e Grave:
 
 ## 10 - Cronograma de Testes
 
-| Fase             | Atividade                                                       | Duração  |
-| ---------------- | --------------------------------------------------------------- | -------- |
-| Planejamento     | Revisão do plano e do catálogo de casos                          | 1 dia    |
-| Infraestrutura   | `setupDatabase`, factories e helper de autenticação              | 2 dias   |
-| Integração       | Suíte por módulo, seguindo a ordem de criticidade                | 5 dias   |
-| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   |
-| Unitários        | Regras isoladas de XP, nível, correção de quiz e schemas         | 2 dias   |
-| Ponta a ponta    | Fluxos `CT-E2E`                                                  | 1 dia    |
-| Fechamento       | Cobertura, ajuste das metas e revisão do plano                   | 1 dia    |
+| Fase             | Atividade                                                       | Duração  | Situação                                        |
+| ---------------- | --------------------------------------------------------------- | -------- | ----------------------------------------------- |
+| Planejamento     | Revisão do plano e do catálogo de casos                          | 1 dia    | ✅ concluído em 14/08/2026                      |
+| Infraestrutura   | `setupDatabase`, factories e helper de autenticação              | 2 dias   | ✅ concluído — sem factories nem helper de auth, ver seção 6 |
+| Integração       | Suíte por módulo, seguindo a ordem de criticidade                | 5 dias   | ✅ concluído — 7 suítes de rota                 |
+| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 39 de 40 (falta `CT-PERM-033`)               |
+| Unitários        | Regras isoladas de XP, nível, correção de quiz e schemas         | 2 dias   | ✅ concluído                                    |
+| Ponta a ponta    | Fluxos `CT-E2E`                                                  | 1 dia    | ⬜ pendente                                     |
+| Fechamento       | Cobertura, ajuste das metas e revisão do plano                   | 1 dia    | ✅ concluído em 19/08/2026 — esta versão        |
 
 A ordem de criticidade dos módulos na fase de integração é: **auth → permissões → missões e XP → atitudes → turmas → usuários → ranking**. Autenticação vem primeiro porque todo o resto depende de um token válido, e o ranking vem por último porque é consequência do XP, e não fonte dele.
+
+### O que continua aberto
+
+A suíte fecha o RNF-005, mas três frentes de teste seguem em aberto, em ordem de risco:
+
+1. **Os quatro fluxos `CT-E2E`.** É o nível que prova que os módulos se compõem, e o único ainda vazio.
+2. **`app.js` e `routes/index.js` sem cobertura**, pelo motivo descrito na seção 6 — handler 404, cabeçalhos de segurança e ordem de montagem nunca são exercitados.
+3. **Nenhuma execução automática.** Não existe `.gitlab-ci.yml`: a suíte só roda na máquina do desenvolvedor, por disciplina. Enquanto for assim, o item 6 da Definição de Pronto ("não derruba a cobertura da `main`") depende de alguém lembrar de rodar.
 
 ## 11 - Referências
 
