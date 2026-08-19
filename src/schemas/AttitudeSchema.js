@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
+import { UserNameRefSchema } from "./PopulatedRefSchemas.js";
 
 extendZodWithOpenApi(z);
 
@@ -20,11 +21,19 @@ export const AttitudeSchema = z
     xp_value: z.number().openapi({ example: 10 }),
     type: z.enum(["positive", "negative"]).openapi({ example: "positive" }),
     active: z.boolean().openapi({ example: true }),
-    createdBy: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    createdBy: UserNameRefSchema.nullable().optional(),
     createdAt: z.string().openapi({ example: "2024-01-01T00:00:00.000Z" }),
     updatedAt: z.string().openapi({ example: "2024-01-01T00:00:00.000Z" }),
   })
   .openapi("Attitude");
+
+/**
+ * Atitude como sai da **escrita** (`POST /attitudes` e `PATCH /attitudes/{id}`).
+ * Sem populate: `createdBy` volta como id, e não como objeto.
+ */
+export const AttitudeWriteResponseSchema = AttitudeSchema.extend({
+  createdBy: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+}).openapi("AttitudeWriteResponse");
 
 export const UpdateAttitudeBodySchema = z
   .object({
