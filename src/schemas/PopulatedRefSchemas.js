@@ -16,29 +16,6 @@ extendZodWithOpenApi(z);
 
 const objectId = z.string().openapi({ example: "507f1f77bcf86cd799439011" });
 
-/**
- * O model `User` declara `progress` como virtual serializado (`toJSON: { virtuals: true }`),
- * então ele acompanha o usuário mesmo quando o populate não trouxe o `xp`.
- * Nesse caso o virtual calcula sobre `undefined` e devolve sempre nível 1 / 0%.
- *
- * Está documentado porque está na resposta, mas **não deve ser exibido** a partir
- * de uma referência populada: o valor é um artefato, não o progresso do usuário.
- * Para progresso real, buscar o usuário em `GET /users/{id}`.
- */
-const stubProgress = z
-  .object({
-    current_level_xp: z.number().openapi({ example: 0 }),
-    next_level_xp: z.number().nullable().openapi({ example: 100 }),
-    xp_to_next_level: z.number().openapi({ example: 100 }),
-    percentage: z.number().openapi({ example: 0 }),
-  })
-  .optional()
-  .openapi({
-    description:
-      "Artefato do virtual `progress` do model User. Em referência populada o XP não é carregado, "
-      + "então este objeto sempre indica nível 1 e 0%. Não use para exibir progresso.",
-  });
-
 /** `Class.teacher` — populate com `name email role`. */
 export const TeacherRefSchema = z
   .object({
@@ -46,7 +23,6 @@ export const TeacherRefSchema = z
     name: z.string().openapi({ example: "Ana Souza" }),
     email: z.string().openapi({ example: "ana.souza@escola.com" }),
     role: z.enum(["student", "teacher", "admin"]).openapi({ example: "teacher" }),
-    progress: stubProgress,
   })
   .openapi("TeacherRef");
 
@@ -56,7 +32,6 @@ export const StudentRefSchema = z
     _id: objectId,
     name: z.string().openapi({ example: "João Pedro" }),
     role: z.enum(["student", "teacher", "admin"]).openapi({ example: "student" }),
-    progress: stubProgress,
   })
   .openapi("StudentRef");
 
@@ -66,7 +41,6 @@ export const UserContactRefSchema = z
     _id: objectId,
     name: z.string().openapi({ example: "João Pedro" }),
     email: z.string().openapi({ example: "joao.pedro@escola.com" }),
-    progress: stubProgress,
   })
   .openapi("UserContactRef");
 
@@ -75,7 +49,6 @@ export const UserNameRefSchema = z
   .object({
     _id: objectId,
     name: z.string().openapi({ example: "Ana Souza" }),
-    progress: stubProgress,
   })
   .openapi("UserNameRef");
 
