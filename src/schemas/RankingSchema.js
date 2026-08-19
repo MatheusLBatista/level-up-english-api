@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
+import { ClassRefSchema } from "./PopulatedRefSchemas.js";
 
 extendZodWithOpenApi(z);
 
@@ -25,7 +26,8 @@ export const RankingSchema = z
   .object({
     _id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
     type: z.enum(["global", "class"]).openapi({ example: "global" }),
-    class: z.string().nullable().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+    // Populado com `name` pelo RankingRepository; `null` no ranking global.
+    class: ClassRefSchema.nullable().optional(),
     entries: z.array(RankingEntrySchema),
     createdAt: z.string().openapi({ example: "2024-01-01T00:00:00.000Z" }),
     updatedAt: z.string().openapi({ example: "2024-01-01T00:00:00.000Z" }),
