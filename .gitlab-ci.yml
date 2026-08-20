@@ -1,0 +1,4 @@
+ola:
+  script:
+    - echo "a pipeline rodou"
+    - node --version
