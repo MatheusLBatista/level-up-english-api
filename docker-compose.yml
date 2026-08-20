@@ -1,19 +1,23 @@
 
 services:
   mongodb:
-    container_name: mongodb-servicos
+    container_name: level-up-english-db
     image: mongo:8
     volumes:
-      - vol-mongodb-servicos:/data/db
+      - vol-mongodb:/data/db
     ports:
-      - 27017:27017
+      - 27018:27017
   api:
-    container_name: api
+    container_name: level-up-english-api
     build: ./
+    env_file: .env
     environment:
-      - DB_URL=mongodb://mongodb-servicos:27017/exemplo
+      - DB_URL=mongodb://mongodb:27017/level-up-english
+    depends_on:
+      - mongodb
+    restart: on-failure
     ports:
       - 5011:5011
 
 volumes:
-  vol-mongodb-servicos: 
+  vol-mongodb: 
