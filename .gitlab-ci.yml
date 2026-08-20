@@ -1,4 +1,11 @@
-ola:
+lint:
+  image: node:22
   script:
-    - echo "a pipeline rodou"
-    - node --version
+    - npm ci
+    - npx eslint .
+
+test: 
+  image: node:22
+  script: 
+    - npm ci
+    - npm test
