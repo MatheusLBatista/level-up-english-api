@@ -6,6 +6,7 @@ stages:
 
 default:
   image: node:22
+  interruptible: true
   before_script:
     - npm ci --cache .npm --prefer-offline
   cache:
