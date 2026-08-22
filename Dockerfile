@@ -3,10 +3,10 @@ FROM node:22
 WORKDIR /node-app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --omit=dev
 
 COPY . .
-RUN cp .env.example .env
 
-ENTRYPOINT [ "npm", "start" ]
+EXPOSE 5011
+CMD [ "npm", "start" ]
 
