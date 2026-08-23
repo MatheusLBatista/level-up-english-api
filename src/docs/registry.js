@@ -1062,6 +1062,6 @@ export function generateOpenAPIDocument() {
         + "turma. Os resumos indicam entre parênteses quem pode chamar cada rota; "
         + "sem indicação, os três papéis podem.",
     },
-    servers: [{ url: `http://localhost:${process.env.APP_PORT || 5011}` }],
+    servers: [{ url: process.env.SWAGGER_SERVER_URL || `http://localhost:${process.env.APP_PORT || 5011}` }],
   });
 }
