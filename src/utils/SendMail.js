@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import crypto from "crypto";
 
 dotenv.config();
 
@@ -13,8 +12,6 @@ class SendMail {
     }
 
     try {
-      const hashId = () => crypto.randomBytes(6).toString("hex");
-
       const response = await fetch(MAILERSEND_API_URL, {
         method: "POST",
         headers: {
@@ -27,7 +24,7 @@ class SendMail {
             name: process.env.MAILERSEND_FROM_NAME,
           },
           to: [{ email: infoemail.to }],
-          subject: `${infoemail.subject} Email: #${hashId()}`,
+          subject: infoemail.subject,
           text: infoemail.text,
           html: infoemail.html,
         }),
