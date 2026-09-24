@@ -134,6 +134,32 @@ class UserRepository {
     return await user.save();
   }
 
+  /**
+   * Soma `amount` ao XP numa única operação atômica, sem deixar uma remoção
+   * levar o saldo abaixo de 0. Devolve o documento de ANTES da mudança.
+   */
+  async addXpWithFloor(id, amount) {
+    const currentXp = { $ifNull: ["$xp", 0] };
+
+    const user = await this.userModel.findByIdAndUpdate(
+      id,
+      [{ $set: { xp: { $max: [{ $add: [currentXp, amount] }, { $min: [currentXp, 0] }] } } }],
+      { new: false },
+    );
+
+    if (!user) {
+      throw new CustomError({
+        statusCode: 404,
+        errorType: "resourceNotFound",
+        field: "User",
+        details: [],
+        customMessage: messages.error.resourceNotFound("User"),
+      });
+    }
+
+    return user;
+  }
+
   async update(id, data) {
     const user = await this.userModel.findByIdAndUpdate(id, data, { new: true });
 
