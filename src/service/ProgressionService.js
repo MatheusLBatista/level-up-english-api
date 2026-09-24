@@ -39,6 +39,37 @@ class ProgressionService {
   }
 
   /**
+   * Ajuste manual: como o applyXp, mas uma remoção nunca deixa o XP negativo.
+   * Devolve quanto foi de fato aplicado, que pode ser menor que o pedido.
+   */
+  async adjustXp(studentId, amount) {
+    const before = await this.userRepository.addXpWithFloor(studentId, amount);
+
+    const previousXp = before.xp ?? 0;
+    const xp = Math.max(previousXp + amount, Math.min(previousXp, 0));
+
+    const previous_level = before.level;
+    const level = calculateLevel(xp);
+
+    if (level !== previous_level) {
+      await this.userRepository.update(studentId, { level });
+    }
+
+    await this.refreshRankings(before);
+
+    return {
+      xp_applied: xp - previousXp,
+      progression: {
+        student: String(before._id),
+        previous_level,
+        leveled_up: level > previous_level,
+        leveled_down: level < previous_level,
+        ...getProgress(xp),
+      },
+    };
+  }
+
+  /**
    * Mantém o ranking global e o da turma do aluno em dia após uma mudança de XP.
    * Falhas aqui não invalidam o XP já aplicado — apenas ficam registradas no log.
    */
