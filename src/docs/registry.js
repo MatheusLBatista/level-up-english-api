@@ -50,6 +50,10 @@ import {
   LevelProgressionSchema,
 } from "../schemas/AttitudeLogSchema.js";
 import {
+  CreateXpAdjustmentBodySchema,
+  XpAdjustmentWithProgressionSchema,
+} from "../schemas/XpAdjustmentSchema.js";
+import {
   RankingSchema,
   RankingEntrySchema,
   RefreshRankingResponseSchema,
@@ -89,6 +93,8 @@ registry.register("AttitudeLog", AttitudeLogSchema);
 registry.register("UpdatedAttitudeLog", UpdatedAttitudeLogSchema);
 registry.register("CreateAttitudeLogBody", CreateAttitudeLogBodySchema);
 registry.register("UpdateAttitudeLogBody", UpdateAttitudeLogBodySchema);
+registry.register("CreateXpAdjustmentBody", CreateXpAdjustmentBodySchema);
+registry.register("XpAdjustmentWithProgression", XpAdjustmentWithProgressionSchema);
 registry.register("Mission", MissionSchema);
 registry.register("MissionWriteResponse", MissionWriteResponseSchema);
 registry.register("Class", ClassSchema);
@@ -966,6 +972,45 @@ registry.registerPath({
       "Teachers can only change logs they applied.",
     ),
     404: error404AttitudeLog,
+  },
+});
+
+// ─── XpAdjustments ───────────────────────────────────────────────────────────
+
+registry.registerPath({
+  method: "post",
+  path: "/xp-adjustments",
+  tags: ["XpAdjustments"],
+  summary: "Ajustar o XP de um aluno manualmente (teacher/admin; professor só nos alunos das turmas dele)",
+  description:
+    "Adiciona (amount positivo) ou remove (amount negativo) XP sem precisar de uma atitude "
+    + "cadastrada, e grava o ajuste como histórico de auditoria. O XP nunca fica negativo: "
+    + "uma remoção maior que o saldo para em 0, e xp_applied registra o que foi aplicado de "
+    + "fato. O nível é recalculado e pode subir ou descer. O aluno alvo precisa estar em uma "
+    + "turma do professor; aluno de outra turma, ou sem turma, devolve 403. O admin alcança "
+    + "qualquer aluno.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: { "application/json": { schema: CreateXpAdjustmentBodySchema } },
+    },
+  },
+  responses: {
+    201: commonResponse(
+      XpAdjustmentWithProgressionSchema,
+      "Ajuste registrado, XP aplicado e nível do aluno recalculado",
+    ),
+    400: errorResponse(
+      "Corpo inválido (amount igual a 0, fora de ±10000 ou não inteiro; reason acima de 200 caracteres) ou alvo que não é aluno",
+      "Erro de validação. 1 campo(s) inválido(s).",
+      [{ path: "amount", message: "A quantidade não pode ser zero." }],
+    ),
+    401: error401Token,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou aluno de uma turma de outro professor",
+      "Você só pode ajustar o XP de alunos das suas turmas.",
+    ),
+    404: errorResponse("Aluno não encontrado", "Recurso não encontrado em User."),
   },
 });
 
