@@ -180,6 +180,140 @@ describe("ProgressionService", () => {
     });
   });
 
+  describe("adjustXp", () => {
+    /** addXpWithFloor devolve o aluno de ANTES da mudança. */
+    const responderAntes = (antes) => {
+      userRepository.addXpWithFloor = jest.fn().mockResolvedValue(antes);
+    };
+
+    it("deve somar o XP pelo update com piso, e não pelo $inc", async() => {
+      responderAntes(aluno({ xp: 10 }));
+
+      await service.adjustXp(ALUNO_ID, 50);
+
+      expect(userRepository.addXpWithFloor).toHaveBeenCalledWith(ALUNO_ID, 50);
+      expect(userRepository.update).not.toHaveBeenCalledWith(ALUNO_ID, expect.objectContaining({ $inc: expect.anything() }));
+    });
+
+    it("deve aplicar a quantidade inteira quando há saldo", async() => {
+      responderAntes(aluno({ xp: 80 }));
+
+      const { xp_applied, progression } = await service.adjustXp(ALUNO_ID, -30);
+
+      expect(xp_applied).toBe(-30);
+      expect(progression.xp).toBe(50);
+    });
+
+    it("deve parar em 0 quando a remoção passa do saldo", async() => {
+      responderAntes(aluno({ xp: 30 }));
+
+      const { xp_applied, progression } = await service.adjustXp(ALUNO_ID, -50);
+
+      expect(xp_applied).toBe(-30);
+      expect(progression.xp).toBe(0);
+    });
+
+    it("não deve remover nada de quem já está com XP negativo", async() => {
+      responderAntes(aluno({ xp: -5 }));
+
+      const { xp_applied } = await service.adjustXp(ALUNO_ID, -10);
+
+      expect(xp_applied).toBe(0);
+    });
+
+    it("deve somar normalmente a quem já está com XP negativo", async() => {
+      responderAntes(aluno({ xp: -5 }));
+
+      const { xp_applied } = await service.adjustXp(ALUNO_ID, 10);
+
+      expect(xp_applied).toBe(10);
+    });
+
+    it("deve tratar o aluno sem xp gravado como 0", async() => {
+      responderAntes(aluno({ xp: undefined }));
+
+      const { xp_applied, progression } = await service.adjustXp(ALUNO_ID, -10);
+
+      expect(xp_applied).toBe(0);
+      expect(progression.xp).toBe(0);
+    });
+
+    it("não deve gravar o nível quando ele não muda", async() => {
+      responderAntes(aluno({ xp: 10, level: 1 }));
+
+      const { progression } = await service.adjustXp(ALUNO_ID, 20);
+
+      expect(userRepository.update).not.toHaveBeenCalled();
+      expect(progression.leveled_up).toBe(false);
+      expect(progression.leveled_down).toBe(false);
+    });
+
+    it("deve gravar o nível novo quando o aluno sobe", async() => {
+      responderAntes(aluno({ xp: 380, level: 2 }));
+
+      const { progression } = await service.adjustXp(ALUNO_ID, 50);
+
+      expect(userRepository.update).toHaveBeenCalledWith(ALUNO_ID, { level: 3 });
+      expect(progression).toEqual({
+        student: ALUNO_ID,
+        previous_level: 2,
+        leveled_up: true,
+        leveled_down: false,
+        xp: 430,
+        level: 3,
+        current_level_xp: 400,
+        next_level_xp: 900,
+        xp_to_next_level: 470,
+        percentage: 6,
+      });
+    });
+
+    it("deve gravar o nível novo quando o aluno desce", async() => {
+      responderAntes(aluno({ xp: 430, level: 3 }));
+
+      const { progression } = await service.adjustXp(ALUNO_ID, -500);
+
+      expect(userRepository.update).toHaveBeenCalledWith(ALUNO_ID, { level: 1 });
+      expect(progression.previous_level).toBe(3);
+      expect(progression.level).toBe(1);
+      expect(progression.leveled_down).toBe(true);
+      expect(progression.leveled_up).toBe(false);
+    });
+
+    it("deve travar no nível máximo", async() => {
+      const xpDoTopo = xpForLevel(MAX_LEVEL);
+      responderAntes(aluno({ xp: xpDoTopo, level: MAX_LEVEL }));
+
+      const { progression } = await service.adjustXp(ALUNO_ID, 10000);
+
+      expect(progression.level).toBe(MAX_LEVEL);
+      expect(progression.next_level_xp).toBeNull();
+    });
+
+    it("deve atualizar o ranking global e o da turma do aluno", async() => {
+      responderAntes(aluno({ xp: 10 }));
+
+      await service.adjustXp(ALUNO_ID, 10);
+
+      expect(rankingService.refreshGlobal).toHaveBeenCalledTimes(1);
+      expect(rankingService.refreshClass).toHaveBeenCalledWith(TURMA_ID);
+    });
+
+    it("não deve invalidar o ajuste quando o ranking falhar", async() => {
+      responderAntes(aluno({ xp: 10 }));
+      rankingService.refreshGlobal.mockRejectedValue(new Error("ranking fora do ar"));
+
+      await expect(service.adjustXp(ALUNO_ID, 10)).resolves.toMatchObject({ xp_applied: 10 });
+    });
+
+    it("deve propagar a falha de gravação do XP", async() => {
+      userRepository.addXpWithFloor = jest.fn().mockRejectedValue(new Error("banco fora do ar"));
+
+      await expect(service.adjustXp(ALUNO_ID, 10)).rejects.toThrow("banco fora do ar");
+      expect(rankingService.refreshGlobal).not.toHaveBeenCalled();
+    });
+  });
+
   describe("refreshRankings", () => {
     it("deve atualizar global e turma quando o aluno tem turma", async() => {
       await service.refreshRankings(aluno());
