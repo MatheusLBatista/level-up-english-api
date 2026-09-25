@@ -275,6 +275,40 @@ describe("UserRepository", () => {
     });
   });
 
+  describe("addXpWithFloor", () => {
+    it("deve fazer uma única atualização com pipeline e devolver o documento de antes", async() => {
+      const antes = { _id: USER_ID, xp: 30, level: 1 };
+      modelo.findByIdAndUpdate.mockResolvedValue(antes);
+
+      const resultado = await repository.addXpWithFloor(USER_ID, -50);
+
+      expect(modelo.findByIdAndUpdate).toHaveBeenCalledTimes(1);
+      const [id, pipeline, opcoes] = modelo.findByIdAndUpdate.mock.calls[0];
+      expect(id).toBe(USER_ID);
+      expect(Array.isArray(pipeline)).toBe(true);
+      expect(opcoes).toEqual({ new: false });
+      expect(resultado).toBe(antes);
+    });
+
+    it("deve levar a quantidade pedida para dentro do pipeline", async() => {
+      modelo.findByIdAndUpdate.mockResolvedValue({ _id: USER_ID });
+
+      await repository.addXpWithFloor(USER_ID, -50);
+
+      const [, pipeline] = modelo.findByIdAndUpdate.mock.calls[0];
+      expect(JSON.stringify(pipeline)).toContain("-50");
+    });
+
+    it("deve lançar 404 quando o usuário não existir", async() => {
+      modelo.findByIdAndUpdate.mockResolvedValue(null);
+
+      const erro = await capturarErro(repository.addXpWithFloor(USER_ID, 10));
+
+      expect(erro).toBeInstanceOf(CustomError);
+      expect(erro.statusCode).toBe(404);
+    });
+  });
+
   describe("delete", () => {
     it("deve remover o usuário pelo id", async() => {
       modelo.findByIdAndDelete.mockResolvedValue({ _id: USER_ID });

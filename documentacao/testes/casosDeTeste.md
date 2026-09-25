@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.0 — complementa o [Plano de Teste](planoTeste.md) v2.0_
+_versão 2.1 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -10,6 +10,7 @@ _versão 2.0 — complementa o [Plano de Teste](planoTeste.md) v2.0_
 | ---------- | ------ | ------------------------------------------------------------------------------------------------------------ | ------------- |
 | 14/08/2026 | 1.0    | Primeira versão do catálogo, extraída do comportamento atual da API                                          | Matheus Lucas |
 | 19/08/2026 | 2.0    | Suíte automatizada implementada: cada caso passa a apontar a suíte que o cobre; situações e status revisados | Matheus Lucas |
+| 24/09/2026 | 2.1    | Ajuste manual de XP (`POST /xp-adjustments`, RF-013): casos `CT-XP-011` a `021` e `CT-PERM-041`              | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -167,6 +168,19 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-XP-008  | Missão sem quiz exige score            | `type: "vocabulary"` sem `score` no corpo                                             | 400, "O score é obrigatório para missões que não são do tipo quiz."                          | RF-005 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-XP-009  | Subida de nível ao cruzar o limiar     | aluno com 0 XP recebendo 100 XP                                                       | nível passa de 1 para 2 e a resposta traz `leveled_up: true`                                 | RF-006 | Unit  | `utils/LevelHelper`, `services/ProgressionService`, `routes/missionRoutes` | ✅ |
 | CT-XP-010  | Piso do nível com XP negativo          | aluno com XP baixo recebendo atitude negativa que zera ou negativa o total            | nível não cai abaixo de 1 e o cálculo trata XP negativo como 0                               | RF-006 | Unit  | `utils/LevelHelper`                      | ✅       |
+| CT-XP-011  | Ajuste manual que adiciona XP          | `POST /xp-adjustments` com `alunoA` e `amount: 50`                                     | 201 com `amount: 50` e `xp_applied: 50`; o XP do aluno sobe 50                               | RF-013 | Int   | `routes/xpAdjustmentRoutes`, `services/XpAdjustmentService` | ✅ |
+| CT-XP-012  | Ajuste manual que remove XP            | aluno com 80 XP, `amount: -30`                                                         | 201 com `xp_applied: -30`; o XP do aluno fica em 50                                          | RF-013 | Int   | `routes/xpAdjustmentRoutes`              | ✅       |
+| CT-XP-013  | Remoção maior que o saldo              | aluno com 30 XP, `amount: -50`                                                         | 201 com `amount: -50` e `xp_applied: -30`; o XP para em 0, nunca negativo                     | RF-013 | Int   | `routes/xpAdjustmentRoutes`, `services/ProgressionService` | ✅ |
+| CT-XP-014  | Remoções simultâneas                   | aluno com 30 XP, duas requisições de `amount: -20` em paralelo                         | as duas respondem 201, a soma dos `xp_applied` é -30 e o XP termina em 0 — o piso é atômico   | RF-013 | Int   | `routes/xpAdjustmentRoutes`              | ✅       |
+| CT-XP-015  | Ajuste que sobe de nível               | aluno com 380 XP no nível 2, `amount: 50`                                              | `progression` com `previous_level: 2`, `level: 3`, `leveled_up: true`; nível gravado no aluno | RF-013 | Int   | `routes/xpAdjustmentRoutes`, `services/ProgressionService` | ✅ |
+| CT-XP-016  | Ajuste que desce de nível              | aluno com 430 XP no nível 3, `amount: -500`                                            | `progression` com `previous_level: 3`, `level: 1`, `leveled_down: true`; nível gravado        | RF-013 | Int   | `routes/xpAdjustmentRoutes`, `services/ProgressionService` | ✅ |
+| CT-XP-017  | Histórico de auditoria do ajuste       | ajuste com `reason: "  Saldo corrigido  "`                                             | `XpAdjustment` gravado com `student`, `teacher` (quem aplicou), `amount`, `xp_applied`, `reason` sem os espaços e `applied_at` | RF-013 | Int | `routes/xpAdjustmentRoutes` | ✅ |
+| CT-XP-018  | Ajuste em aluno de outra turma         | `profA` ajustando `alunoB`, ou `semTurma`                                              | 403, "Você só pode ajustar o XP de alunos das suas turmas."; nada é gravado                  | RF-011 | Int   | `routes/xpAdjustmentRoutes`, `services/XpAdjustmentService` | ✅ |
+| CT-XP-019  | Admin ajusta qualquer aluno            | `admin` ajustando `semTurma`                                                           | 201 — o admin não passa pela checagem de turma                                               | RF-011 | Int   | `routes/xpAdjustmentRoutes`              | ✅       |
+| CT-XP-020  | Quantidade inválida                    | `amount` igual a 0, fora de ±10000, fracionado ou em texto; `reason` acima de 200 caracteres | 400 com o campo em `errors`, ex.: `{ path: "amount", message: "A quantidade não pode ser zero." }` | RF-013 | Unit | `controllers/XpAdjustmentController`, `routes/xpAdjustmentRoutes` | ✅ |
+| CT-XP-021  | Ajuste em quem não é aluno             | `admin` ajustando `profB`                                                              | 400, "O usuário informado não é um aluno."; o XP do professor não muda                       | RF-013 | Int   | `routes/xpAdjustmentRoutes`              | ✅       |
+
+O ajuste manual (`CT-XP-011` a `021`) é o único caminho de XP com piso em 0. A atitude negativa, pelo `$inc`, ainda pode deixar o total negativo (`CT-ATT-007` e `CT-XP-010`); o ajuste usa uma atualização atômica que para em 0 e grava em `xp_applied` o que foi aplicado de fato, que pode ser menor que o `amount` pedido.
 
 A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nível 2 = 100, nível 3 = 400, nível 4 = 900), com teto no nível 50. Os casos `Unit` cobrem `LevelHelper` direto, sem HTTP — inclusive a coerência entre `xpForLevel` e `calculateLevel` ao longo de toda a curva, que é a propriedade que garante que os dois nunca discordem.
 
@@ -261,6 +275,7 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-038  | `GET /rankings/class/{classId}`   | 200 própria / 403 outra         | 200                                  | 200   | `routes/rankingRoutes`      | ✅       |
 | CT-PERM-039  | `POST /rankings/refresh`          | 403                             | 403                                  | 200   | `routes/rankingRoutes`      | ✅       |
 | CT-PERM-040  | Conta desativada em rota protegida | 403                            | 403                                  | 403   | `routes/userRoutes`         | ✅       |
+| CT-PERM-041  | `POST /xp-adjustments`            | 403                             | 201 aluno da turma dele / 403 outro  | 201   | `routes/xpAdjustmentRoutes` | ✅       |
 
 **Pendência da matriz.** O `CT-PERM-033` é a única operação cuja célula restritiva não é exercida: `GET /attitude-logs/{id}` declara `authorize("teacher", "admin")` na rota, e a suíte cobre o caminho da professora (log populado) e o 404, mas nunca chama a rota com token de aluno. A proteção está no código; o que falta é o teste que a prova.
 
@@ -317,7 +332,7 @@ Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Ele
 
 ## 11 - Resumo
 
-Situação em 19/08/2026, com a suíte em **41 arquivos de teste e 879 testes**, executando em cerca de 7 segundos.
+Situação em 24/09/2026, com a suíte em **45 arquivos de teste e 942 testes**, executando em cerca de 7 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
@@ -325,12 +340,12 @@ Situação em 19/08/2026, com a suíte em **41 arquivos de teste e 879 testes**,
 | Usuários                      | `CT-USER`    | 17    | 17               | 0            |
 | Turmas                        | `CT-CLASS`   | 12    | 12               | 0            |
 | Missões                       | `CT-MISSION` | 16    | 16               | 0            |
-| Progressão de XP e nível      | `CT-XP`      | 10    | 10               | 0            |
+| Progressão de XP e nível      | `CT-XP`      | 21    | 21               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 17    | 17               | 0            |
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
-| Matriz de permissões          | `CT-PERM`    | 40    | 39               | 1            |
+| Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **146** | **140 (95,9%)** | **6**        |
+| **Total**                     | -            | **158** | **152 (96,2%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 

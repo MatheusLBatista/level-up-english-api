@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.0_
+_versão 3.1_
 
 ## Histórico das alterações
 
@@ -11,6 +11,7 @@ _versão 3.0_
 | 25/06/2025 | 1.0    | Primeira versão do plano de teste                                                                            | Matheus Lucas |
 | 14/08/2026 | 2.0    | Atualização após os módulos de atitudes, ranking, progresso de missão e controle de acesso por papel e posse | Matheus Lucas |
 | 19/08/2026 | 3.0    | Suíte implementada: estrutura real, cobertura medida, RNF-005 atendido e o que ficou fora do plano original  | Matheus Lucas |
+| 24/09/2026 | 3.1    | Ajuste manual de XP (RF-013, `POST /xp-adjustments`): arquitetura, casos, estrutura da suíte e métricas atualizadas | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -24,7 +25,7 @@ O escopo desta versão é a API REST. O front-end e a integração com ele ficam
 
 A aplicação é construída em uma arquitetura modular em camadas, utilizando Node.js, Express 5, MongoDB com Mongoose, Zod para validação de dados, JWT para autenticação e Swagger (zod-to-openapi) para documentação.
 
-São **7 domínios**, expostos em **24 caminhos** e **39 operações** documentadas em `/api-docs`.
+São **8 domínios**, expostos em **25 caminhos** e **40 operações** documentadas em `/api-docs`.
 
 ### Camadas
 
@@ -36,9 +37,10 @@ São **7 domínios**, expostos em **24 caminhos** e **39 operações** documenta
   - `attitudeRoutes.js`: catálogo de atitudes
   - `attitudeLogRoutes.js`: atitudes aplicadas a alunos
   - `rankingRoutes.js`: ranking global e por turma
+  - `xpAdjustmentRoutes.js`: ajuste manual de XP pelo professor
 
 - **Controllers**: validam o corpo da requisição com Zod e chamam o service correspondente.
-  - `AuthController`, `UserController`, `ClassController`, `MissionController`, `AttitudeController`, `AttitudeLogController`, `RankingController`
+  - `AuthController`, `UserController`, `ClassController`, `MissionController`, `AttitudeController`, `AttitudeLogController`, `RankingController`, `XpAdjustmentController`
 
 - **Services**: concentram as regras de negócio e a verificação de posse do recurso.
   - `AuthService`: login, refresh rotation, recuperação e troca de senha
@@ -47,13 +49,14 @@ São **7 domínios**, expostos em **24 caminhos** e **39 operações** documenta
   - `MissionService`: missões, correção do quiz, ocultação do gabarito
   - `AttitudeService` / `AttitudeLogService`: catálogo de atitudes e aplicação de XP
   - `RankingService`: montagem do ranking global e por turma
-  - `ProgressionService`: aplica XP, recalcula o nível e atualiza os rankings
+  - `XpAdjustmentService`: ajuste manual de XP, com posse do professor e histórico de auditoria
+  - `ProgressionService`: aplica XP, recalcula o nível e atualiza os rankings; no ajuste manual, com piso em 0 XP
 
 - **Repositories**: acessam o MongoDB, isolando a persistência.
   - Paginação com `mongoose-paginate-v2`, populate de referências e filtros dedicados (`repository/filters/`)
 
 - **Models**: definem os schemas das entidades.
-  - `User` (role, xp, level, mission_progress, badges, streak, active), `Class`, `Mission`, `Attitude`, `AttitudeLog`, `Ranking`
+  - `User` (role, xp, level, mission_progress, badges, streak, active), `Class`, `Mission`, `Attitude`, `AttitudeLog`, `XpAdjustment`, `Ranking`
 
 - **Schemas (validação)**: regras de entrada e contratos de saída em Zod, reaproveitados pelo Swagger.
 
@@ -91,6 +94,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-010 | Autenticação por Refresh Token | Refresh token rotation para renovar a sessão sem novo login, com o token vigente conferido no banco.                                  | Essencial     | Implementado    |
 | RF-011 | Controle de Acesso             | Papel declarado na rota e posse do recurso conferida no service; conta desativada perde acesso mesmo com token válido.                | Essencial     | Implementado    |
 | RF-012 | Sigilo do Gabarito             | O aluno recebe a missão sem `questions[].correct_answer`; o gabarito fica restrito a teacher e admin.                                 | Essencial     | Implementado    |
+| RF-013 | Ajuste Manual de XP            | Professor adiciona ou remove XP de aluno das turmas dele sem atitude cadastrada; o XP nunca fica negativo e cada ajuste fica registrado. | Essencial     | Implementado    |
 
 `RF-009` continua no plano porque os campos `badges` e `streak` já existem no model, mas nenhuma regra os alimenta. Enquanto for assim, os casos correspondentes ficam marcados como **bloqueados** no catálogo, e não como falha.
 
@@ -102,7 +106,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | Parcial — limite aplicado nos 5 repositórios; o p95 ainda não foi medido |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
-| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,67% de linhas e as 39 operações exercitadas por teste de integração (ver seção 7) |
+| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,69% de linhas e as 40 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Fora do escopo desta versão     |
 
 ## 4 - Casos de Teste
@@ -115,16 +119,16 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Usuários                      | `CT-USER`    | 17    | RF-001, RF-006, RF-011      |
 | Turmas                        | `CT-CLASS`   | 12    | RF-003, RF-011              |
 | Missões                       | `CT-MISSION` | 16    | RF-004, RF-011, RF-012      |
-| Progressão de XP e nível      | `CT-XP`      | 10    | RF-005, RF-006              |
+| Progressão de XP e nível      | `CT-XP`      | 21    | RF-005, RF-006, RF-011, RF-013 |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 17    | RF-008, RF-011              |
 | Ranking                       | `CT-RANK`    | 8     | RF-007, RF-011              |
-| Matriz de permissões          | `CT-PERM`    | 40    | RF-011                      |
+| Matriz de permissões          | `CT-PERM`    | 41    | RF-011                      |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
-| **Total**                     | -            | **146** | -                         |
+| **Total**                     | -            | **158** | -                         |
 
 Além destes, 4 casos ficam **bloqueados** enquanto badges, streak e rate limiting não existirem (seção 10 do catálogo).
 
-**Situação em 19/08/2026: 140 dos 146 casos estão automatizados (95,9%).** As seis pendências são o token expirado em rota (`CT-AUTH-012`), a célula restritiva de `GET /attitude-logs/{id}` (`CT-PERM-033`) e os quatro fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
+**Situação em 24/09/2026: 152 dos 158 casos estão automatizados (96,2%).** As seis pendências são o token expirado em rota (`CT-AUTH-012`), a célula restritiva de `GET /attitude-logs/{id}` (`CT-PERM-033`) e os quatro fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
 
 A matriz `CT-PERM` cobre uma linha por operação da API, com o status esperado para cada um dos três papéis. Ela é a rede de segurança contra regressão de permissão: qualquer rota nova entra ali antes de ser considerada pronta.
 
@@ -229,10 +233,10 @@ src/
 └── tests/
     ├── setup/
     │   └── testDatabase.js       # sobe, limpa e derruba o MongoDB em memória
-    ├── routes/                   # 7 arquivos — nível Int, a pilha completa via Supertest
-    ├── controllers/              # 7 arquivos — validação Zod e envelope de resposta
-    ├── services/                 # 8 arquivos — regra de negócio e posse, com dublês
-    ├── repository/               # 6 arquivos + filters/ com 3
+    ├── routes/                   # 8 arquivos — nível Int, a pilha completa via Supertest
+    ├── controllers/              # 8 arquivos — validação Zod e envelope de resposta
+    ├── services/                 # 9 arquivos — regra de negócio e posse, com dublês
+    ├── repository/               # 7 arquivos + filters/ com 3
     ├── models/                   # 1 arquivo
     └── utils/                    # 3 arquivos + errors/ com 3 e helpers/ com 3
 ```
@@ -256,19 +260,19 @@ Uma consequência dessa estrutura merece registro: **nenhuma suíte carrega `src
 
 ### Metas de cobertura por camada, e o que foi alcançado
 
-Medição de 19/08/2026, com 41 arquivos de teste e 879 testes:
+Medição de 24/09/2026, com 45 arquivos de teste e 942 testes:
 
 | Camada             | Meta  | Realizado (stmts)  | Prioridade | Justificativa                                                |
 | ------------------ | ----- | ------------------ | ---------- | ------------------------------------------------------------ |
-| Services           | 85%   | **99,73%**         | Alta       | Concentram regra de negócio e verificação de posse           |
+| Services           | 85%   | **99,75%**         | Alta       | Concentram regra de negócio e verificação de posse           |
 | Middlewares        | 90%   | **94,59%**         | Alta       | `authorize` é a porta de entrada de toda rota autenticada    |
 | Schemas/Validators | 95%   | **100%**           | Alta       | Baratos de testar e a primeira barreira contra dado inválido |
 | Repositories       | 80%   | **100%**           | Alta       | Filtros e paginação são fonte recorrente de erro sutil       |
 | Controllers        | 70%   | **100%**           | Média      | Camada fina; o essencial já passa pela integração            |
 | Utils/Helpers      | 75%   | **100%**           | Média      | `LevelHelper` é exceção: cobertura alta, é regra de XP       |
-| Routes             | —     | **100%**           | —          | Consequência das 7 suítes de rota                            |
+| Routes             | —     | **100%**           | —          | Consequência das 8 suítes de rota                            |
 | Models             | —     | **100%**           | —          | Consequência dos testes que gravam de verdade                |
-| **Total**          | **~80%** | **99,68% stmts / 98,88% branches / 100% funcs / 99,67% linhas** | - | Piso contratual de 70% no RNF-005 |
+| **Total**          | **~80%** | **99,70% stmts / 98,93% branches / 100% funcs / 99,69% linhas** | - | Piso contratual de 70% no RNF-005 |
 
 Todas as metas foram atingidas. O único arquivo abaixo de 100% que não é meta agregada é o `AuthMiddleware.js`, com 90,9%, e as duas linhas descobertas são conhecidas:
 
@@ -285,13 +289,13 @@ Configurar `collectCoverageFrom` continua sendo o ajuste correto: ele faz a gara
 
 ### Métricas de qualidade da suíte
 
-| Métrica              | Alvo                     | Medido em 19/08/2026     |
+| Métrica              | Alvo                     | Medido em 24/09/2026     |
 | -------------------- | ------------------------ | ------------------------ |
-| Pass rate na `main`  | mínimo de 95%            | **100%** (879/879)       |
+| Pass rate na `main`  | mínimo de 95%            | **100%** (942/942)       |
 | Flakiness            | máximo de 5%             | **0** casos instáveis observados |
 | Tempo de execução    | menos de 60 s            | **~7 s**                 |
-| Cobertura de linhas  | mínimo de 70%            | **99,67%**               |
-| Cobertura de branches | mínimo de 65%           | **98,88%**               |
+| Cobertura de linhas  | mínimo de 70%            | **99,69%**               |
+| Cobertura de branches | mínimo de 65%           | **98,93%**               |
 
 O relatório sai em `coverage/` a cada `npm run test`. A configuração do Jest, no `package.json`, exclui da contagem os arquivos sem regra própria (helpers de resposta, logger, conexão com o banco, seeds e a documentação Swagger) para que a métrica reflita código de negócio.
 
@@ -346,8 +350,8 @@ O campo **Teste de regressão** é obrigatório para severidade Blocker e Grave:
 | ---------------- | --------------------------------------------------------------- | -------- | ----------------------------------------------- |
 | Planejamento     | Revisão do plano e do catálogo de casos                          | 1 dia    | ✅ concluído em 14/08/2026                      |
 | Infraestrutura   | `setupDatabase`, factories e helper de autenticação              | 2 dias   | ✅ concluído — sem factories nem helper de auth, ver seção 6 |
-| Integração       | Suíte por módulo, seguindo a ordem de criticidade                | 5 dias   | ✅ concluído — 7 suítes de rota                 |
-| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 39 de 40 (falta `CT-PERM-033`)               |
+| Integração       | Suíte por módulo, seguindo a ordem de criticidade                | 5 dias   | ✅ concluído — 8 suítes de rota                 |
+| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 40 de 41 (falta `CT-PERM-033`)               |
 | Unitários        | Regras isoladas de XP, nível, correção de quiz e schemas         | 2 dias   | ✅ concluído                                    |
 | Ponta a ponta    | Fluxos `CT-E2E`                                                  | 1 dia    | ⬜ pendente                                     |
 | Fechamento       | Cobertura, ajuste das metas e revisão do plano                   | 1 dia    | ✅ concluído em 19/08/2026 — esta versão        |
