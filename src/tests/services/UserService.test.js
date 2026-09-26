@@ -1,14 +1,17 @@
 import bcrypt from "bcrypt";
 import UserService from "../../service/UserService.js";
 import UserRepository from "../../repository/UserRepository.js";
+import ClassRepository from "../../repository/ClassRepository.js";
 import { CustomError } from "../../utils/helpers/index.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../../utils/LevelHelper.js";
 
 jest.mock("../../repository/UserRepository.js");
+jest.mock("../../repository/ClassRepository.js");
 
 describe("UserService", () => {
   let service;
   let repository;
+  let classRepository;
 
   const ADMIN_ID = "507f1f77bcf86cd799439001";
   const TEACHER_ID = "507f1f77bcf86cd799439002";
@@ -34,7 +37,10 @@ describe("UserService", () => {
       setLevelForXpRange: jest.fn().mockResolvedValue(0),
     };
 
+    classRepository = { findById: jest.fn() };
+
     UserRepository.mockImplementation(() => repository);
+    ClassRepository.mockImplementation(() => classRepository);
     service = new UserService();
   });
 
@@ -102,6 +108,60 @@ describe("UserService", () => {
       await expect(
         service.list({ params: { id: TEACHER_ID }, user_id: ADMIN_ID }),
       ).resolves.toBe(perfil);
+    });
+  });
+
+  describe("list com filtro de turma", () => {
+    const CLASS_ID = "507f1f77bcf86cd799439033";
+    const req = (userId) => ({ params: {}, query: { class: CLASS_ID }, user_id: userId });
+
+    it("deve listar quando a turma é da professora", async() => {
+      const paginado = { docs: [], totalDocs: 0 };
+      classRepository.findById.mockResolvedValue({ _id: CLASS_ID, teacher: { _id: TEACHER_ID } });
+      responderFindById(teacher());
+      repository.list.mockResolvedValue(paginado);
+
+      const resultado = await service.list(req(TEACHER_ID));
+
+      expect(classRepository.findById).toHaveBeenCalledWith(CLASS_ID);
+      expect(resultado).toBe(paginado);
+    });
+
+    it("deve lançar 403 quando a turma é de outro professor", async() => {
+      classRepository.findById.mockResolvedValue({ _id: CLASS_ID, teacher: { _id: OUTRO_ID } });
+      responderFindById(teacher());
+
+      const erro = await capturarErro(service.list(req(TEACHER_ID)));
+
+      expect(erro).toBeInstanceOf(CustomError);
+      expect(erro.statusCode).toBe(403);
+      expect(erro.errorType).toBe("permissionError");
+      expect(repository.list).not.toHaveBeenCalled();
+    });
+
+    it("deve propagar o 404 quando a turma não existe", async() => {
+      const naoEncontrada = new CustomError({ statusCode: 404, errorType: "resourceNotFound" });
+      classRepository.findById.mockRejectedValue(naoEncontrada);
+
+      await expect(service.list(req(TEACHER_ID))).rejects.toBe(naoEncontrada);
+      expect(repository.list).not.toHaveBeenCalled();
+    });
+
+    it("deve permitir que o admin filtre turma de qualquer professor", async() => {
+      classRepository.findById.mockResolvedValue({ _id: CLASS_ID, teacher: { _id: OUTRO_ID } });
+      responderFindById(admin());
+      repository.list.mockResolvedValue({ docs: [] });
+
+      await expect(service.list(req(ADMIN_ID))).resolves.toEqual({ docs: [] });
+    });
+
+    it("não deve consultar a turma quando o filtro não for informado", async() => {
+      repository.list.mockResolvedValue({ docs: [] });
+
+      await service.list({ params: {}, query: {}, user_id: TEACHER_ID });
+
+      expect(classRepository.findById).not.toHaveBeenCalled();
+      expect(repository.findById).not.toHaveBeenCalled();
     });
   });
 

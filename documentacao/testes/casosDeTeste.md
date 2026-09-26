@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.1 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.3 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -11,6 +11,8 @@ _versão 2.1 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 14/08/2026 | 1.0    | Primeira versão do catálogo, extraída do comportamento atual da API                                          | Matheus Lucas |
 | 19/08/2026 | 2.0    | Suíte automatizada implementada: cada caso passa a apontar a suíte que o cobre; situações e status revisados | Matheus Lucas |
 | 24/09/2026 | 2.1    | Ajuste manual de XP (`POST /xp-adjustments`, RF-013): casos `CT-XP-011` a `021` e `CT-PERM-041`              | Matheus Lucas |
+| 26/09/2026 | 2.2    | Piso de XP em 0 também nas atitudes aplicadas (`/attitude-logs`): casos `CT-ATT-018` a `022`                 | Matheus Lucas |
+| 26/09/2026 | 2.3    | Filtro por turma em `GET /users`: casos `CT-USER-018` a `021` e posse da turma no `CT-PERM-009`             | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -109,6 +111,10 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-USER-015  | Professor exclui outro professor     | `profA` excluindo `profB`                                               | 403, mesma mensagem do CT-USER-014                                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-016  | Professor exclui aluno               | `profA` excluindo `alunoA`                                              | 200 e o aluno some da base                                                                | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-017  | Recálculo de níveis pelo admin       | `POST /users/recalculate-levels` com usuários de nível defasado          | 200 e `updated` igual à quantidade de usuários corrigidos                                 | RF-006 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-018  | Professor lista alunos da turma dele | `GET /users?role=student&class={turmaA}&active=true&limit=100` como `profA` | 200, apenas os alunos ativos da `turmaA` — sem o filtro de papel e situação, vêm todos os usuários da turma | RF-001 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
+| CT-USER-019  | Professor filtra turma alheia        | `GET /users?class={turmaB}` como `profA`                                | 403, "Você só pode listar alunos das suas turmas."                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-020  | Filtro por turma inexistente         | `GET /users?class={id válido que não existe}`                          | 404, turma não encontrada                                                                 | RF-001 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-021  | Admin filtra qualquer turma          | `GET /users?class={turmaB}` como `admin`                                | 200, apenas os usuários da `turmaB` — o admin não passa pela checagem de posse            | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 
 ---
 
@@ -167,7 +173,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-XP-007  | Quantidade de respostas divergente     | 3 respostas para um quiz de 5 questões                                                | 400, "Envie exatamente 5 respostas, na ordem das questões."                                  | RF-005 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-XP-008  | Missão sem quiz exige score            | `type: "vocabulary"` sem `score` no corpo                                             | 400, "O score é obrigatório para missões que não são do tipo quiz."                          | RF-005 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-XP-009  | Subida de nível ao cruzar o limiar     | aluno com 0 XP recebendo 100 XP                                                       | nível passa de 1 para 2 e a resposta traz `leveled_up: true`                                 | RF-006 | Unit  | `utils/LevelHelper`, `services/ProgressionService`, `routes/missionRoutes` | ✅ |
-| CT-XP-010  | Piso do nível com XP negativo          | aluno com XP baixo recebendo atitude negativa que zera ou negativa o total            | nível não cai abaixo de 1 e o cálculo trata XP negativo como 0                               | RF-006 | Unit  | `utils/LevelHelper`                      | ✅       |
+| CT-XP-010  | Piso do nível com XP negativo          | cálculo de nível sobre XP 0 ou negativo (dado legado, anterior ao piso em 0)         | nível não cai abaixo de 1 e o cálculo trata XP negativo como 0                               | RF-006 | Unit  | `utils/LevelHelper`                      | ✅       |
 | CT-XP-011  | Ajuste manual que adiciona XP          | `POST /xp-adjustments` com `alunoA` e `amount: 50`                                     | 201 com `amount: 50` e `xp_applied: 50`; o XP do aluno sobe 50                               | RF-013 | Int   | `routes/xpAdjustmentRoutes`, `services/XpAdjustmentService` | ✅ |
 | CT-XP-012  | Ajuste manual que remove XP            | aluno com 80 XP, `amount: -30`                                                         | 201 com `xp_applied: -30`; o XP do aluno fica em 50                                          | RF-013 | Int   | `routes/xpAdjustmentRoutes`              | ✅       |
 | CT-XP-013  | Remoção maior que o saldo              | aluno com 30 XP, `amount: -50`                                                         | 201 com `amount: -50` e `xp_applied: -30`; o XP para em 0, nunca negativo                     | RF-013 | Int   | `routes/xpAdjustmentRoutes`, `services/ProgressionService` | ✅ |
@@ -180,7 +186,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-XP-020  | Quantidade inválida                    | `amount` igual a 0, fora de ±10000, fracionado ou em texto; `reason` acima de 200 caracteres | 400 com o campo em `errors`, ex.: `{ path: "amount", message: "A quantidade não pode ser zero." }` | RF-013 | Unit | `controllers/XpAdjustmentController`, `routes/xpAdjustmentRoutes` | ✅ |
 | CT-XP-021  | Ajuste em quem não é aluno             | `admin` ajustando `profB`                                                              | 400, "O usuário informado não é um aluno."; o XP do professor não muda                       | RF-013 | Int   | `routes/xpAdjustmentRoutes`              | ✅       |
 
-O ajuste manual (`CT-XP-011` a `021`) é o único caminho de XP com piso em 0. A atitude negativa, pelo `$inc`, ainda pode deixar o total negativo (`CT-ATT-007` e `CT-XP-010`); o ajuste usa uma atualização atômica que para em 0 e grava em `xp_applied` o que foi aplicado de fato, que pode ser menor que o `amount` pedido.
+O ajuste manual (`CT-XP-011` a `021`) e as atitudes aplicadas (`CT-ATT-018` a `022`) passam pela mesma atualização atômica com piso em 0, que grava em `xp_applied` o que foi aplicado de fato — pode ser menor que o `amount` pedido ou que o `xp_value` da atitude. Só a conclusão de missão soma pelo `$inc` direto, porque só credita XP positivo. O `CT-XP-010` continua valendo para dado legado: um aluno que já estava negativo antes do piso ainda tem o nível calculado como 1.
 
 A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nível 2 = 100, nível 3 = 400, nível 4 = 900), com teto no nível 50. Os casos `Unit` cobrem `LevelHelper` direto, sem HTTP — inclusive a coerência entre `xpForLevel` e `calculateLevel` ao longo de toda a curva, que é a propriedade que garante que os dois nunca discordem.
 
@@ -196,7 +202,7 @@ A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nív
 | CT-ATT-004  | Professor exclui atitude                  | `DELETE /attitudes/{id}` como `profA`                                      | 403 — exclusão é exclusiva do admin, justamente para não órfãos nos logs                  | RF-011 | Int   | `routes/attitudeRoutes`        | ✅       |
 | CT-ATT-005  | Admin exclui atitude                      | `DELETE /attitudes/{id}` como `admin`                                      | 200                                                                                       | RF-008 | Int   | `routes/attitudeRoutes`        | ✅       |
 | CT-ATT-006  | Aplicação de atitude positiva             | `POST /attitude-logs` com aluno da turma do professor e atitude de +20 XP  | 201; XP do aluno sobe 20 e a resposta traz `progression` com o nível recalculado          | RF-008 | Int   | `routes/attitudeLogRoutes`     | ✅       |
-| CT-ATT-007  | Aplicação de atitude negativa             | atitude com `type: "negative"` e `xp_value: 20`                            | 201 com `xp_applied: -20`; o XP do aluno cai 20                                           | RF-008 | Int   | `routes/attitudeLogRoutes`     | ✅       |
+| CT-ATT-007  | Aplicação de atitude negativa             | aluno com saldo suficiente, atitude com `type: "negative"` e `xp_value: 20` | 201 com `xp_applied: -20`; o XP do aluno cai 20                                          | RF-008 | Int   | `routes/attitudeLogRoutes`     | ✅       |
 | CT-ATT-008  | Aluno de outra turma                      | `profA` aplicando em `alunoB`                                              | 403, "Você só pode aplicar atitudes a alunos das suas turmas."                            | RF-011 | Int   | `routes/attitudeLogRoutes`, `services/AttitudeLogService` | ✅ |
 | CT-ATT-009  | Aluno sem turma                           | `profA` aplicando em `semTurma`                                            | 403, mesma mensagem do CT-ATT-008                                                         | RF-011 | Int   | `routes/attitudeLogRoutes`     | ✅       |
 | CT-ATT-010  | Admin aplica em qualquer aluno            | `admin` aplicando em `alunoB`                                              | 201 — o admin não passa pela checagem de turma                                            | RF-011 | Int   | `routes/attitudeLogRoutes`     | ✅       |
@@ -207,6 +213,11 @@ A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nív
 | CT-ATT-015  | Desfazer atitude estorna o XP             | `DELETE /attitude-logs/{id}` pelo autor                                    | 200; o XP volta exatamente ao valor anterior à aplicação                                  | RF-008 | Int   | `routes/attitudeLogRoutes`     | ✅       |
 | CT-ATT-016  | Exclusão por outro professor              | `profB` apagando log de `profA`                                            | 403, mesma mensagem do CT-ATT-014                                                         | RF-011 | Int   | `routes/attitudeLogRoutes`     | ✅       |
 | CT-ATT-017  | Aluno lista atitudes aplicadas            | `GET /attitude-logs` como `alunoA`                                         | 403 — o histórico disciplinar não é exposto ao aluno                                      | RF-011 | Int   | `routes/attitudeLogRoutes`     | ✅       |
+| CT-ATT-018  | Atitude negativa maior que o saldo        | aluno com 30 XP, atitude negativa de `xp_value: 50`                        | 201 com `xp_applied: -30`, gravado assim no log; o XP para em 0, nunca negativo           | RF-008 | Int   | `routes/attitudeLogRoutes`, `services/AttitudeLogService` | ✅ |
+| CT-ATT-019  | Atitude negativa em quem está com 0 XP    | aluno com 0 XP, atitude negativa de `xp_value: 5`                          | 201 com `xp_applied: 0`; o XP continua 0                                                  | RF-008 | Int   | `routes/attitudeLogRoutes`     | ✅       |
+| CT-ATT-020  | Correção que passa do saldo               | log de +10 em aluno que ficou com 4 XP, `PATCH` trocando por atitude de -5 | 200; a diferença pedida (-15) para em -4, o XP fica 0 e o log grava `xp_applied: 6` (10 - 4) | RF-008 | Int | `routes/attitudeLogRoutes`, `services/AttitudeLogService` | ✅ |
+| CT-ATT-021  | Estorno de positiva que passa do saldo    | log de +10 em aluno que ficou com 4 XP, `DELETE` do log                    | 200; o estorno de -10 para em 0                                                           | RF-008 | Int   | `routes/attitudeLogRoutes`, `services/AttitudeLogService` | ✅ |
+| CT-ATT-022  | Estorno de negativa que parou no piso     | aluno com 3 XP recebe atitude de -5 (`xp_applied: -3`), depois `DELETE`    | 200; o estorno devolve só os 3 descontados e o XP volta a 3                               | RF-008 | Int   | `routes/attitudeLogRoutes`     | ✅       |
 
 ---
 
@@ -243,7 +254,7 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-006  | `PATCH /auth/change-password`     | 200                             | 200                                  | 200   | `routes/authRoutes`         | ✅       |
 | CT-PERM-007  | `POST /auth/logout`               | 200                             | 200                                  | 200   | `routes/authRoutes`         | ✅       |
 | CT-PERM-008  | `POST /auth/revoke/{userId}`      | 403                             | 403                                  | 200   | `routes/authRoutes`         | ✅       |
-| CT-PERM-009  | `GET /users`                      | 403                             | 200                                  | 200   | `routes/userRoutes`         | ✅       |
+| CT-PERM-009  | `GET /users`                      | 403                             | 200 / 403 com `class` de outra turma | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-010  | `POST /users`                     | 403                             | 201 aluno / 403 teacher ou admin     | 201   | `routes/userRoutes`         | ✅       |
 | CT-PERM-011  | `GET /users/{id}`                 | 200 próprio / 403 outro         | 200                                  | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-012  | `PATCH /users/{id}`               | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
@@ -332,20 +343,20 @@ Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Ele
 
 ## 11 - Resumo
 
-Situação em 24/09/2026, com a suíte em **45 arquivos de teste e 942 testes**, executando em cerca de 7 segundos.
+Situação em 26/09/2026, com a suíte em **46 arquivos de teste e 976 testes**, executando em cerca de 23 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
 | Autenticação e sessão         | `CT-AUTH`    | 22    | 21               | 1            |
-| Usuários                      | `CT-USER`    | 17    | 17               | 0            |
+| Usuários                      | `CT-USER`    | 21    | 21               | 0            |
 | Turmas                        | `CT-CLASS`   | 12    | 12               | 0            |
 | Missões                       | `CT-MISSION` | 16    | 16               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 21    | 21               | 0            |
-| Atitudes e atitudes aplicadas | `CT-ATT`     | 17    | 17               | 0            |
+| Atitudes e atitudes aplicadas | `CT-ATT`     | 22    | 22               | 0            |
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **158** | **152 (96,2%)** | **6**        |
+| **Total**                     | -            | **167** | **161 (96,4%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 

@@ -4,11 +4,35 @@ import {
 } from "../utils/helpers/index.js";
 import AuthHelper from "../utils/AuthHelper.js";
 import UserRepository from "../repository/UserRepository.js";
+import ClassRepository from "../repository/ClassRepository.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
 
 class UserService {
   constructor() {
     this.repository = new UserRepository();
+    this.classRepository = new ClassRepository();
+  }
+
+  /**
+   * Professor só lista alunos das turmas dele; admin filtra qualquer turma.
+   */
+  async ensureCanFilterClass(classId, userId) {
+    const classDoc = await this.classRepository.findById(classId);
+    const loggedUser = await this.repository.findById(userId);
+
+    if (loggedUser.role !== "teacher") return;
+
+    const ownerId = classDoc.teacher?._id ?? classDoc.teacher;
+
+    if (String(ownerId) !== String(loggedUser._id)) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "class",
+        details: [],
+        customMessage: "Você só pode listar alunos das suas turmas.",
+      });
+    }
   }
 
   async list(req) {
@@ -28,6 +52,12 @@ class UserService {
       }
 
       return await this.repository.findById(id);
+    }
+
+    const classId = req?.query?.class;
+
+    if (classId) {
+      await this.ensureCanFilterClass(classId, req.user_id);
     }
 
     return await this.repository.list(req);

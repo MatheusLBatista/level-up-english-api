@@ -45,8 +45,8 @@ class XpAdjustmentService {
 
     await this.ensureOwnsStudent(student, loggedUser);
 
-    // Diferente do attitude-logs, o XP é aplicado antes do log: o valor gravado
-    // em xp_applied só é conhecido depois que o piso em 0 foi aplicado.
+    // O XP é aplicado antes do log: o valor gravado em xp_applied só é
+    // conhecido depois que o piso em 0 foi aplicado.
     const { xp_applied, progression } = await this.progressionService.adjustXp(
       parsedData.student,
       parsedData.amount,
