@@ -915,7 +915,12 @@ registry.registerPath({
   summary: "Aplicar atitude a um aluno (teacher/admin; professor só nos alunos das turmas dele)",
   description:
     "O aluno alvo precisa estar em uma turma do professor que está aplicando — aluno de "
-    + "outra turma, ou sem turma nenhuma, devolve 403. O admin alcança qualquer aluno.",
+    + "outra turma, ou sem turma nenhuma, devolve 403. O admin alcança qualquer aluno.\n\n"
+    + "**O XP nunca fica negativo.** Uma atitude negativa maior que o saldo para em 0, e "
+    + "`xp_applied` grava o que foi de fato descontado, que pode ser menor que o `xp_value` "
+    + "da atitude (ex.: atitude de -50 num aluno com 30 XP grava `xp_applied: -30`). A mesma "
+    + "regra vale ao corrigir (`PATCH`) e ao desfazer (`DELETE`) o log: o estorno usa o "
+    + "`xp_applied` gravado e também para em 0.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
