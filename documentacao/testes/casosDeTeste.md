@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.2 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.3 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -12,6 +12,7 @@ _versão 2.2 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 19/08/2026 | 2.0    | Suíte automatizada implementada: cada caso passa a apontar a suíte que o cobre; situações e status revisados | Matheus Lucas |
 | 24/09/2026 | 2.1    | Ajuste manual de XP (`POST /xp-adjustments`, RF-013): casos `CT-XP-011` a `021` e `CT-PERM-041`              | Matheus Lucas |
 | 26/09/2026 | 2.2    | Piso de XP em 0 também nas atitudes aplicadas (`/attitude-logs`): casos `CT-ATT-018` a `022`                 | Matheus Lucas |
+| 26/09/2026 | 2.3    | Filtro por turma em `GET /users`: casos `CT-USER-018` a `021` e posse da turma no `CT-PERM-009`             | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -110,6 +111,10 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-USER-015  | Professor exclui outro professor     | `profA` excluindo `profB`                                               | 403, mesma mensagem do CT-USER-014                                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-016  | Professor exclui aluno               | `profA` excluindo `alunoA`                                              | 200 e o aluno some da base                                                                | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-017  | Recálculo de níveis pelo admin       | `POST /users/recalculate-levels` com usuários de nível defasado          | 200 e `updated` igual à quantidade de usuários corrigidos                                 | RF-006 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-018  | Professor lista alunos da turma dele | `GET /users?role=student&class={turmaA}&active=true&limit=100` como `profA` | 200, apenas os alunos ativos da `turmaA` — sem o filtro de papel e situação, vêm todos os usuários da turma | RF-001 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
+| CT-USER-019  | Professor filtra turma alheia        | `GET /users?class={turmaB}` como `profA`                                | 403, "Você só pode listar alunos das suas turmas."                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-020  | Filtro por turma inexistente         | `GET /users?class={id válido que não existe}`                          | 404, turma não encontrada                                                                 | RF-001 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-021  | Admin filtra qualquer turma          | `GET /users?class={turmaB}` como `admin`                                | 200, apenas os usuários da `turmaB` — o admin não passa pela checagem de posse            | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 
 ---
 
@@ -249,7 +254,7 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-006  | `PATCH /auth/change-password`     | 200                             | 200                                  | 200   | `routes/authRoutes`         | ✅       |
 | CT-PERM-007  | `POST /auth/logout`               | 200                             | 200                                  | 200   | `routes/authRoutes`         | ✅       |
 | CT-PERM-008  | `POST /auth/revoke/{userId}`      | 403                             | 403                                  | 200   | `routes/authRoutes`         | ✅       |
-| CT-PERM-009  | `GET /users`                      | 403                             | 200                                  | 200   | `routes/userRoutes`         | ✅       |
+| CT-PERM-009  | `GET /users`                      | 403                             | 200 / 403 com `class` de outra turma | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-010  | `POST /users`                     | 403                             | 201 aluno / 403 teacher ou admin     | 201   | `routes/userRoutes`         | ✅       |
 | CT-PERM-011  | `GET /users/{id}`                 | 200 próprio / 403 outro         | 200                                  | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-012  | `PATCH /users/{id}`               | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
@@ -343,7 +348,7 @@ Situação em 26/09/2026, com a suíte em **46 arquivos de teste e 976 testes**,
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
 | Autenticação e sessão         | `CT-AUTH`    | 22    | 21               | 1            |
-| Usuários                      | `CT-USER`    | 17    | 17               | 0            |
+| Usuários                      | `CT-USER`    | 21    | 21               | 0            |
 | Turmas                        | `CT-CLASS`   | 12    | 12               | 0            |
 | Missões                       | `CT-MISSION` | 16    | 16               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 21    | 21               | 0            |
@@ -351,7 +356,7 @@ Situação em 26/09/2026, com a suíte em **46 arquivos de teste e 976 testes**,
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **163** | **157 (96,3%)** | **6**        |
+| **Total**                     | -            | **167** | **161 (96,4%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 
