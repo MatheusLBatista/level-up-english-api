@@ -192,6 +192,15 @@ describe("UserRepository", () => {
       });
     });
 
+    it("deve filtrar pela turma informada", async() => {
+      const CLASS_ID = "507f1f77bcf86cd799439033";
+      modelo.paginate.mockResolvedValue(paginado());
+
+      await repository.list({ query: { class: CLASS_ID, role: "student" } });
+
+      expect(modelo.paginate.mock.calls[0][0]).toEqual({ class: CLASS_ID, role: "student" });
+    });
+
     it("deve aceitar active como texto vindo da query string", async() => {
       modelo.paginate.mockResolvedValue(paginado());
 

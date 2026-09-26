@@ -359,6 +359,11 @@ registry.registerPath({
       name: z.string().optional().openapi({ example: "John" }),
       email: z.string().optional().openapi({ example: "john@example.com" }),
       role: z.enum(["student", "teacher", "admin"]).optional(),
+      class: z.string().optional().openapi({
+        example: "507f1f77bcf86cd799439011",
+        description:
+          "Id da turma. Professor só pode filtrar turma que é dele; admin filtra qualquer uma.",
+      }),
       active: z.string().optional().openapi({ example: "true" }),
       page: z.string().optional().openapi({ example: "1" }),
       limit: z.string().optional().openapi({ example: "10" }),
@@ -367,7 +372,11 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.array(UserSchema), "Lista de usuários"),
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou professor filtrando turma de outro professor",
+      "Você só pode listar alunos das suas turmas.",
+    ),
+    404: error404Class,
   },
 });
 

@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import UserFilterBuild from "./filters/UserFilterBuild.js";
 import { CustomError, messages } from "../utils/helpers/index.js";
 
 class UserRepository {
@@ -103,16 +104,16 @@ class UserRepository {
   }
 
   async list(req) {
-    const { name, email, role, active, page = 1 } = req.query || {};
+    const { name, email, role, class: classId, active, page = 1 } = req.query || {};
     const limit = Math.min(parseInt(req.query?.limit, 10) || 10, 100);
 
-    const filters = {};
-    if (name) filters.name = { $regex: name, $options: "i" };
-    if (email) filters.email = { $regex: email, $options: "i" };
-    if (role) filters.role = role;
-    if (active !== undefined) {
-      filters.active = active === "true" || active === "1" || active === true;
-    }
+    const filters = new UserFilterBuild()
+      .withName(name)
+      .withEmail(email)
+      .withRole(role)
+      .withClass(classId)
+      .withActive(active)
+      .build();
 
     const options = {
       page: parseInt(page, 10),
