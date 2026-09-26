@@ -7,6 +7,9 @@ import authRoutes from "../../routes/authRoutes.js";
 import userRoutes from "../../routes/userRoutes.js";
 import errorHandler from "../../utils/helpers/errorHandler.js";
 import User from "../../models/User.js";
+import Class from "../../models/Class.js";
+// registra o model "missions", que o ClassRepository.findById popula
+import "../../models/Mission.js";
 import {
   connectTestDatabase,
   clearTestDatabase,
@@ -142,6 +145,85 @@ describe("Rotas de usuários", () => {
       const res = await request(app).get("/users");
 
       expect(res.status).toBe(498);
+    });
+
+    describe("filtro por turma", () => {
+      let outraProfessora;
+      let turma;
+      let turmaDaOutra;
+
+      beforeEach(async() => {
+        outraProfessora = await criarUsuario({
+          name: "Outra Professora",
+          email: "outra@escola.com",
+          role: "teacher",
+        });
+
+        turma = await Class.create({ name: "Turma A", teacher: teacher._id });
+        turmaDaOutra = await Class.create({ name: "Turma B", teacher: outraProfessora._id });
+
+        await User.findByIdAndUpdate(student._id, { class: turma._id });
+        await criarUsuario({ name: "Colega", email: "colega@escola.com", class: turma._id });
+        await criarUsuario({
+          name: "Colega Inativo",
+          email: "inativo@escola.com",
+          class: turma._id,
+          active: false,
+        });
+        await criarUsuario({ name: "De Fora", email: "fora@escola.com", class: turmaDaOutra._id });
+      });
+
+      it("deve listar só os usuários da turma informada", async() => {
+        const res = await request(app)
+          .get(`/users?class=${turma._id}`)
+          .set("Authorization", await como(teacher));
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.docs.map((u) => u.email).sort()).toEqual([
+          "aluno@escola.com",
+          "colega@escola.com",
+          "inativo@escola.com",
+        ]);
+      });
+
+      it("deve combinar a turma com papel e situação da conta", async() => {
+        const res = await request(app)
+          .get(`/users?role=student&class=${turma._id}&active=true&limit=100`)
+          .set("Authorization", await como(teacher));
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.docs.map((u) => u.email).sort()).toEqual([
+          "aluno@escola.com",
+          "colega@escola.com",
+        ]);
+      });
+
+      it("deve retornar 403 quando a professora filtra turma de outro professor", async() => {
+        const res = await request(app)
+          .get(`/users?class=${turmaDaOutra._id}`)
+          .set("Authorization", await como(teacher));
+
+        expect(res.status).toBe(403);
+        expect(res.body.message).toBe("Você só pode listar alunos das suas turmas.");
+      });
+
+      it("deve retornar 404 quando a turma não existir", async() => {
+        const res = await request(app)
+          .get(`/users?class=${ID_INEXISTENTE}`)
+          .set("Authorization", await como(teacher));
+
+        expect(res.status).toBe(404);
+      });
+
+      it("deve permitir que o admin filtre qualquer turma", async() => {
+        const res = await request(app)
+          .get(`/users?class=${turmaDaOutra._id}`)
+          .set("Authorization", await como(admin));
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.docs).toHaveLength(1);
+        expect(res.body.data.docs[0].email).toBe("fora@escola.com");
+      });
     });
   });
 

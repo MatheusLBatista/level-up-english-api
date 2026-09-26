@@ -91,7 +91,10 @@ describe("AttitudeLogService", () => {
       }),
     };
 
-    progressionService = { applyXp: jest.fn().mockResolvedValue(PROGRESSION) };
+    // Sem piso atingido, o adjustXp aplica exatamente o que foi pedido.
+    progressionService = {
+      adjustXp: jest.fn(async(_id, amount) => ({ xp_applied: amount, progression: PROGRESSION })),
+    };
 
     AttitudeLogRepository.mockImplementation(() => repository);
     AttitudeRepository.mockImplementation(() => attitudeRepository);
@@ -153,7 +156,7 @@ describe("AttitudeLogService", () => {
     it("deve creditar o XP da atitude positiva", async() => {
       await service.create({ ...corpo }, { user_id: PROF_A_ID });
 
-      expect(progressionService.applyXp).toHaveBeenCalledWith(ALUNO_A_ID, 10);
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, 10);
     });
 
     it("deve descontar o XP da atitude negativa", async() => {
@@ -164,7 +167,7 @@ describe("AttitudeLogService", () => {
 
       // O sinal vem do tipo, não do valor cadastrado.
       expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ xp_applied: -5 }));
-      expect(progressionService.applyXp).toHaveBeenCalledWith(ALUNO_A_ID, -5);
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, -5);
     });
 
     it("deve normalizar o sinal quando o xp cadastrado contradiz o tipo", async() => {
@@ -181,6 +184,31 @@ describe("AttitudeLogService", () => {
       expect(resultado).toMatchObject({ _id: LOG_ID, xp_applied: 10, progression: PROGRESSION });
     });
 
+    it("deve gravar o XP realmente aplicado quando a atitude negativa passa do saldo", async() => {
+      attitudeRepository.findById.mockResolvedValue(atitude({ type: "negative", xp_value: 50 }));
+      progressionService.adjustXp.mockResolvedValue({ xp_applied: -30, progression: PROGRESSION });
+
+      await service.create({ ...corpo }, { user_id: PROF_A_ID });
+
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, -50);
+      expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ xp_applied: -30 }));
+    });
+
+    it("deve aplicar o XP antes de gravar o log", async() => {
+      await service.create({ ...corpo }, { user_id: PROF_A_ID });
+
+      const ordemXp = progressionService.adjustXp.mock.invocationCallOrder[0];
+      const ordemLog = repository.create.mock.invocationCallOrder[0];
+      expect(ordemXp).toBeLessThan(ordemLog);
+    });
+
+    it("não deve gravar o log quando a aplicação do XP falhar", async() => {
+      progressionService.adjustXp.mockRejectedValue(new Error("falha no banco"));
+
+      await expect(service.create({ ...corpo }, { user_id: PROF_A_ID })).rejects.toThrow("falha no banco");
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
     it("deve lançar 400 quando a atitude estiver inativa", async() => {
       attitudeRepository.findById.mockResolvedValue(atitude({ active: false }));
 
@@ -190,7 +218,7 @@ describe("AttitudeLogService", () => {
       expect(erro.statusCode).toBe(400);
       expect(erro.customMessage).toBe("Esta atitude está inativa.");
       expect(repository.create).not.toHaveBeenCalled();
-      expect(progressionService.applyXp).not.toHaveBeenCalled();
+      expect(progressionService.adjustXp).not.toHaveBeenCalled();
     });
 
     it("deve lançar 400 quando o alvo não for um aluno", async() => {
@@ -246,7 +274,7 @@ describe("AttitudeLogService", () => {
       await service.delete(LOG_ID, { user_id: PROF_A_ID });
 
       expect(repository.delete).toHaveBeenCalledWith(LOG_ID);
-      expect(progressionService.applyXp).toHaveBeenCalledWith(ALUNO_A_ID, -10);
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, -10);
     });
 
     it("deve devolver o XP descontado quando a atitude era negativa", async() => {
@@ -254,7 +282,18 @@ describe("AttitudeLogService", () => {
 
       await service.delete(LOG_ID, { user_id: PROF_A_ID });
 
-      expect(progressionService.applyXp).toHaveBeenCalledWith(ALUNO_A_ID, 5);
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, 5);
+    });
+
+    it("deve estornar pelo ajuste com piso, e não pelo $inc", async() => {
+      // A atitude positiva foi aplicada e o XP foi removido por outro meio:
+      // o estorno para em 0 em vez de deixar o saldo negativo.
+      repository.findById.mockResolvedValue(log({ xp_applied: 10 }));
+      progressionService.adjustXp.mockResolvedValue({ xp_applied: -4, progression: PROGRESSION });
+
+      await expect(service.delete(LOG_ID, { user_id: PROF_A_ID })).resolves.toBeUndefined();
+
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, -10);
     });
 
     it("deve estornar usando o aluno populado", async() => {
@@ -262,7 +301,7 @@ describe("AttitudeLogService", () => {
 
       await service.delete(LOG_ID, { user_id: PROF_A_ID });
 
-      expect(progressionService.applyXp).toHaveBeenCalledWith(ALUNO_A_ID, -10);
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, -10);
     });
 
     it("deve lançar 403 quando a professora não foi quem aplicou", async() => {
@@ -273,7 +312,7 @@ describe("AttitudeLogService", () => {
       expect(erro.statusCode).toBe(403);
       expect(erro.customMessage).toBe("Teachers can only change logs they applied.");
       expect(repository.delete).not.toHaveBeenCalled();
-      expect(progressionService.applyXp).not.toHaveBeenCalled();
+      expect(progressionService.adjustXp).not.toHaveBeenCalled();
     });
 
     it("deve reconhecer a autora mesmo vindo populada", async() => {
@@ -322,7 +361,7 @@ describe("AttitudeLogService", () => {
         xp_applied: 25,
       });
       // O aluno já tinha 10; só faltam 15 para chegar aos 25.
-      expect(progressionService.applyXp).toHaveBeenCalledWith(ALUNO_A_ID, 15);
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, 15);
     });
 
     it("deve inverter o saldo ao trocar de atitude positiva para negativa", async() => {
@@ -332,7 +371,33 @@ describe("AttitudeLogService", () => {
 
       await service.update(LOG_ID, { attitude: OUTRA_ATTITUDE_ID }, { user_id: PROF_A_ID });
 
-      expect(progressionService.applyXp).toHaveBeenCalledWith(ALUNO_A_ID, -15);
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, -15);
+    });
+
+    it("deve gravar o xp_applied anterior somado ao realmente aplicado quando bate no piso", async() => {
+      // Log de +10, mas o aluno ficou com só 4 XP. Trocar por -5 pede -15 e só -4 cabe.
+      attitudeRepository.findById.mockResolvedValue(
+        atitude({ _id: OUTRA_ATTITUDE_ID, type: "negative", xp_value: 5 }),
+      );
+      progressionService.adjustXp.mockResolvedValue({ xp_applied: -4, progression: PROGRESSION });
+
+      await service.update(LOG_ID, { attitude: OUTRA_ATTITUDE_ID }, { user_id: PROF_A_ID });
+
+      expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, -15);
+      expect(repository.update).toHaveBeenCalledWith(LOG_ID, {
+        attitude: OUTRA_ATTITUDE_ID,
+        xp_applied: 6,
+      });
+    });
+
+    it("deve aplicar o XP antes de gravar a troca no log", async() => {
+      attitudeRepository.findById.mockResolvedValue(atitude({ _id: OUTRA_ATTITUDE_ID, xp_value: 25 }));
+
+      await service.update(LOG_ID, { attitude: OUTRA_ATTITUDE_ID }, { user_id: PROF_A_ID });
+
+      const ordemXp = progressionService.adjustXp.mock.invocationCallOrder[0];
+      const ordemLog = repository.update.mock.invocationCallOrder[0];
+      expect(ordemXp).toBeLessThan(ordemLog);
     });
 
     it("deve devolver o log junto com a progressão do aluno", async() => {
@@ -353,7 +418,7 @@ describe("AttitudeLogService", () => {
       await service.update(LOG_ID, {}, { user_id: PROF_A_ID });
 
       expect(repository.update).toHaveBeenCalledWith(LOG_ID, {});
-      expect(progressionService.applyXp).not.toHaveBeenCalled();
+      expect(progressionService.adjustXp).not.toHaveBeenCalled();
     });
 
     it("deve lançar 400 quando a atitude nova estiver inativa", async() => {
@@ -366,7 +431,7 @@ describe("AttitudeLogService", () => {
       expect(erro.statusCode).toBe(400);
       expect(erro.customMessage).toBe("Esta atitude está inativa.");
       expect(repository.update).not.toHaveBeenCalled();
-      expect(progressionService.applyXp).not.toHaveBeenCalled();
+      expect(progressionService.adjustXp).not.toHaveBeenCalled();
     });
 
     it("deve lançar 403 quando a professora não foi quem aplicou", async() => {

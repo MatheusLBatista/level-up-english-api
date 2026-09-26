@@ -13,10 +13,6 @@ class AttitudeLogService {
     this.progressionService = new ProgressionService();
   }
 
-  async applyXp(studentId, xpDelta) {
-    return await this.progressionService.applyXp(studentId, xpDelta);
-  }
-
   /**
    * Admin mexe em qualquer log; professor, apenas nos que ele mesmo aplicou.
    */
@@ -96,9 +92,15 @@ class AttitudeLogService {
 
     await this.ensureOwnsStudent(student, loggedUser);
 
-    const xp_applied = attitude.type === "negative"
+    const xpValue = attitude.type === "negative"
       ? -Math.abs(attitude.xp_value)
       : Math.abs(attitude.xp_value);
+
+    // XP antes do log: com o piso em 0, o xp_applied pode ser menor que o da atitude.
+    const { xp_applied, progression } = await this.progressionService.adjustXp(
+      parsedData.student,
+      xpValue,
+    );
 
     const log = await this.repository.create({
       student: parsedData.student,
@@ -106,8 +108,6 @@ class AttitudeLogService {
       teacher: req.user_id,
       xp_applied,
     });
-
-    const progression = await this.applyXp(parsedData.student, xp_applied);
 
     return { ...log.toObject(), progression };
   }
@@ -119,7 +119,7 @@ class AttitudeLogService {
 
     await this.repository.delete(id);
 
-    await this.applyXp(
+    await this.progressionService.adjustXp(
       String(existingLog.student._id ?? existingLog.student),
       -existingLog.xp_applied,
     );
@@ -152,15 +152,15 @@ class AttitudeLogService {
 
     const xpDiff = newXp - existingLog.xp_applied;
 
-    const log = await this.repository.update(id, {
-      attitude: parsedData.attitude,
-      xp_applied: newXp,
-    });
-
-    const progression = await this.applyXp(
+    const { xp_applied, progression } = await this.progressionService.adjustXp(
       String(existingLog.student._id ?? existingLog.student),
       xpDiff,
     );
+
+    const log = await this.repository.update(id, {
+      attitude: parsedData.attitude,
+      xp_applied: existingLog.xp_applied + xp_applied,
+    });
 
     return { ...log.toObject(), progression };
   }

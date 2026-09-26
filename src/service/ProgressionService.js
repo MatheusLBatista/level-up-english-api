@@ -39,8 +39,9 @@ class ProgressionService {
   }
 
   /**
-   * Ajuste manual: como o applyXp, mas uma remoção nunca deixa o XP negativo.
-   * Devolve quanto foi de fato aplicado, que pode ser menor que o pedido.
+   * Como o applyXp, mas uma remoção nunca deixa o XP negativo. Usado pelo ajuste
+   * manual e pelas atitudes aplicadas. Devolve quanto foi de fato aplicado, que
+   * pode ser menor que o pedido.
    */
   async adjustXp(studentId, amount) {
     const before = await this.userRepository.addXpWithFloor(studentId, amount);

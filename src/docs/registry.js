@@ -359,6 +359,11 @@ registry.registerPath({
       name: z.string().optional().openapi({ example: "John" }),
       email: z.string().optional().openapi({ example: "john@example.com" }),
       role: z.enum(["student", "teacher", "admin"]).optional(),
+      class: z.string().optional().openapi({
+        example: "507f1f77bcf86cd799439011",
+        description:
+          "Id da turma. Professor só pode filtrar turma que é dele; admin filtra qualquer uma.",
+      }),
       active: z.string().optional().openapi({ example: "true" }),
       page: z.string().optional().openapi({ example: "1" }),
       limit: z.string().optional().openapi({ example: "10" }),
@@ -367,7 +372,11 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.array(UserSchema), "Lista de usuários"),
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou professor filtrando turma de outro professor",
+      "Você só pode listar alunos das suas turmas.",
+    ),
+    404: error404Class,
   },
 });
 
@@ -906,7 +915,12 @@ registry.registerPath({
   summary: "Aplicar atitude a um aluno (teacher/admin; professor só nos alunos das turmas dele)",
   description:
     "O aluno alvo precisa estar em uma turma do professor que está aplicando — aluno de "
-    + "outra turma, ou sem turma nenhuma, devolve 403. O admin alcança qualquer aluno.",
+    + "outra turma, ou sem turma nenhuma, devolve 403. O admin alcança qualquer aluno.\n\n"
+    + "**O XP nunca fica negativo.** Uma atitude negativa maior que o saldo para em 0, e "
+    + "`xp_applied` grava o que foi de fato descontado, que pode ser menor que o `xp_value` "
+    + "da atitude (ex.: atitude de -50 num aluno com 30 XP grava `xp_applied: -30`). A mesma "
+    + "regra vale ao corrigir (`PATCH`) e ao desfazer (`DELETE`) o log: o estorno usa o "
+    + "`xp_applied` gravado e também para em 0.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {

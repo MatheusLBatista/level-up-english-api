@@ -107,11 +107,39 @@ describe("Rotas de atitudes aplicadas", () => {
     });
 
     it("deve descontar o XP da atitude negativa", async() => {
+      await User.findByIdAndUpdate(alunoA._id, { xp: 50 });
+
       const res = await aplicar(profA, { attitude: atraso });
 
       expect(res.status).toBe(201);
       expect(res.body.data.xp_applied).toBe(-5);
-      expect(await xpDe(alunoA)).toBe(-5);
+      expect(await xpDe(alunoA)).toBe(45);
+    });
+
+    it("deve parar em 0 e gravar o XP realmente descontado quando a atitude passa do saldo", async() => {
+      const briga = await Attitude.create({
+        name: "Briga",
+        xp_value: 50,
+        type: "negative",
+        createdBy: profA._id,
+      });
+      await User.findByIdAndUpdate(alunoA._id, { xp: 30 });
+
+      const res = await aplicar(profA, { attitude: briga });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.xp_applied).toBe(-30);
+      expect(res.body.data.progression).toMatchObject({ xp: 0, level: 1 });
+      expect(await xpDe(alunoA)).toBe(0);
+      expect((await AttitudeLog.findById(res.body.data._id)).xp_applied).toBe(-30);
+    });
+
+    it("não deve descontar nada de quem já está com 0 XP", async() => {
+      const res = await aplicar(profA, { attitude: atraso });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.xp_applied).toBe(0);
+      expect(await xpDe(alunoA)).toBe(0);
     });
 
     it("deve registrar quem aplicou a atitude", async() => {
@@ -351,6 +379,8 @@ describe("Rotas de atitudes aplicadas", () => {
     });
 
     it("deve aplicar apenas a diferença de XP ao trocar a atitude", async() => {
+      await User.findByIdAndUpdate(alunoA._id, { xp: 30 });
+
       const res = await request(app)
         .patch(`/attitude-logs/${logId}`)
         .set("Authorization", await como(profA))
@@ -359,7 +389,23 @@ describe("Rotas de atitudes aplicadas", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.xp_applied).toBe(-5);
       // Os 10 creditados foram estornados e os -5 aplicados no lugar.
-      expect(await xpDe(alunoA)).toBe(-5);
+      expect(await xpDe(alunoA)).toBe(15);
+    });
+
+    it("deve parar em 0 e somar ao log só o que foi aplicado quando a troca passa do saldo", async() => {
+      // O +10 do log foi aplicado, mas o aluno perdeu XP por outro meio e ficou com 4.
+      await User.findByIdAndUpdate(alunoA._id, { xp: 4 });
+
+      const res = await request(app)
+        .patch(`/attitude-logs/${logId}`)
+        .set("Authorization", await como(profA))
+        .send({ attitude: String(atraso._id) });
+
+      expect(res.status).toBe(200);
+      // Pediu -15, só coube -4: o log fica com 10 - 4.
+      expect(res.body.data.xp_applied).toBe(6);
+      expect((await AttitudeLog.findById(logId)).xp_applied).toBe(6);
+      expect(await xpDe(alunoA)).toBe(0);
     });
 
     it("deve manter o XP quando a atitude não for trocada", async() => {
@@ -384,13 +430,15 @@ describe("Rotas de atitudes aplicadas", () => {
     });
 
     it("deve permitir que o admin altere log de qualquer professora", async() => {
+      await User.findByIdAndUpdate(alunoA._id, { xp: 30 });
+
       const res = await request(app)
         .patch(`/attitude-logs/${logId}`)
         .set("Authorization", await como(admin))
         .send({ attitude: String(atraso._id) });
 
       expect(res.status).toBe(200);
-      expect(await xpDe(alunoA)).toBe(-5);
+      expect(await xpDe(alunoA)).toBe(15);
     });
 
     it("deve retornar 400 quando a atitude nova estiver inativa", async() => {
@@ -453,6 +501,30 @@ describe("Rotas de atitudes aplicadas", () => {
         .set("Authorization", await como(profA));
 
       expect(await xpDe(alunoA)).toBe(10);
+    });
+
+    it("deve parar em 0 ao estornar atitude positiva de quem perdeu XP por outro meio", async() => {
+      await User.findByIdAndUpdate(alunoA._id, { xp: 4 });
+
+      const res = await request(app)
+        .delete(`/attitude-logs/${logId}`)
+        .set("Authorization", await como(profA));
+
+      expect(res.status).toBe(200);
+      expect(await xpDe(alunoA)).toBe(0);
+    });
+
+    it("deve devolver só o que foi descontado quando a atitude negativa parou no piso", async() => {
+      await User.findByIdAndUpdate(alunoA._id, { xp: 3 });
+      const negativo = await aplicar(profA, { attitude: atraso });
+      expect(negativo.body.data.xp_applied).toBe(-3);
+      expect(await xpDe(alunoA)).toBe(0);
+
+      await request(app)
+        .delete(`/attitude-logs/${negativo.body.data._id}`)
+        .set("Authorization", await como(profA));
+
+      expect(await xpDe(alunoA)).toBe(3);
     });
 
     it("deve atualizar o ranking após o estorno", async() => {
