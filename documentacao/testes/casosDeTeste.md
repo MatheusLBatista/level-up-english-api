@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.3 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.4 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -13,6 +13,7 @@ _versão 2.3 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 24/09/2026 | 2.1    | Ajuste manual de XP (`POST /xp-adjustments`, RF-013): casos `CT-XP-011` a `021` e `CT-PERM-041`              | Matheus Lucas |
 | 26/09/2026 | 2.2    | Piso de XP em 0 também nas atitudes aplicadas (`/attitude-logs`): casos `CT-ATT-018` a `022`                 | Matheus Lucas |
 | 26/09/2026 | 2.3    | Filtro por turma em `GET /users`: casos `CT-USER-018` a `021` e posse da turma no `CT-PERM-009`             | Matheus Lucas |
+| 30/09/2026 | 2.4    | Regras de conteúdo por tipo no `PATCH /missions/{id}` e `content_url` só http/https: casos `CT-MISSION-017` a `022` | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -157,6 +158,12 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-MISSION-014  | Troca da turma da missão                 | `PATCH` alterando `class_id` para outra turma do mesmo professor          | 200; o id sai do array `missions` da turma antiga e entra no da nova                          | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-MISSION-015  | Exclusão pelo autor                      | `DELETE /missions/{id}` como autor                                        | 200; a missão some e o id é removido do array `missions` da turma                            | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
 | CT-MISSION-016  | Exclusão por outro professor             | `DELETE /missions/{missão do profA}` como `profB`                         | 403, "Você só pode excluir missões que criou."                                               | RF-011 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-017  | Quiz editado com menos de 5 questões     | `PATCH /missions/{quiz}` com 4 questões                                   | 400 com `errors: [{ path: "questions", message: "Missões do tipo quiz precisam de no mínimo 5 perguntas." }]`; as questões salvas não mudam | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-018  | Vocabulário editado com content em branco | `PATCH /missions/{vocabulário}` com `content: "   "`                      | 400 com `path: "content"`; o conteúdo salvo não muda                                         | RF-004 | Int   | `routes/missionRoutes`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-019  | Áudio editado com content_url vazio      | `PATCH /missions/{áudio}` com `content_url: ""`                           | 400 com `path: "content_url"`; a URL salva não muda                                          | RF-004 | Int   | `routes/missionRoutes`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-020  | Edição parcial não exige conteúdo        | `PATCH /missions/{quiz}` enviando só `title`                              | 200; as regras de conteúdo só valem para os campos enviados                                  | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-021  | Conteúdo inválido junto com troca de turma | `PATCH /missions/{quiz}` com `class_id` da Turma B e `questions: []`    | 400; a missão continua na Turma A e o id não entra no array `missions` da Turma B            | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-MISSION-022  | URL de áudio com esquema não http        | `POST /missions` com `type: "audio"` e `content_url: "javascript:alert(1)"` | 400, "URL inválida." em `content_url`; só `http` e `https` são aceitos, no POST e no PATCH  | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
 
 ---
 
@@ -343,20 +350,20 @@ Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Ele
 
 ## 11 - Resumo
 
-Situação em 26/09/2026, com a suíte em **46 arquivos de teste e 976 testes**, executando em cerca de 23 segundos.
+Situação em 30/09/2026, com a suíte em **47 arquivos de teste e 1001 testes**, executando em cerca de 23 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
 | Autenticação e sessão         | `CT-AUTH`    | 22    | 21               | 1            |
 | Usuários                      | `CT-USER`    | 21    | 21               | 0            |
 | Turmas                        | `CT-CLASS`   | 12    | 12               | 0            |
-| Missões                       | `CT-MISSION` | 16    | 16               | 0            |
+| Missões                       | `CT-MISSION` | 22    | 22               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 21    | 21               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 22    | 22               | 0            |
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **167** | **161 (96,4%)** | **6**        |
+| **Total**                     | -            | **173** | **167 (96,5%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 

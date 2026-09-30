@@ -3,6 +3,7 @@ import MissionRepository from "../repository/MissionRepository.js";
 import UserRepository from "../repository/UserRepository.js";
 import ProgressionService from "./ProgressionService.js";
 import Class from "../models/Class.js";
+import { getMissionContentIssues } from "../schemas/MissionSchema.js";
 
 class MissionService {
   constructor() {
@@ -104,6 +105,18 @@ class MissionService {
         field: "Mission",
         details: [],
         customMessage: "Você só pode editar missões que criou.",
+      });
+    }
+
+    const contentIssues = getMissionContentIssues(mission.type, parsedData, { partial: true });
+
+    if (contentIssues.length > 0) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: null,
+        details: contentIssues,
+        customMessage: `Erro de validação. ${contentIssues.length} campo(s) inválido(s).`,
       });
     }
 

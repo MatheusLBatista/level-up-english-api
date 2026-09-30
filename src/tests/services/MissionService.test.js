@@ -584,6 +584,37 @@ describe("MissionService", () => {
       });
     });
 
+    it("deve lançar 400 quando o conteúdo enviado violar as regras do tipo salvo", async() => {
+      const erro = await capturarErro(
+        service.update(MISSION_ID, { questions: questoes(["a", "b", "c", "d"]) }, { user_id: PROF_A_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.errorType).toBe("validationError");
+      expect(erro.details).toEqual([
+        { path: "questions", message: "Missões do tipo quiz precisam de no mínimo 5 perguntas." },
+      ]);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it("não deve mexer nas turmas quando o conteúdo for inválido", async() => {
+      repository.findById.mockResolvedValue(missao({ type: "vocabulary", questions: undefined, content: "texto" }));
+      Class.findById.mockResolvedValue({ _id: TURMA_B_ID, teacher: PROF_A_ID });
+
+      const erro = await capturarErro(
+        service.update(MISSION_ID, { class_id: TURMA_B_ID, content: "   " }, { user_id: PROF_A_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(Class.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it("não deve exigir o conteúdo quando ele não for enviado", async() => {
+      await service.update(MISSION_ID, { title: "Novo título" }, { user_id: PROF_A_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(MISSION_ID, { title: "Novo título" });
+    });
+
     it("não deve mexer nas turmas quando a turma informada for a mesma", async() => {
       await service.update(MISSION_ID, { class_id: TURMA_A_ID }, { user_id: PROF_A_ID });
 
