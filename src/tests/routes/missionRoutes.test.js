@@ -308,6 +308,22 @@ describe("Rotas de missões", () => {
       expect(res.body.errors[0].path).toBe("questions");
     });
 
+    it("deve retornar 400 quando o content_url não for http nem https", async() => {
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({
+          title: "Áudio Malicioso",
+          type: "audio",
+          class_id: String(turmaA._id),
+          content_url: "javascript:alert(1)",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toContainEqual({ path: "content_url", message: "URL inválida." });
+      expect(await Mission.findOne({ title: "Áudio Malicioso" })).toBeNull();
+    });
+
     it("deve retornar 403 quando quem cria é um aluno", async() => {
       const res = await request(app)
         .post("/missions")
@@ -521,6 +537,72 @@ describe("Rotas de missões", () => {
 
       expect(res.status).toBe(400);
       expect(res.body.message).toBe("Título já cadastrado.");
+    });
+
+    it("deve retornar 400 quando o quiz ficar com menos de cinco questões", async() => {
+      const res = await request(app)
+        .patch(`/missions/${quiz._id}`)
+        .set("Authorization", await como(profA))
+        .send({ questions: questoes(["a", "b", "c", "d"]) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([
+        { path: "questions", message: "Missões do tipo quiz precisam de no mínimo 5 perguntas." },
+      ]);
+      expect((await Mission.findById(quiz._id)).questions).toHaveLength(5);
+    });
+
+    it("deve retornar 400 quando o vocabulário ficar com content em branco", async() => {
+      const res = await request(app)
+        .patch(`/missions/${vocabulario._id}`)
+        .set("Authorization", await como(profA))
+        .send({ content: "   " });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].path).toBe("content");
+      expect((await Mission.findById(vocabulario._id)).content).toBe("cat, dog, bird");
+    });
+
+    it("deve retornar 400 quando o áudio ficar com content_url vazio", async() => {
+      const audio = await Mission.create({
+        title: "Música",
+        type: "audio",
+        content_url: "https://exemplo.com/musica.mp3",
+        class_id: turmaA._id,
+        createdBy: profA._id,
+      });
+
+      const res = await request(app)
+        .patch(`/missions/${audio._id}`)
+        .set("Authorization", await como(profA))
+        .send({ content_url: "" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].path).toBe("content_url");
+      expect((await Mission.findById(audio._id)).content_url).toBe("https://exemplo.com/musica.mp3");
+    });
+
+    it("não deve exigir as questões ao atualizar só o título do quiz", async() => {
+      const res = await request(app)
+        .patch(`/missions/${quiz._id}`)
+        .set("Authorization", await como(profA))
+        .send({ title: "Quiz de Cores 2" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.title).toBe("Quiz de Cores 2");
+    });
+
+    it("não deve trocar a turma quando o conteúdo enviado for inválido", async() => {
+      const res = await request(app)
+        .patch(`/missions/${quiz._id}`)
+        .set("Authorization", await como(admin))
+        .send({ class_id: String(turmaB._id), questions: [] });
+
+      expect(res.status).toBe(400);
+
+      const destino = await Class.findById(turmaB._id);
+      expect(destino.missions.map(String)).not.toContain(String(quiz._id));
+      expect(String((await Mission.findById(quiz._id)).class_id)).toBe(String(turmaA._id));
     });
 
     it("deve retornar 404 quando a missão não existir", async() => {

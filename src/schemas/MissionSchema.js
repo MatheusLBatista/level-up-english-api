@@ -42,6 +42,51 @@ const QuestionResponseSchema = z
   })
   .openapi("QuestionResponse");
 
+const isHttpUrl = (value) => {
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+};
+
+const ContentUrlSchema = z
+  .string()
+  .refine(isHttpUrl, "URL inválida.")
+  .openapi({ format: "uri", description: "URL http ou https." });
+
+const isBlank = (value) => !value || value.trim().length === 0;
+
+/**
+ * Regras de conteúdo por tipo, compartilhadas entre POST e PATCH. O `type` vem
+ * separado porque o PATCH não o recebe no corpo: usa o da missão já salva.
+ * Com `partial`, campo ausente não é validado (o PATCH não mexe nele).
+ */
+export const getMissionContentIssues = (type, data, { partial = false } = {}) => {
+  const issues = [];
+  const shouldCheck = (field) => !partial || data[field] !== undefined;
+
+  if (type === "quiz" && shouldCheck("questions")) {
+    if (!data.questions || data.questions.length < 5) {
+      issues.push({ path: "questions", message: "Missões do tipo quiz precisam de no mínimo 5 perguntas." });
+    }
+  }
+
+  if (type === "vocabulary" && shouldCheck("content")) {
+    if (isBlank(data.content)) {
+      issues.push({ path: "content", message: "Missões do tipo vocabulário precisam de conteúdo (content)." });
+    }
+  }
+
+  if (type === "audio" && shouldCheck("content_url")) {
+    if (isBlank(data.content_url)) {
+      issues.push({ path: "content_url", message: "Missões do tipo áudio precisam de uma URL (content_url)." });
+    }
+  }
+
+  return issues;
+};
+
 const MissionBaseSchema = z.object({
   title: z.string().min(1, "Título obrigatório.").openapi({ example: "Explorador de Palavras" }),
   description: z.string().optional().openapi({ example: "Aprenda 10 nomes de animais" }),
@@ -53,38 +98,12 @@ const MissionBaseSchema = z.object({
 export const CreateMissionBodySchema = MissionBaseSchema.extend({
   questions: z.array(QuestionSchema).optional(),
   content: z.string().optional().openapi({ example: "The cat sat on the mat..." }),
-  content_url: z.string().url("URL inválida.").optional().openapi({ example: "https://www.youtube.com/embed/abc123" }),
+  content_url: ContentUrlSchema.optional().openapi({ example: "https://www.youtube.com/embed/abc123" }),
 })
   .superRefine((data, ctx) => {
-    if (data.type === "quiz") {
-      if (!data.questions || data.questions.length < 5) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Missões do tipo quiz precisam de no mínimo 5 perguntas.",
-          path: ["questions"],
-        });
-      }
-    }
-
-    if (data.type === "vocabulary") {
-      if (!data.content || data.content.trim().length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Missões do tipo vocabulário precisam de conteúdo (content).",
-          path: ["content"],
-        });
-      }
-    }
-
-    if (data.type === "audio") {
-      if (!data.content_url || data.content_url.trim().length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "Missões do tipo áudio precisam de uma URL (content_url).",
-          path: ["content_url"],
-        });
-      }
-    }
+    getMissionContentIssues(data.type, data, { partial: false }).forEach(({ path, message }) => {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: [path] });
+    });
   })
   .openapi("CreateMissionBody");
 
@@ -189,6 +208,11 @@ export const UpdateMissionBodySchema = z
 
     questions: z.array(QuestionSchema).optional(),
     content: z.string().optional(),
-    content_url: z.string().url("URL inválida.").optional(),
+    content_url: ContentUrlSchema.optional(),
   })
-  .openapi("UpdateMissionBody");
+  .openapi("UpdateMissionBody", {
+    description:
+      "Todos os campos são opcionais e o type não pode ser alterado. As regras de conteúdo "
+      + "(questions, content, content_url) dependem do type da missão já salva e só valem "
+      + "para os campos enviados.",
+  });
