@@ -717,7 +717,17 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(MissionWriteResponseSchema, "Missão atualizada (class_id e createdBy como ids)"),
-    400: error400,
+    400: errorResponse(
+      "Dados inválidos. Além do formato do corpo e do título duplicado, o conteúdo "
+      + "enviado é validado pelo type da missão já salva (o type não vem no corpo): "
+      + "quiz exige questions com no mínimo 5 itens; vocabulary exige content não "
+      + "vazio; audio exige content_url não vazio. Só os campos enviados são "
+      + "validados — omitir questions, content ou content_url mantém o valor atual. "
+      + "content_url só aceita URLs http ou https. Cada erro vem em errors como "
+      + "{ path, message }.",
+      "Erro de validação. 1 campo(s) inválido(s).",
+      [{ path: "questions", message: "Missões do tipo quiz precisam de no mínimo 5 perguntas." }],
+    ),
     401: error401Token,
     403: errorResponse(
       "Papel sem acesso à rota, missão criada por outro professor, "
