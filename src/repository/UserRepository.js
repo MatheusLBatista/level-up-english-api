@@ -67,6 +67,15 @@ class UserRepository {
     return await this.userModel.find({ _id: { $in: ids } });
   }
 
+  async setClass(ids, classId) {
+    return await this.userModel.updateMany({ _id: { $in: ids } }, { class: classId });
+  }
+
+  /** Só limpa quem ainda aponta para a turma: o aluno pode já ter sido movido. */
+  async clearClass(ids, classId) {
+    return await this.userModel.updateMany({ _id: { $in: ids }, class: classId }, { class: null });
+  }
+
   async findByName(name, excludeId = null) {
     const filter = { name: { $regex: name, $options: "i" } };
 

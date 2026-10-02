@@ -1,10 +1,7 @@
+import mongoose from "mongoose";
 import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
-import {
-  CustomError,
-  HttpStatusCodes,
-  messages,
-} from "../utils/helpers/index.js";
+import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
 
 class ClassService {
   constructor() {
@@ -24,7 +21,7 @@ class ClassService {
           errorType: "permissionError",
           field: "Class",
           details: [],
-          customMessage: "Students can only view their own class.",
+          customMessage: "Você só pode ver a sua turma.",
         });
       }
 
@@ -52,9 +49,21 @@ class ClassService {
 
     if (loggedUser.role === "teacher") {
       parsedData.teacher = req.user_id;
+    } else if (parsedData.teacher) {
+      await this.ensureActiveTeacher(parsedData.teacher);
     }
 
-    return await this.repository.create(parsedData);
+    if (parsedData.students) {
+      parsedData.students = await this.ensureStudents(parsedData.students);
+    }
+
+    const created = await this.repository.create(parsedData);
+
+    if (parsedData.students) {
+      await this.syncStudents(created._id, [], parsedData.students);
+    }
+
+    return created;
   }
 
   async update(id, parsedData, req) {
@@ -71,18 +80,31 @@ class ClassService {
           errorType: "permissionError",
           field: "Class",
           details: [],
-          customMessage: "Teachers can only update their own classes.",
+          customMessage: "Você só pode editar as suas turmas.",
         });
       }
 
       delete parsedData.teacher;
+    } else if (parsedData.teacher) {
+      await this.ensureActiveTeacher(parsedData.teacher);
     }
 
     if (parsedData.name) {
       await this.ensureNameAvailable(parsedData.name, id);
     }
 
-    return await this.repository.update(id, parsedData);
+    if (parsedData.students) {
+      parsedData.students = await this.ensureStudents(parsedData.students);
+    }
+
+    const updated = await this.repository.update(id, parsedData);
+
+    if (parsedData.students) {
+      const currentIds = existingClass.students.map((student) => student?._id ?? student);
+      await this.syncStudents(id, currentIds, parsedData.students);
+    }
+
+    return updated;
   }
 
   async delete(id, req) {
@@ -93,6 +115,41 @@ class ClassService {
     return null;
   }
 
+  async ensureStudents(studentIds) {
+    const uniqueIds = [...new Set(studentIds.map(String))];
+
+    const allValid = uniqueIds.every((studentId) => mongoose.isValidObjectId(studentId));
+    const users = allValid ? await this.userRepository.findByIds(uniqueIds) : [];
+    const students = users.filter((user) => user.role === "student");
+
+    if (students.length !== uniqueIds.length) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "students",
+        details: [{ path: "students", message: "Todos os ids devem ser de alunos cadastrados." }],
+        customMessage: "Todos os ids devem ser de alunos cadastrados.",
+      });
+    }
+
+    return uniqueIds;
+  }
+
+  async syncStudents(classId, currentIds, newIds) {
+    const current = currentIds.map(String);
+    const added = newIds.filter((studentId) => !current.includes(studentId));
+    const removed = current.filter((studentId) => !newIds.includes(studentId));
+
+    if (added.length) {
+      await this.repository.removeStudentsFromOtherClasses(added, classId);
+      await this.userRepository.setClass(added, classId);
+    }
+
+    if (removed.length) {
+      await this.userRepository.clearClass(removed, classId);
+    }
+  }
+
   async ensureNameAvailable(name, id = null) {
     const existingClass = await this.repository.findByName(name, id);
 
@@ -101,14 +158,24 @@ class ClassService {
         statusCode: HttpStatusCodes.BAD_REQUEST.code,
         errorType: "validationError",
         field: "name",
-        details: [
-          {
-            path: "name",
-            message: messages.validation.generic.resourceAlreadyExists("Class"),
-          },
-        ],
-        customMessage:
-          messages.validation.generic.resourceAlreadyExists("Class"),
+        details: [{ path: "name", message: "Já existe uma turma com este nome." }],
+        customMessage: "Já existe uma turma com este nome.",
+      });
+    }
+  }
+
+  async ensureActiveTeacher(teacherId) {
+    const [teacher] = mongoose.isValidObjectId(teacherId)
+      ? await this.userRepository.findByIds([teacherId])
+      : [];
+
+    if (!teacher || teacher.role !== "teacher" || !teacher.active) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "teacher",
+        details: [{ path: "teacher", message: "Escolha um professor ativo." }],
+        customMessage: "Escolha um professor ativo.",
       });
     }
   }

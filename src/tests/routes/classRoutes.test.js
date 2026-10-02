@@ -228,7 +228,7 @@ describe("Rotas de turmas", () => {
         .set("Authorization", await como(alunoA));
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Students can only view their own class.");
+      expect(res.body.message).toBe("Você só pode ver a sua turma.");
     });
 
     it("deve retornar 403 quando o aluno sem turma consulta qualquer turma", async() => {
@@ -305,7 +305,7 @@ describe("Rotas de turmas", () => {
         .send({ name: "Turma A" });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("Class já existe.");
+      expect(res.body.message).toBe("Já existe uma turma com este nome.");
     });
 
     it("deve barrar nome repetido mesmo com outra caixa", async() => {
@@ -315,7 +315,7 @@ describe("Rotas de turmas", () => {
         .send({ name: "turma a" });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("Class já existe.");
+      expect(res.body.message).toBe("Já existe uma turma com este nome.");
     });
 
     it("deve retornar 400 quando o nome estiver vazio", async() => {
@@ -365,7 +365,7 @@ describe("Rotas de turmas", () => {
         .send({ name: "Invadida" });
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Teachers can only update their own classes.");
+      expect(res.body.message).toBe("Você só pode editar as suas turmas.");
 
       const salva = await Class.findById(turmaB._id);
       expect(salva.name).toBe("Turma B");
@@ -422,7 +422,7 @@ describe("Rotas de turmas", () => {
         .send({ name: "Turma B" });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("Class já existe.");
+      expect(res.body.message).toBe("Já existe uma turma com este nome.");
     });
 
     it("deve retornar 404 quando a turma não existir", async() => {
@@ -448,6 +448,96 @@ describe("Rotas de turmas", () => {
       const res = await request(app).patch(`/classes/${turmaA._id}`).send({ name: "Sem token" });
 
       expect(res.status).toBe(498);
+    });
+  });
+
+  describe("professor informado pelo admin", () => {
+    it("deve aceitar um professor ativo", async() => {
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(admin))
+        .send({ name: "Turma C", teacher: String(profB._id) });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.teacher).toBe(String(profB._id));
+    });
+
+    it.each([
+      ["inexistente", () => ID_INEXISTENTE],
+      ["que é aluno", () => String(semTurma._id)],
+    ])("deve retornar 400 no POST com professor %s", async(_, teacherId) => {
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(admin))
+        .send({ name: "Turma C", teacher: teacherId() });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "teacher", message: "Escolha um professor ativo." }]);
+      expect(await Class.findOne({ name: "Turma C" })).toBeNull();
+    });
+
+    it("deve retornar 400 no PATCH com professor inativo", async() => {
+      await User.findByIdAndUpdate(profB._id, { active: false });
+
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(admin))
+        .send({ teacher: String(profB._id) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].path).toBe("teacher");
+      expect(String((await Class.findById(turmaA._id)).teacher)).toBe(String(profA._id));
+    });
+  });
+
+  describe("sincronização de students", () => {
+    const turmaDoAluno = async(aluno) => String((await User.findById(aluno._id)).class);
+    const alunosDe = async(turma) => (await Class.findById(turma._id)).students.map(String);
+
+    it("deve vincular os alunos da turma criada", async() => {
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(admin))
+        .send({ name: "Turma C", students: [String(semTurma._id)] });
+
+      expect(res.status).toBe(201);
+      expect(await turmaDoAluno(semTurma)).toBe(res.body.data._id);
+    });
+
+    it("deve tirar da turma antiga o aluno adicionado em outra", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaB._id}`)
+        .set("Authorization", await como(admin))
+        .send({ students: [String(alunoA._id)] });
+
+      expect(res.status).toBe(200);
+      expect(await turmaDoAluno(alunoA)).toBe(String(turmaB._id));
+      expect(await alunosDe(turmaA)).toEqual([]);
+      expect(await alunosDe(turmaB)).toEqual([String(alunoA._id)]);
+    });
+
+    it("deve zerar User.class do aluno removido da turma", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(profA))
+        .send({ students: [] });
+
+      expect(res.status).toBe(200);
+      expect((await User.findById(alunoA._id)).class).toBeNull();
+    });
+
+    it("deve retornar 400 sem gravar quando algum id não for de aluno", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(admin))
+        .send({ students: [String(semTurma._id), String(profB._id)] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([
+        { path: "students", message: "Todos os ids devem ser de alunos cadastrados." },
+      ]);
+      expect(await alunosDe(turmaA)).toEqual([String(alunoA._id)]);
+      expect((await User.findById(semTurma._id)).class).toBeUndefined();
     });
   });
 
