@@ -49,6 +49,10 @@ describe("UserFilterBuild", () => {
       expect(builder.withClass(CLASS_ID).build()).toEqual({ class: CLASS_ID });
     });
 
+    it("deve buscar quem não tem turma quando o valor for none", () => {
+      expect(builder.withClass("none").build()).toEqual({ class: null });
+    });
+
     it("deve ignorar turma não informada", () => {
       expect(builder.withClass(undefined).build()).toEqual({});
     });

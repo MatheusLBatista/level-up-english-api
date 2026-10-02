@@ -160,6 +160,30 @@ describe("UserService", () => {
       await expect(service.list(req(ADMIN_ID))).resolves.toEqual({ docs: [] });
     });
 
+    it("deve deixar o admin filtrar class=none sem buscar turma", async() => {
+      responderFindById(admin());
+      repository.list.mockResolvedValue({ docs: [] });
+      const reqSemTurma = { params: {}, query: { class: "none" }, user_id: ADMIN_ID };
+
+      await service.list(reqSemTurma);
+
+      expect(classRepository.findById).not.toHaveBeenCalled();
+      expect(repository.list).toHaveBeenCalledWith(reqSemTurma);
+    });
+
+    it("deve lançar 403 quando a professora filtra class=none", async() => {
+      responderFindById(teacher());
+
+      const erro = await capturarErro(
+        service.list({ params: {}, query: { class: "none" }, user_id: TEACHER_ID }),
+      );
+
+      expect(erro.statusCode).toBe(403);
+      expect(erro.customMessage).toBe("Só o admin pode listar alunos sem turma.");
+      expect(classRepository.findById).not.toHaveBeenCalled();
+      expect(repository.list).not.toHaveBeenCalled();
+    });
+
     it("não deve consultar a turma quando o filtro não for informado", async() => {
       repository.list.mockResolvedValue({ docs: [] });
 

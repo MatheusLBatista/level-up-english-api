@@ -215,6 +215,31 @@ describe("Rotas de usuários", () => {
         expect(res.status).toBe(404);
       });
 
+      it("deve listar só os alunos sem turma com class=none para o admin", async() => {
+        const solto = await criarUsuario({ name: "Solto", email: "solto@escola.com" });
+        await User.collection.updateOne({ _id: solto._id }, { $set: { class: null } });
+        await criarUsuario({ name: "Sem campo", email: "semcampo@escola.com" });
+
+        const res = await request(app)
+          .get("/users?class=none&role=student")
+          .set("Authorization", await como(admin));
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.docs.map((u) => u.email).sort()).toEqual([
+          "semcampo@escola.com",
+          "solto@escola.com",
+        ]);
+      });
+
+      it("deve retornar 403 quando a professora filtra class=none", async() => {
+        const res = await request(app)
+          .get("/users?class=none")
+          .set("Authorization", await como(teacher));
+
+        expect(res.status).toBe(403);
+        expect(res.body.message).toBe("Só o admin pode listar alunos sem turma.");
+      });
+
       it("deve permitir que o admin filtre qualquer turma", async() => {
         const res = await request(app)
           .get(`/users?class=${turmaDaOutra._id}`)

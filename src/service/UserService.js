@@ -17,6 +17,22 @@ class UserService {
    * Professor só lista alunos das turmas dele; admin filtra qualquer turma.
    */
   async ensureCanFilterClass(classId, userId) {
+    if (classId === "none") {
+      const loggedUser = await this.repository.findById(userId);
+
+      if (loggedUser.role !== "admin") {
+        throw new CustomError({
+          statusCode: HttpStatusCodes.FORBIDDEN.code,
+          errorType: "permissionError",
+          field: "class",
+          details: [],
+          customMessage: "Só o admin pode listar alunos sem turma.",
+        });
+      }
+
+      return;
+    }
+
     const classDoc = await this.classRepository.findById(classId);
     const loggedUser = await this.repository.findById(userId);
 
