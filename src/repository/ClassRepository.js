@@ -46,6 +46,14 @@ class ClassRepository {
     return await this.classModel.updateOne({ _id: classId }, { $pull: { students: studentId } });
   }
 
+  /** Tira os alunos de qualquer outra turma, para cada um ficar em uma só. */
+  async removeStudentsFromOtherClasses(studentIds, classId) {
+    return await this.classModel.updateMany(
+      { _id: { $ne: classId }, students: { $in: studentIds } },
+      { $pull: { students: { $in: studentIds } } },
+    );
+  }
+
   async findByName(name, excludeId = null) {
     const filter = { name: { $regex: `^${name}$`, $options: "i" } };
 

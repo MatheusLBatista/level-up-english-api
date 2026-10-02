@@ -26,6 +26,7 @@ describe("ClassRepository", () => {
     modelo.findByIdAndUpdate = jest.fn();
     modelo.findByIdAndDelete = jest.fn();
     modelo.updateOne = jest.fn();
+    modelo.updateMany = jest.fn();
     modelo.paginate = jest.fn();
 
     repository = new ClassRepository({ classModel: modelo });
@@ -116,6 +117,19 @@ describe("ClassRepository", () => {
       expect(modelo.updateOne).toHaveBeenCalledWith(
         { _id: CLASS_ID },
         { $pull: { students: STUDENT_ID } },
+      );
+    });
+  });
+
+  describe("removeStudentsFromOtherClasses", () => {
+    it("deve tirar os alunos de todas as turmas, menos da informada", async() => {
+      const ids = ["507f1f77bcf86cd799439004"];
+
+      await repository.removeStudentsFromOtherClasses(ids, CLASS_ID);
+
+      expect(modelo.updateMany).toHaveBeenCalledWith(
+        { _id: { $ne: CLASS_ID }, students: { $in: ids } },
+        { $pull: { students: { $in: ids } } },
       );
     });
   });

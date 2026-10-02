@@ -451,6 +451,57 @@ describe("Rotas de turmas", () => {
     });
   });
 
+  describe("sincronização de students", () => {
+    const turmaDoAluno = async(aluno) => String((await User.findById(aluno._id)).class);
+    const alunosDe = async(turma) => (await Class.findById(turma._id)).students.map(String);
+
+    it("deve vincular os alunos da turma criada", async() => {
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(admin))
+        .send({ name: "Turma C", students: [String(semTurma._id)] });
+
+      expect(res.status).toBe(201);
+      expect(await turmaDoAluno(semTurma)).toBe(res.body.data._id);
+    });
+
+    it("deve tirar da turma antiga o aluno adicionado em outra", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaB._id}`)
+        .set("Authorization", await como(admin))
+        .send({ students: [String(alunoA._id)] });
+
+      expect(res.status).toBe(200);
+      expect(await turmaDoAluno(alunoA)).toBe(String(turmaB._id));
+      expect(await alunosDe(turmaA)).toEqual([]);
+      expect(await alunosDe(turmaB)).toEqual([String(alunoA._id)]);
+    });
+
+    it("deve zerar User.class do aluno removido da turma", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(profA))
+        .send({ students: [] });
+
+      expect(res.status).toBe(200);
+      expect((await User.findById(alunoA._id)).class).toBeNull();
+    });
+
+    it("deve retornar 400 sem gravar quando algum id não for de aluno", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(admin))
+        .send({ students: [String(semTurma._id), String(profB._id)] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([
+        { path: "students", message: "Todos os ids devem ser de alunos cadastrados." },
+      ]);
+      expect(await alunosDe(turmaA)).toEqual([String(alunoA._id)]);
+      expect((await User.findById(semTurma._id)).class).toBeUndefined();
+    });
+  });
+
   describe("DELETE /classes/:id", () => {
     it("deve permitir que o admin exclua a turma", async() => {
       const res = await request(app)

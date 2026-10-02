@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import {
@@ -54,7 +55,17 @@ class ClassService {
       parsedData.teacher = req.user_id;
     }
 
-    return await this.repository.create(parsedData);
+    if (parsedData.students) {
+      parsedData.students = await this.ensureStudents(parsedData.students);
+    }
+
+    const created = await this.repository.create(parsedData);
+
+    if (parsedData.students) {
+      await this.syncStudents(created._id, [], parsedData.students);
+    }
+
+    return created;
   }
 
   async update(id, parsedData, req) {
@@ -82,7 +93,18 @@ class ClassService {
       await this.ensureNameAvailable(parsedData.name, id);
     }
 
-    return await this.repository.update(id, parsedData);
+    if (parsedData.students) {
+      parsedData.students = await this.ensureStudents(parsedData.students);
+    }
+
+    const updated = await this.repository.update(id, parsedData);
+
+    if (parsedData.students) {
+      const currentIds = existingClass.students.map((student) => student?._id ?? student);
+      await this.syncStudents(id, currentIds, parsedData.students);
+    }
+
+    return updated;
   }
 
   async delete(id, req) {
@@ -91,6 +113,41 @@ class ClassService {
     await this.repository.delete(id);
 
     return null;
+  }
+
+  async ensureStudents(studentIds) {
+    const uniqueIds = [...new Set(studentIds.map(String))];
+
+    const allValid = uniqueIds.every((studentId) => mongoose.isValidObjectId(studentId));
+    const users = allValid ? await this.userRepository.findByIds(uniqueIds) : [];
+    const students = users.filter((user) => user.role === "student");
+
+    if (students.length !== uniqueIds.length) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "students",
+        details: [{ path: "students", message: "Todos os ids devem ser de alunos cadastrados." }],
+        customMessage: "Todos os ids devem ser de alunos cadastrados.",
+      });
+    }
+
+    return uniqueIds;
+  }
+
+  async syncStudents(classId, currentIds, newIds) {
+    const current = currentIds.map(String);
+    const added = newIds.filter((studentId) => !current.includes(studentId));
+    const removed = current.filter((studentId) => !newIds.includes(studentId));
+
+    if (added.length) {
+      await this.repository.removeStudentsFromOtherClasses(added, classId);
+      await this.userRepository.setClass(added, classId);
+    }
+
+    if (removed.length) {
+      await this.userRepository.clearClass(removed, classId);
+    }
   }
 
   async ensureNameAvailable(name, id = null) {

@@ -32,9 +32,15 @@ describe("ClassService", () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      removeStudentsFromOtherClasses: jest.fn(),
     };
 
-    userRepository = { findById: jest.fn() };
+    userRepository = {
+      findById: jest.fn(),
+      findByIds: jest.fn(),
+      setClass: jest.fn(),
+      clearClass: jest.fn(),
+    };
 
     ClassRepository.mockImplementation(() => repository);
     UserRepository.mockImplementation(() => userRepository);
@@ -203,6 +209,96 @@ describe("ClassService", () => {
       expect(erro.statusCode).toBe(400);
       expect(erro.customMessage).toBe("Class já existe.");
       expect(repository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("sincronização de students", () => {
+    const ALUNO_1 = "507f1f77bcf86cd799439021";
+    const ALUNO_2 = "507f1f77bcf86cd799439022";
+    const ALUNO_3 = "507f1f77bcf86cd799439023";
+
+    const alunoCom = (id) => ({ _id: id, role: "student" });
+
+    beforeEach(() => {
+      userRepository.findById.mockResolvedValue(admin());
+      repository.findByName.mockResolvedValue(null);
+      repository.create.mockResolvedValue({ _id: TURMA_A });
+      repository.update.mockResolvedValue({ _id: TURMA_A });
+    });
+
+    it("deve apontar os alunos da turma criada para ela e tirá-los da anterior", async() => {
+      userRepository.findByIds.mockResolvedValue([alunoCom(ALUNO_1), alunoCom(ALUNO_2)]);
+
+      await service.create({ name: "Turma A", students: [ALUNO_1, ALUNO_2] }, { user_id: ADMIN_ID });
+
+      expect(repository.create).toHaveBeenCalledWith({ name: "Turma A", students: [ALUNO_1, ALUNO_2] });
+      expect(repository.removeStudentsFromOtherClasses).toHaveBeenCalledWith([ALUNO_1, ALUNO_2], TURMA_A);
+      expect(userRepository.setClass).toHaveBeenCalledWith([ALUNO_1, ALUNO_2], TURMA_A);
+      expect(userRepository.clearClass).not.toHaveBeenCalled();
+    });
+
+    it("deve sincronizar só os adicionados e os removidos no update", async() => {
+      // students vem populado do findById do repositório
+      repository.findById.mockResolvedValue({
+        _id: TURMA_A,
+        teacher: TEACHER_ID,
+        students: [{ _id: ALUNO_1 }, { _id: ALUNO_2 }],
+      });
+      userRepository.findByIds.mockResolvedValue([alunoCom(ALUNO_2), alunoCom(ALUNO_3)]);
+
+      await service.update(TURMA_A, { students: [ALUNO_2, ALUNO_3] }, { user_id: ADMIN_ID });
+
+      expect(repository.removeStudentsFromOtherClasses).toHaveBeenCalledWith([ALUNO_3], TURMA_A);
+      expect(userRepository.setClass).toHaveBeenCalledWith([ALUNO_3], TURMA_A);
+      expect(userRepository.clearClass).toHaveBeenCalledWith([ALUNO_1], TURMA_A);
+    });
+
+    it("deve aceitar a lista vazia, tirando todos os alunos", async() => {
+      repository.findById.mockResolvedValue({ _id: TURMA_A, students: [ALUNO_1] });
+      userRepository.findByIds.mockResolvedValue([]);
+
+      await service.update(TURMA_A, { students: [] }, { user_id: ADMIN_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(TURMA_A, { students: [] });
+      expect(userRepository.setClass).not.toHaveBeenCalled();
+      expect(userRepository.clearClass).toHaveBeenCalledWith([ALUNO_1], TURMA_A);
+    });
+
+    it("deve gravar cada aluno uma vez só, mesmo repetido no corpo", async() => {
+      userRepository.findByIds.mockResolvedValue([alunoCom(ALUNO_1)]);
+
+      await service.create({ name: "Turma A", students: [ALUNO_1, ALUNO_1] }, { user_id: ADMIN_ID });
+
+      expect(repository.create).toHaveBeenCalledWith({ name: "Turma A", students: [ALUNO_1] });
+    });
+
+    it("não deve mexer nos usuários quando students não for enviado", async() => {
+      repository.findById.mockResolvedValue({ _id: TURMA_A, students: [ALUNO_1] });
+
+      await service.update(TURMA_A, { name: "Turma A2" }, { user_id: ADMIN_ID });
+
+      expect(userRepository.findByIds).not.toHaveBeenCalled();
+      expect(userRepository.setClass).not.toHaveBeenCalled();
+      expect(userRepository.clearClass).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["não existir", [], [ALUNO_1]],
+      ["não for aluno", [{ _id: ALUNO_1, role: "teacher" }], [ALUNO_1]],
+      ["for malformado", [], ["id-invalido"]],
+    ])("deve lançar 400 sem gravar quando algum id %s", async(_, encontrados, ids) => {
+      userRepository.findByIds.mockResolvedValue(encontrados);
+
+      const erro = await capturarErro(
+        service.create({ name: "Turma A", students: ids }, { user_id: ADMIN_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details).toEqual([
+        { path: "students", message: "Todos os ids devem ser de alunos cadastrados." },
+      ]);
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(userRepository.setClass).not.toHaveBeenCalled();
     });
   });
 

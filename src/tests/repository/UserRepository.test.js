@@ -168,6 +168,25 @@ describe("UserRepository", () => {
     });
   });
 
+  describe("setClass e clearClass", () => {
+    const CLASS_ID = "507f1f77bcf86cd799439033";
+
+    it("setClass deve apontar todos os usuários da lista para a turma", async() => {
+      await repository.setClass([USER_ID], CLASS_ID);
+
+      expect(modelo.updateMany).toHaveBeenCalledWith({ _id: { $in: [USER_ID] } }, { class: CLASS_ID });
+    });
+
+    it("clearClass deve limpar só quem ainda aponta para a turma", async() => {
+      await repository.clearClass([USER_ID], CLASS_ID);
+
+      expect(modelo.updateMany).toHaveBeenCalledWith(
+        { _id: { $in: [USER_ID] }, class: CLASS_ID },
+        { class: null },
+      );
+    });
+  });
+
   describe("list", () => {
     const paginado = (docs = []) => ({ docs, totalDocs: docs.length, page: 1 });
 
