@@ -19,6 +19,7 @@ import {
   ForgotPasswordBodySchema,
   ResetPasswordBodySchema,
   RegisterStudentBodySchema,
+  RegisterTeacherBodySchema,
 } from "../schemas/AuthSchema.js";
 import {
   MissionSchema,
@@ -110,6 +111,7 @@ registry.register("LoginBody", LoginBodySchema);
 registry.register("LoginResponse", LoginResponseSchema);
 registry.register("RevokeParams", RevokeParamsSchema);
 registry.register("RegisterStudentBody", RegisterStudentBodySchema);
+registry.register("RegisterTeacherBody", RegisterTeacherBodySchema);
 registry.register("ForgotPasswordBody", ForgotPasswordBodySchema);
 registry.register("ResetPasswordBody", ResetPasswordBodySchema);
 registry.register("ChangePasswordBody", ChangePasswordBodySchema);
@@ -244,6 +246,37 @@ registry.registerPath({
       + "(path class, \"Turma não encontrada ou inativa.\")",
       "Turma não encontrada ou inativa.",
       [{ path: "class", message: "Turma não encontrada ou inativa." }],
+    ),
+    401: error401Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/auth/register-teacher",
+  tags: ["Auth"],
+  summary: "Cadastrar professor (admin) — envia e-mail de boas-vindas",
+  description:
+    "Cria o professor sem senha e envia um e-mail com o link /set-password?code=, válido "
+    + "por 24 horas — o mesmo fluxo do cadastro de aluno. Se classes for informado, todas "
+    + "as turmas precisam existir e estar ativas; isso é conferido antes de criar o "
+    + "professor, então um id errado não deixa professor criado sem as turmas. Criado o "
+    + "professor, ele passa a ser o teacher de cada turma informada, substituindo o "
+    + "professor anterior.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: { "application/json": { schema: RegisterTeacherBodySchema } },
+    },
+  },
+  responses: {
+    201: commonResponse(UserSchema, "Professor cadastrado e e-mail enviado"),
+    400: errorResponse(
+      "Dados inválidos, e-mail já cadastrado (path email, \"Este e-mail já está cadastrado.\") "
+      + "ou alguma turma inexistente/inativa (path classes, \"Turma não encontrada ou inativa.\")",
+      "Turma não encontrada ou inativa.",
+      [{ path: "classes", message: "Turma não encontrada ou inativa." }],
     ),
     401: error401Token,
     403: error403,
@@ -598,7 +631,8 @@ registry.registerPath({
   summary: "Atualizar turma (teacher/admin; professor só a própria turma)",
   description:
     "Professor só altera a própria turma e não troca o teacher; o admin pode trocar, "
-    + "desde que seja um professor ativo. Se students for enviado, ele substitui a lista "
+    + "desde que seja um professor ativo, ou enviar teacher: null para deixar a turma sem "
+    + "professor. Se students for enviado, ele substitui a lista "
     + "inteira: os alunos adicionados passam a ter class apontando para esta turma e saem "
     + "da turma anterior; os removidos ficam com class nulo, a menos que já tenham sido "
     + "movidos para outra turma.",
