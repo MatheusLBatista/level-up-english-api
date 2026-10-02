@@ -197,6 +197,14 @@ const error404Class = errorResponse(
   "Recurso não encontrado em Class.",
 );
 
+const error400Class = errorResponse(
+  "Dados inválidos, nome repetido (path name: \"Já existe uma turma com este nome.\"), "
+  + "professor inválido (path teacher: \"Escolha um professor ativo.\") ou algum id de "
+  + "students que não é de aluno (path students: \"Todos os ids devem ser de alunos cadastrados.\")",
+  "Escolha um professor ativo.",
+  [{ path: "teacher", message: "Escolha um professor ativo." }],
+);
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 registry.registerPath({
@@ -219,6 +227,10 @@ registry.registerPath({
   path: "/auth/register-student",
   tags: ["Auth"],
   summary: "Cadastrar aluno (teacher/admin) — envia e-mail de boas-vindas",
+  description:
+    "Se class for informado, a turma precisa existir e estar ativa; isso é conferido "
+    + "antes de criar o aluno, então uma turma inválida não deixa usuário criado pela "
+    + "metade. Criado o aluno, o id dele entra em Class.students da turma.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -228,9 +240,10 @@ registry.registerPath({
   responses: {
     201: commonResponse(UserSchema, "Aluno cadastrado e e-mail enviado"),
     400: errorResponse(
-      "E-mail já cadastrado",
-      "Este e-mail já está cadastrado.",
-      [{ path: "email", message: "Este e-mail já está cadastrado." }],
+      "Dados inválidos, e-mail já cadastrado (path email) ou turma inexistente/inativa "
+      + "(path class, \"Turma não encontrada ou inativa.\")",
+      "Turma não encontrada ou inativa.",
+      [{ path: "class", message: "Turma não encontrada ou inativa." }],
     ),
     401: error401Token,
     403: error403,
@@ -362,7 +375,9 @@ registry.registerPath({
       class: z.string().optional().openapi({
         example: "507f1f77bcf86cd799439011",
         description:
-          "Id da turma. Professor só pode filtrar turma que é dele; admin filtra qualquer uma.",
+          "Id da turma. Professor só pode filtrar turma que é dele; admin filtra qualquer uma. "
+          + "O valor none (só admin) lista quem não tem turma (class nulo ou ausente); "
+          + "combine com role=student para listar os alunos sem turma.",
       }),
       active: z.string().optional().openapi({ example: "true" }),
       page: z.string().optional().openapi({ example: "1" }),
@@ -373,7 +388,8 @@ registry.registerPath({
     200: commonResponse(z.array(UserSchema), "Lista de usuários"),
     401: error401Token,
     403: errorResponse(
-      "Papel sem acesso à rota, ou professor filtrando turma de outro professor",
+      "Papel sem acesso à rota, professor filtrando turma de outro professor, ou professor "
+      + "usando class=none (\"Só o admin pode listar alunos sem turma.\")",
       "Você só pode listar alunos das suas turmas.",
     ),
     404: error404Class,
@@ -407,13 +423,23 @@ registry.registerPath({
   path: "/users",
   tags: ["Users"],
   summary: "Criar usuário (teacher/admin; professor só cria aluno)",
+  description:
+    "Se class for informado, o usuário precisa ser aluno e a turma precisa existir e "
+    + "estar ativa, conferidos antes de criar. Criado o aluno, o id dele entra em "
+    + "Class.students da turma.",
   security: [{ bearerAuth: [] }],
   request: {
     body: { content: { "application/json": { schema: CreateUserBodySchema } } },
   },
   responses: {
     201: commonResponse(UserSchema, "Usuário criado"),
-    400: error400,
+    400: errorResponse(
+      "Dados inválidos, e-mail já cadastrado, ou turma inválida (path class: "
+      + "\"Turma não encontrada.\", \"Turma não encontrada ou inativa.\" ou "
+      + "\"Apenas alunos podem ser vinculados a uma turma.\")",
+      "Turma não encontrada ou inativa.",
+      [{ path: "class", message: "Turma não encontrada ou inativa." }],
+    ),
     401: error401Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou professor tentando criar teacher/admin",
@@ -443,6 +469,11 @@ registry.registerPath({
   path: "/users/{id}",
   tags: ["Users"],
   summary: "Atualizar usuário",
+  description:
+    "Trocar a turma (class) é só para admin; nos demais papéis o campo é ignorado. "
+    + "Com um id, o alvo precisa ser aluno e a turma precisa existir: o id do aluno sai "
+    + "de Class.students da turma antiga e entra no da nova. Com class: null, o aluno "
+    + "sai da turma atual e fica sem turma.",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -452,7 +483,12 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(UserSchema, "Usuário atualizado"),
-    400: error400,
+    400: errorResponse(
+      "Dados inválidos, ou turma inválida (path class: \"Turma não encontrada.\" ou "
+      + "\"Apenas alunos podem ser vinculados a uma turma.\")",
+      "Turma não encontrada.",
+      [{ path: "class", message: "Turma não encontrada." }],
+    ),
     401: error401Token,
     403: errorResponse(
       "Tentativa de atualizar outro usuário sem ser admin",
@@ -536,6 +572,11 @@ registry.registerPath({
   path: "/classes",
   tags: ["Classes"],
   summary: "Criar turma (teacher/admin)",
+  description:
+    "Professor logado vira o dono da turma e o teacher enviado é ignorado; o admin pode "
+    + "informar um teacher, que precisa ser professor ativo. Os ids em students precisam "
+    + "ser de alunos cadastrados: cada um passa a ter class apontando para esta turma e "
+    + "sai do Class.students da turma em que estava.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -544,7 +585,7 @@ registry.registerPath({
   },
   responses: {
     201: commonResponse(ClassWriteResponseSchema, "Turma criada (relacionamentos como ids)"),
-    400: error400,
+    400: error400Class,
     401: error401Token,
     403: error403,
   },
@@ -555,6 +596,12 @@ registry.registerPath({
   path: "/classes/{id}",
   tags: ["Classes"],
   summary: "Atualizar turma (teacher/admin; professor só a própria turma)",
+  description:
+    "Professor só altera a própria turma e não troca o teacher; o admin pode trocar, "
+    + "desde que seja um professor ativo. Se students for enviado, ele substitui a lista "
+    + "inteira: os alunos adicionados passam a ter class apontando para esta turma e saem "
+    + "da turma anterior; os removidos ficam com class nulo, a menos que já tenham sido "
+    + "movidos para outra turma.",
   security: [{ bearerAuth: [] }],
   request: {
     params: classIdParam,
@@ -564,7 +611,7 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(ClassWriteResponseSchema, "Turma atualizada (relacionamentos como ids)"),
-    400: error400,
+    400: error400Class,
     401: error401Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou turma de outro professor",

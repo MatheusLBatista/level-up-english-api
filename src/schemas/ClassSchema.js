@@ -68,11 +68,17 @@ export const CreateClassBodySchema = z
       .min(1, "O nome da turma é obrigatório.")
       .openapi({ example: "Turma A" }),
     active: z.boolean().optional().openapi({ example: true }),
-    teacher: classIdSchema.optional(),
+    teacher: classIdSchema.optional().openapi({
+      description: "Só admin: precisa ser professor ativo. Para o professor logado, é ignorado.",
+    }),
     students: z
       .array(classIdSchema)
       .optional()
-      .openapi({ example: ["507f1f77bcf86cd799439011"] }),
+      .openapi({
+        example: ["507f1f77bcf86cd799439011"],
+        description:
+          "Lista completa de alunos da turma. Atualiza o class de cada aluno e os tira da turma anterior.",
+      }),
     missions: z
       .array(classIdSchema)
       .optional()
@@ -88,11 +94,17 @@ export const UpdateClassBodySchema = z
       .optional()
       .openapi({ example: "Turma A" }),
     active: z.boolean().optional().openapi({ example: true }),
-    teacher: classIdSchema.optional(),
+    teacher: classIdSchema.optional().openapi({
+      description: "Só admin: precisa ser professor ativo. Para o professor logado, é ignorado.",
+    }),
     students: z
       .array(classIdSchema)
       .optional()
-      .openapi({ example: ["507f1f77bcf86cd799439011"] }),
+      .openapi({
+        example: ["507f1f77bcf86cd799439011"],
+        description:
+          "Lista completa de alunos da turma. Atualiza o class de cada aluno e os tira da turma anterior.",
+      }),
     missions: z
       .array(classIdSchema)
       .optional()

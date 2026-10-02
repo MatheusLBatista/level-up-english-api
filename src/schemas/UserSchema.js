@@ -76,7 +76,10 @@ export const CreateUserBodySchema = z
       example: "student",
       description: "Apenas admin pode informar um papel diferente de student.",
     }),
-    class: z.string().optional().openapi({ example: "507f1f77bcf86cd799439011" }),
+    class: z.string().optional().openapi({
+      example: "507f1f77bcf86cd799439011",
+      description: "Turma ativa. Só para alunos; o id do aluno entra em Class.students.",
+    }),
   })
   .openapi("CreateUserBody");
 
@@ -91,7 +94,9 @@ export const UpdateUserBodySchema = z
     }),
     class: z.string().nullable().optional().openapi({
       example: "507f1f77bcf86cd799439011",
-      description: "Apenas admin. Ignorado nos demais papéis.",
+      description:
+        "Apenas admin; ignorado nos demais papéis. Move o aluno para a turma informada, "
+        + "ou tira o aluno da turma com null.",
     }),
   })
   .openapi("UpdateUserBody");
