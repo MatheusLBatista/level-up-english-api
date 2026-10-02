@@ -94,8 +94,10 @@ export const UpdateClassBodySchema = z
       .optional()
       .openapi({ example: "Turma A" }),
     active: z.boolean().optional().openapi({ example: true }),
-    teacher: classIdSchema.optional().openapi({
-      description: "Só admin: precisa ser professor ativo. Para o professor logado, é ignorado.",
+    teacher: classIdSchema.nullable().optional().openapi({
+      description:
+        "Só admin: precisa ser professor ativo, ou null para deixar a turma sem professor. "
+        + "Para o professor logado, é ignorado.",
     }),
     students: z
       .array(classIdSchema)

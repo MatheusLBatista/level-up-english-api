@@ -5,7 +5,11 @@ import TokenUtil from "../utils/TokenUtil.js";
 import bcrypt from "bcrypt";
 import AuthHelper from "../utils/AuthHelper.js";
 import SendMail from "../utils/SendMail.js";
-import { forgotPasswordTemplate, welcomeStudentTemplate } from "../utils/emailTemplates.js";
+import {
+  forgotPasswordTemplate,
+  welcomeStudentTemplate,
+  welcomeTeacherTemplate,
+} from "../utils/emailTemplates.js";
 import crypto from "crypto";
 
 class AuthService {
@@ -92,6 +96,48 @@ class AuthService {
   }
 
   async registerStudent({ name, email, class: classId }) {
+    await this.ensureEmailAvailable(email);
+
+    if (classId) await this.ensureActiveClasses([classId], "class");
+
+    const userData = { name, email, role: "student" };
+    if (classId) userData.class = classId;
+    const student = await this.userRepository.create(userData);
+
+    if (classId) await this.classRepository.addStudent(classId, student._id);
+
+    return await this.#sendWelcomeEmail(student, welcomeStudentTemplate);
+  }
+
+  async registerTeacher({ name, email, classes = [] }) {
+    await this.ensureEmailAvailable(email);
+
+    const classIds = [...new Set(classes)];
+    await this.ensureActiveClasses(classIds, "classes");
+
+    const teacher = await this.userRepository.create({ name, email, role: "teacher" });
+
+    if (classIds.length) await this.classRepository.setTeacher(classIds, teacher._id);
+
+    return await this.#sendWelcomeEmail(teacher, welcomeTeacherTemplate);
+  }
+
+  /** Grava o código de definição de senha (24h), envia o e-mail e devolve o usuário sem senha. */
+  async #sendWelcomeEmail(user, template) {
+    const code = crypto.randomBytes(32).toString("hex");
+    const expiresInHours = 24;
+    const expiry = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
+    await this.userRepository.setRecoveryCode(user._id, code, expiry);
+
+    const setupLink = `${process.env.FRONTEND_URL}/set-password?code=${code}`;
+    await SendMail.enviaEmail({ to: user.email, ...template({ name: user.name, setupLink, expiresInHours }) });
+
+    const userObj = user.toObject();
+    delete userObj.password;
+    return userObj;
+  }
+
+  async ensureEmailAvailable(email) {
     const emailExistente = await this.userRepository.findByEmail(email);
     if (emailExistente) {
       throw new CustomError({
@@ -102,27 +148,6 @@ class AuthService {
         customMessage: "Este e-mail já está cadastrado.",
       });
     }
-
-    if (classId) await this.ensureActiveClass(classId);
-
-    const userData = { name, email, role: "student" };
-    if (classId) userData.class = classId;
-    const student = await this.userRepository.create(userData);
-
-    if (classId) await this.classRepository.addStudent(classId, student._id);
-
-    const code = crypto.randomBytes(32).toString("hex");
-    const expiresInHours = 24;
-    const expiry = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
-    await this.userRepository.setRecoveryCode(student._id, code, expiry);
-
-    const setupLink = `${process.env.FRONTEND_URL}/set-password?code=${code}`;
-    const template = welcomeStudentTemplate({ name, setupLink, expiresInHours });
-    await SendMail.enviaEmail({ to: email, ...template });
-
-    const studentObj = student.toObject();
-    delete studentObj.password;
-    return studentObj;
   }
 
   async forgotPassword(email) {
@@ -187,15 +212,15 @@ class AuthService {
     await this.userRepository.removeTokens(targetUserId);
   }
 
-  async ensureActiveClass(classId) {
-    const classDoc = await this.classRepository.findPlainById(classId);
+  async ensureActiveClasses(classIds, path) {
+    const classDocs = await Promise.all(classIds.map((id) => this.classRepository.findPlainById(id)));
 
-    if (!classDoc || !classDoc.active) {
+    if (classDocs.some((classDoc) => !classDoc || !classDoc.active)) {
       throw new CustomError({
         statusCode: HttpStatusCodes.BAD_REQUEST.code,
         errorType: "validationError",
-        field: "class",
-        details: [{ path: "class", message: "Turma não encontrada ou inativa." }],
+        field: path,
+        details: [{ path, message: "Turma não encontrada ou inativa." }],
         customMessage: "Turma não encontrada ou inativa.",
       });
     }

@@ -252,6 +252,21 @@ describe("ClassService", () => {
       expect(repository.update).not.toHaveBeenCalled();
     });
 
+    it("deve deixar o admin tirar o professor da turma com null", async() => {
+      await service.update(TURMA_A, { teacher: null }, { user_id: ADMIN_ID });
+
+      expect(userRepository.findByIds).not.toHaveBeenCalled();
+      expect(repository.update).toHaveBeenCalledWith(TURMA_A, { teacher: null });
+    });
+
+    it("deve ignorar teacher null enviado pela professora dona", async() => {
+      userRepository.findById.mockResolvedValue(teacher());
+
+      await service.update(TURMA_A, { teacher: null, name: "Turma A2" }, { user_id: TEACHER_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(TURMA_A, { name: "Turma A2" });
+    });
+
     it("deve lançar 400 sem ir ao banco quando o id for malformado", async() => {
       const erro = await capturarErro(
         service.create({ name: "Turma A", teacher: "id-invalido" }, { user_id: ADMIN_ID }),

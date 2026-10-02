@@ -498,6 +498,94 @@ describe("Rotas de autenticação", () => {
     });
   });
 
+  describe("POST /auth/register-teacher", () => {
+    const novoProfessor = { name: "Ana Souza", email: "ana@escola.com" };
+
+    const cadastrar = async(quem, corpo) => {
+      const { accessToken } = await autenticar(quem.email);
+
+      return await request(app)
+        .post("/auth/register-teacher")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send(corpo);
+    };
+
+    it("deve criar o professor sem senha, com código de definição e e-mail enviado", async() => {
+      const res = await cadastrar(admin, novoProfessor);
+
+      expect(res.status).toBe(201);
+      expect(res.body.message).toBe(
+        "Professor cadastrado com sucesso. E-mail de boas-vindas enviado no email cadastrado.",
+      );
+      expect(res.body.data.role).toBe("teacher");
+      expect(res.body.data).not.toHaveProperty("password");
+
+      const criado = await User.findOne({ email: novoProfessor.email })
+        .select("+password +password_recovery_code");
+      expect(criado.password).toBeUndefined();
+      expect(criado.password_recovery_code).toEqual(expect.any(String));
+
+      const [email] = SendMail.enviaEmail.mock.calls[0];
+      expect(email.to).toBe(novoProfessor.email);
+      expect(email.html).toContain(`/set-password?code=${criado.password_recovery_code}`);
+    });
+
+    it("deve atribuir as turmas ao professor, substituindo o anterior", async() => {
+      const turmaComDono = await Class.create({ name: "Turma A", teacher: teacher._id });
+      const turmaSemDono = await Class.create({ name: "Turma B" });
+
+      const res = await cadastrar(admin, {
+        ...novoProfessor,
+        classes: [String(turmaComDono._id), String(turmaSemDono._id)],
+      });
+
+      expect(res.status).toBe(201);
+      expect(String((await Class.findById(turmaComDono._id)).teacher)).toBe(res.body.data._id);
+      expect(String((await Class.findById(turmaSemDono._id)).teacher)).toBe(res.body.data._id);
+    });
+
+    it.each([
+      ["inexistente", () => new mongoose.Types.ObjectId().toString()],
+      ["inativa", async() => String((await Class.create({ name: "Turma Antiga", active: false }))._id)],
+    ])("deve retornar 400 sem criar o professor quando uma turma for %s", async(_, criarTurma) => {
+      const valida = await Class.create({ name: "Turma A", teacher: teacher._id });
+
+      const res = await cadastrar(admin, {
+        ...novoProfessor,
+        classes: [String(valida._id), await criarTurma()],
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "classes", message: "Turma não encontrada ou inativa." }]);
+      expect(await User.findOne({ email: novoProfessor.email })).toBeNull();
+      expect(String((await Class.findById(valida._id)).teacher)).toBe(String(teacher._id));
+      expect(SendMail.enviaEmail).not.toHaveBeenCalled();
+    });
+
+    it("deve retornar 400 quando o e-mail já estiver cadastrado", async() => {
+      const res = await cadastrar(admin, { ...novoProfessor, email: student.email });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "email", message: "Este e-mail já está cadastrado." }]);
+    });
+
+    it.each([
+      ["a professora", () => teacher],
+      ["o aluno", () => student],
+    ])("deve retornar 403 quando quem cadastra é %s", async(_, quem) => {
+      const res = await cadastrar(quem(), novoProfessor);
+
+      expect(res.status).toBe(403);
+      expect(await User.findOne({ email: novoProfessor.email })).toBeNull();
+    });
+
+    it("deve retornar 498 quando não houver autenticação", async() => {
+      const res = await request(app).post("/auth/register-teacher").send(novoProfessor);
+
+      expect(res.status).toBe(498);
+    });
+  });
+
   describe("POST /auth/revoke/:userId", () => {
     it("deve permitir que o admin revogue a sessão de outro usuário", async() => {
       const { accessToken } = await autenticar(admin.email);

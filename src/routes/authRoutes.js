@@ -16,6 +16,12 @@ router
     authorize("teacher", "admin"),
     asyncWrapper(authController.registerStudent.bind(authController)),
   )
+  .post(
+    "/auth/register-teacher",
+    authMiddleware,
+    authorize("admin"),
+    asyncWrapper(authController.registerTeacher.bind(authController)),
+  )
   .post("/auth/refresh", asyncWrapper(authController.refresh.bind(authController)))
   .post("/auth/forgot-password", asyncWrapper(authController.forgotPassword.bind(authController)))
   .post("/auth/reset-password", asyncWrapper(authController.resetPassword.bind(authController)))

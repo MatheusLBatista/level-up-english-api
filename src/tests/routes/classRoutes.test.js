@@ -476,6 +476,37 @@ describe("Rotas de turmas", () => {
       expect(await Class.findOne({ name: "Turma C" })).toBeNull();
     });
 
+    it("deve deixar a turma sem professor com teacher null no PATCH do admin", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(admin))
+        .send({ teacher: null });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.teacher).toBeNull();
+      expect((await Class.findById(turmaA._id)).teacher).toBeNull();
+    });
+
+    it("deve ignorar teacher null enviado pela professora dona", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(profA))
+        .send({ teacher: null });
+
+      expect(res.status).toBe(200);
+      expect(String((await Class.findById(turmaA._id)).teacher)).toBe(String(profA._id));
+    });
+
+    it("deve recusar teacher null no POST", async() => {
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(admin))
+        .send({ name: "Turma C", teacher: null });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].path).toBe("teacher");
+    });
+
     it("deve retornar 400 no PATCH com professor inativo", async() => {
       await User.findByIdAndUpdate(profB._id, { active: false });
 
