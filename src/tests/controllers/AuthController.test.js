@@ -121,6 +121,39 @@ describe("AuthController", () => {
     });
   });
 
+  describe("registerTeacher", () => {
+    const professor = { name: "Ana Souza", email: "ana@escola.com" };
+
+    it("deve devolver 201 com o professor cadastrado", async() => {
+      const criado = { _id: USER_ID, ...professor, role: "teacher" };
+      req.body = { ...professor, classes: [USER_ID] };
+      controller.service.registerTeacher.mockResolvedValue(criado);
+
+      await controller.registerTeacher(req, res);
+
+      expect(controller.service.registerTeacher).toHaveBeenCalledWith({ ...professor, classes: [USER_ID] });
+      esperarResposta(
+        201,
+        "Professor cadastrado com sucesso. E-mail de boas-vindas enviado no email cadastrado.",
+        criado,
+      );
+    });
+
+    it("deve rejeitar quando classes não for uma lista", async() => {
+      req.body = { ...professor, classes: USER_ID };
+
+      await expect(controller.registerTeacher(req, res)).rejects.toThrow();
+      expect(controller.service.registerTeacher).not.toHaveBeenCalled();
+    });
+
+    it("deve rejeitar quando o nome tiver menos de 2 caracteres", async() => {
+      req.body = { ...professor, name: "A" };
+
+      await expect(controller.registerTeacher(req, res)).rejects.toThrow();
+      expect(controller.service.registerTeacher).not.toHaveBeenCalled();
+    });
+  });
+
   describe("refresh", () => {
     it("deve devolver 200 com o novo par de tokens", async() => {
       const tokens = { accessToken: "novo-access", refreshToken: "novo-refresh" };

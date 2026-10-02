@@ -1,6 +1,6 @@
 import AuthService from "../service/AuthService.js";
 import { CommonResponse } from "../utils/helpers/index.js";
-import { LoginBodySchema, RevokeParamsSchema, RefreshBodySchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema, RegisterStudentBodySchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, RevokeParamsSchema, RefreshBodySchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema, RegisterStudentBodySchema, RegisterTeacherBodySchema } from "../schemas/AuthSchema.js";
 
 class AuthController {
   constructor() {
@@ -17,6 +17,12 @@ class AuthController {
     const body = RegisterStudentBodySchema.parse(req.body);
     const student = await this.service.registerStudent(body);
     return CommonResponse.success(res, student, 201, "Aluno cadastrado com sucesso. E-mail de boas-vindas enviado no email cadastrado.");
+  }
+
+  async registerTeacher(req, res) {
+    const body = RegisterTeacherBodySchema.parse(req.body);
+    const teacher = await this.service.registerTeacher(body);
+    return CommonResponse.success(res, teacher, 201, "Professor cadastrado com sucesso. E-mail de boas-vindas enviado no email cadastrado.");
   }
 
   async refresh(req, res) {

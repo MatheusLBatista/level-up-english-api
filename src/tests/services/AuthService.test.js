@@ -56,6 +56,7 @@ describe("AuthService", () => {
     classRepository = {
       findPlainById: jest.fn(),
       addStudent: jest.fn(),
+      setTeacher: jest.fn(),
     };
 
     service = new AuthService({ userRepository: repository, classRepository });
@@ -330,6 +331,88 @@ describe("AuthService", () => {
       expect(erro.customMessage).toBe("Este e-mail já está cadastrado.");
       expect(repository.create).not.toHaveBeenCalled();
       expect(SendMail.enviaEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("registerTeacher", () => {
+    const professor = { name: "Ana Souza", email: "ana@escola.com" };
+    const TURMA_2 = "507f1f77bcf86cd799439022";
+
+    const prepararCriacao = () => {
+      repository.findByEmail.mockResolvedValue(null);
+      repository.create.mockResolvedValue(usuario({ ...professor, role: "teacher", password: undefined }));
+      classRepository.findPlainById.mockImplementation(async(id) => ({ _id: id, active: true }));
+    };
+
+    it("deve criar o usuário com o papel de professor e sem senha", async() => {
+      prepararCriacao();
+
+      await service.registerTeacher(professor);
+
+      expect(repository.create).toHaveBeenCalledWith({ ...professor, role: "teacher" });
+      expect(classRepository.setTeacher).not.toHaveBeenCalled();
+    });
+
+    it("deve gravar o código de 24 horas e enviar o e-mail de boas-vindas de professor", async() => {
+      prepararCriacao();
+
+      await service.registerTeacher(professor);
+
+      const [id, code, validade] = repository.setRecoveryCode.mock.calls[0];
+      const horas = (validade.getTime() - Date.now()) / (60 * 60 * 1000);
+      const [email] = SendMail.enviaEmail.mock.calls[0];
+
+      expect(id).toBe(USER_ID);
+      expect(horas).toBeGreaterThan(23.9);
+      expect(email.to).toBe(professor.email);
+      expect(email.subject).toContain("professor");
+      expect(email.html).toContain(`/set-password?code=${code}`);
+    });
+
+    it("deve tornar o professor dono de cada turma informada, sem repetir", async() => {
+      prepararCriacao();
+
+      await service.registerTeacher({ ...professor, classes: [CLASS_ID, TURMA_2, CLASS_ID] });
+
+      expect(classRepository.setTeacher).toHaveBeenCalledWith([CLASS_ID, TURMA_2], USER_ID);
+    });
+
+    it("deve devolver o professor sem a senha", async() => {
+      prepararCriacao();
+
+      const resultado = await service.registerTeacher(professor);
+
+      expect(resultado.role).toBe("teacher");
+      expect(resultado).not.toHaveProperty("password");
+    });
+
+    it.each([
+      ["inexistente", null],
+      ["inativa", { _id: TURMA_2, active: false }],
+    ])("deve lançar 400 antes de criar quando uma das turmas for %s", async(_, turma) => {
+      prepararCriacao();
+      classRepository.findPlainById.mockImplementation(async(id) =>
+        (id === TURMA_2 ? turma : { _id: id, active: true }));
+
+      const erro = await capturarErro(
+        service.registerTeacher({ ...professor, classes: [CLASS_ID, TURMA_2] }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details).toEqual([{ path: "classes", message: "Turma não encontrada ou inativa." }]);
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(classRepository.setTeacher).not.toHaveBeenCalled();
+      expect(SendMail.enviaEmail).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 400 quando o e-mail já estiver cadastrado", async() => {
+      repository.findByEmail.mockResolvedValue(usuario());
+
+      const erro = await capturarErro(service.registerTeacher(professor));
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details).toEqual([{ path: "email", message: "Este e-mail já está cadastrado." }]);
+      expect(repository.create).not.toHaveBeenCalled();
     });
   });
 

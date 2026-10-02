@@ -121,6 +121,14 @@ describe("ClassRepository", () => {
     });
   });
 
+  describe("setTeacher", () => {
+    it("deve definir o professor em todas as turmas da lista", async() => {
+      await repository.setTeacher([CLASS_ID], TEACHER_ID);
+
+      expect(modelo.updateMany).toHaveBeenCalledWith({ _id: { $in: [CLASS_ID] } }, { teacher: TEACHER_ID });
+    });
+  });
+
   describe("removeStudentsFromOtherClasses", () => {
     it("deve tirar os alunos de todas as turmas, menos da informada", async() => {
       const ids = ["507f1f77bcf86cd799439004"];

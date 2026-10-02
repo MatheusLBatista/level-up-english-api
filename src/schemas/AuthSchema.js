@@ -36,6 +36,18 @@ export const RegisterStudentBodySchema = z
   })
   .openapi("RegisterStudentBody");
 
+export const RegisterTeacherBodySchema = z
+  .object({
+    name: z.string().min(2).openapi({ example: "Ana Souza" }),
+    email: z.string().email().openapi({ example: "ana@escola.com" }),
+    classes: z.array(z.string()).optional().openapi({
+      example: ["507f1f77bcf86cd799439011"],
+      description:
+        "Turmas ativas que o professor assume. Se alguma já tinha professor, ele é substituído.",
+    }),
+  })
+  .openapi("RegisterTeacherBody");
+
 export const ForgotPasswordBodySchema = z
   .object({
     email: z.string().email().openapi({ example: "aluno@example.com" }),

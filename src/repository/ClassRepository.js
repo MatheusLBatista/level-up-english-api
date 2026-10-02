@@ -46,6 +46,10 @@ class ClassRepository {
     return await this.classModel.updateOne({ _id: classId }, { $pull: { students: studentId } });
   }
 
+  async setTeacher(classIds, teacherId) {
+    return await this.classModel.updateMany({ _id: { $in: classIds } }, { teacher: teacherId });
+  }
+
   /** Tira os alunos de qualquer outra turma, para cada um ficar em uma só. */
   async removeStudentsFromOtherClasses(studentIds, classId) {
     return await this.classModel.updateMany(
