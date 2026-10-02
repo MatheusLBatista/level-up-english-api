@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.5 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.6 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -15,6 +15,7 @@ _versão 2.5 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 26/09/2026 | 2.3    | Filtro por turma em `GET /users`: casos `CT-USER-018` a `021` e posse da turma no `CT-PERM-009`             | Matheus Lucas |
 | 30/09/2026 | 2.4    | Regras de conteúdo por tipo no `PATCH /missions/{id}` e `content_url` só http/https: casos `CT-MISSION-017` a `022` | Matheus Lucas |
 | 02/10/2026 | 2.5    | Sincronização aluno ↔ turma, professor válido na turma, `class=none` e migração `sync:class-students`: casos `CT-AUTH-023` a `025`, `CT-USER-022` a `030` e `CT-CLASS-013` a `021`; `class=none` no `CT-PERM-009`; mensagens em português nos `CT-CLASS-002`, `006` e `009` | Matheus Lucas |
+| 02/10/2026 | 2.6    | Cadastro de professor pelo admin (`POST /auth/register-teacher`) e `teacher: null` no `PATCH /classes/{id}`: casos `CT-AUTH-026` a `030` e `CT-CLASS-022` a `024` | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -90,7 +91,11 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-023  | Cadastro de aluno sincroniza a turma   | `POST /auth/register-student` com `class` de uma turma ativa        | 201; o id do aluno criado passa a constar em `Class.students` da turma                   | RF-001 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-024  | Cadastro com turma inexistente         | `class` com id válido que não existe                                | 400 no path `class`, "Turma não encontrada ou inativa."; nenhum usuário criado e nenhum e-mail enviado | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-025  | Cadastro com turma inativa             | `class` de uma turma com `active: false`                            | 400 com a mesma mensagem do CT-AUTH-024; nenhum usuário criado                           | RF-001 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
-
+| CT-AUTH-026  | Cadastro de professor pelo admin       | `POST /auth/register-teacher` com nome e e-mail como `admin`        | 201 com `role: "teacher"` e sem `password`; nenhuma senha gravada, código de definição válido por 24 h e e-mail de boas-vindas com o link `/set-password?code=` | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-027  | Cadastro de professor com turmas       | `classes` com a Turma A (dona: `profA`) e uma turma sem professor   | 201; o novo professor passa a ser o `teacher` das duas turmas — o `profA` é substituído na Turma A | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-028  | Cadastro de professor com turma inválida | `classes` com uma turma válida e outra inexistente ou inativa     | 400 no path `classes`, "Turma não encontrada ou inativa."; nenhum usuário criado, nenhuma turma alterada e nenhum e-mail enviado | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-029  | Cadastro de professor com e-mail duplicado | e-mail já usado por outro usuário                               | 400 no path `email`, "Este e-mail já está cadastrado."                                  | RF-001 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-030  | Cadastro de professor sem ser admin    | `profA` ou `alunoA` chamando `register-teacher`                     | 403; nenhum usuário criado                                                               | RF-011 | Int   | `routes/authRoutes`                | ✅       |
 **Pendência do módulo.** O `CT-AUTH-012` é o único caso de autenticação sem teste. Ele é o caminho que passa pelo `else if (err.name === "TokenExpiredError")` do `AuthMiddleware`, e forçá-lo exige assinar um access token com `expiresIn` negativo — não dá para esperar o token vencer dentro da suíte. A classe `TokenExpiredError` já tem teste próprio em `utils/errors/TokenExpiredError`, mas o caminho da rota, do token vencido até o corpo da resposta, não é exercido por ninguém.
 
 ---
@@ -157,6 +162,9 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-CLASS-019  | Admin troca para professor inativo     | `PATCH /classes/{Turma A}` com `teacher: inativo` como `admin` | 400 no path `teacher`; a turma continua com o mesmo dono                          | RF-003 | Int   | `routes/classRoutes`, `services/ClassService` | ✅ |
 | CT-CLASS-020  | Migração corrige dados divergentes     | `npm run sync:class-students` com `Class.students` faltando, sobrando e repetindo alunos | `Class.students` reconstruído a partir de `User.class`; devolve quantas turmas mudaram e conta, sem alterar, os alunos que apontam para turma inexistente | RF-003 | Int | `migrations/syncClassStudents` | ✅ |
 | CT-CLASS-021  | Migração é idempotente                 | rodar a migração duas vezes seguidas                          | a segunda execução não altera nenhuma turma                                       | RF-003 | Int   | `migrations/syncClassStudents` | ✅ |
+| CT-CLASS-022  | Admin deixa a turma sem professor      | `PATCH /classes/{Turma A}` com `{ teacher: null }` como `admin` | 200 com `teacher: null`; a turma fica sem professor                               | RF-003 | Int   | `routes/classRoutes`, `services/ClassService` | ✅ |
+| CT-CLASS-023  | Professor envia `teacher: null`        | `PATCH /classes/{Turma A}` com `{ teacher: null }` como `profA` | 200, porém o campo é descartado e a turma continua com o `profA`                  | RF-011 | Int   | `routes/classRoutes`, `services/ClassService` | ✅ |
+| CT-CLASS-024  | `teacher: null` na criação             | `POST /classes` com `{ name, teacher: null }` como `admin`    | 400 no path `teacher` — só o `PATCH` aceita `null`                                | RF-003 | Int   | `routes/classRoutes`   | ✅       |
 
 ---
 
@@ -372,20 +380,20 @@ Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Ele
 
 ## 11 - Resumo
 
-Situação em 02/10/2026, com a suíte em **48 arquivos de teste e 1069 testes**, executando em cerca de 7 segundos.
+Situação em 02/10/2026, com a suíte em **48 arquivos de teste e 1093 testes**, executando em cerca de 7 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
-| Autenticação e sessão         | `CT-AUTH`    | 25    | 24               | 1            |
+| Autenticação e sessão         | `CT-AUTH`    | 30    | 29               | 1            |
 | Usuários                      | `CT-USER`    | 30    | 30               | 0            |
-| Turmas                        | `CT-CLASS`   | 21    | 21               | 0            |
+| Turmas                        | `CT-CLASS`   | 24    | 24               | 0            |
 | Missões                       | `CT-MISSION` | 22    | 22               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 21    | 21               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 22    | 22               | 0            |
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **194** | **188 (96,9%)** | **6**        |
+| **Total**                     | -            | **202** | **196 (97,0%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 
