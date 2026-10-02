@@ -78,12 +78,22 @@ class UserService {
 
     await this.validateEmail(parsedData.email);
 
+    if (parsedData.class) {
+      await this.ensureClassAssignable(parsedData.class, parsedData.role ?? "student", { requireActive: true });
+    }
+
     if (parsedData.password) {
       const { hash } = await AuthHelper.hashPassword(parsedData.password);
       parsedData.password = hash;
     }
 
-    return await this.repository.create(parsedData);
+    const created = await this.repository.create(parsedData);
+
+    if (parsedData.class) {
+      await this.classRepository.addStudent(parsedData.class, created._id);
+    }
+
+    return created;
   }
 
   async createWithPassword(parsedData) {
@@ -105,7 +115,7 @@ class UserService {
     delete parsedData.email;
     delete parsedData.password;
 
-    await this.ensureUserExists(id);
+    const target = await this.ensureUserExists(id);
 
     const user = await this.repository.findById(req.user_id);
     const isAdmin = user?.role === "admin";
@@ -129,7 +139,20 @@ class UserService {
       delete parsedData.active;
     }
 
-    return await this.repository.update(id, parsedData);
+    const changingClass = "class" in parsedData;
+
+    if (changingClass && parsedData.class !== null) {
+      await this.ensureClassAssignable(parsedData.class, parsedData.role ?? target.role);
+    }
+
+    const updated = await this.repository.update(id, parsedData);
+
+    if (changingClass && String(target.class ?? null) !== String(parsedData.class)) {
+      if (target.class) await this.classRepository.removeStudent(target.class, id);
+      if (parsedData.class) await this.classRepository.addStudent(parsedData.class, id);
+    }
+
+    return updated;
   }
 
   async delete(id, req) {
@@ -158,7 +181,13 @@ class UserService {
       });
     }
 
-    return await this.repository.delete(id);
+    const deleted = await this.repository.delete(id);
+
+    if (target.class) {
+      await this.classRepository.removeStudent(target.class, id);
+    }
+
+    return deleted;
   }
 
   async recalculateLevels() {
@@ -174,6 +203,25 @@ class UserService {
     const results = await Promise.all(updates);
 
     return { updated: results.reduce((total, count) => total + count, 0) };
+  }
+
+  async ensureClassAssignable(classId, role, { requireActive = false } = {}) {
+    const invalid = (message) => new CustomError({
+      statusCode: HttpStatusCodes.BAD_REQUEST.code,
+      errorType: "validationError",
+      field: "class",
+      details: [{ path: "class", message }],
+      customMessage: message,
+    });
+
+    if (role !== "student") {
+      throw invalid("Apenas alunos podem ser vinculados a uma turma.");
+    }
+
+    const classDoc = await this.classRepository.findPlainById(classId);
+
+    if (!classDoc) throw invalid("Turma não encontrada.");
+    if (requireActive && !classDoc.active) throw invalid("Turma não encontrada ou inativa.");
   }
 
   async validateEmail(email, id = null) {

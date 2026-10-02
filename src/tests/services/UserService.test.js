@@ -37,7 +37,12 @@ describe("UserService", () => {
       setLevelForXpRange: jest.fn().mockResolvedValue(0),
     };
 
-    classRepository = { findById: jest.fn() };
+    classRepository = {
+      findById: jest.fn(),
+      findPlainById: jest.fn(),
+      addStudent: jest.fn(),
+      removeStudent: jest.fn(),
+    };
 
     UserRepository.mockImplementation(() => repository);
     ClassRepository.mockImplementation(() => classRepository);
@@ -232,6 +237,57 @@ describe("UserService", () => {
       expect(erro.customMessage).toBe("Email already registered.");
       expect(repository.create).not.toHaveBeenCalled();
     });
+
+    describe("com turma", () => {
+      const CLASS_ID = "507f1f77bcf86cd799439021";
+
+      beforeEach(() => {
+        responderFindById(admin());
+        repository.findByEmail.mockResolvedValue(null);
+        repository.create.mockResolvedValue({ _id: STUDENT_ID });
+      });
+
+      it("deve adicionar o aluno criado em Class.students", async() => {
+        classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true });
+
+        await service.create({ ...novoAluno, class: CLASS_ID }, { user_id: ADMIN_ID });
+
+        expect(classRepository.addStudent).toHaveBeenCalledWith(CLASS_ID, STUDENT_ID);
+      });
+
+      it("não deve mexer em turma quando nenhuma for informada", async() => {
+        await service.create({ ...novoAluno }, { user_id: ADMIN_ID });
+
+        expect(classRepository.findPlainById).not.toHaveBeenCalled();
+        expect(classRepository.addStudent).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["inexistente", null, "Turma não encontrada."],
+        ["inativa", { _id: CLASS_ID, active: false }, "Turma não encontrada ou inativa."],
+      ])("deve lançar 400 sem criar o usuário quando a turma for %s", async(_, turma, mensagem) => {
+        classRepository.findPlainById.mockResolvedValue(turma);
+
+        const erro = await capturarErro(
+          service.create({ ...novoAluno, class: CLASS_ID }, { user_id: ADMIN_ID }),
+        );
+
+        expect(erro.statusCode).toBe(400);
+        expect(erro.details).toEqual([{ path: "class", message: mensagem }]);
+        expect(repository.create).not.toHaveBeenCalled();
+        expect(classRepository.addStudent).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 400 quando o usuário criado não for aluno", async() => {
+        const erro = await capturarErro(
+          service.create({ ...novoAluno, role: "teacher", class: CLASS_ID }, { user_id: ADMIN_ID }),
+        );
+
+        expect(erro.statusCode).toBe(400);
+        expect(erro.details[0].path).toBe("class");
+        expect(repository.create).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe("createWithPassword", () => {
@@ -335,14 +391,13 @@ describe("UserService", () => {
 
       await service.update(
         STUDENT_ID,
-        { role: "teacher", xp: 500, class: OUTRO_ID, active: false },
+        { role: "teacher", xp: 500, active: false },
         { user_id: ADMIN_ID },
       );
 
       expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, {
         role: "teacher",
         xp: 500,
-        class: OUTRO_ID,
         active: false,
       });
     });
@@ -357,6 +412,104 @@ describe("UserService", () => {
       );
 
       expect(erro.statusCode).toBe(404);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("update da turma", () => {
+    const TURMA_ANTIGA = "507f1f77bcf86cd799439021";
+    const TURMA_NOVA = "507f1f77bcf86cd799439022";
+
+    const alunoNaTurma = (turma) => usuario(STUDENT_ID, "student", { class: turma });
+
+    beforeEach(() => {
+      repository.update.mockResolvedValue({});
+      classRepository.findPlainById.mockResolvedValue({ _id: TURMA_NOVA, active: true });
+    });
+
+    it("deve mover o id do aluno da turma antiga para a nova", async() => {
+      responderFindById(alunoNaTurma(TURMA_ANTIGA), admin());
+
+      await service.update(STUDENT_ID, { class: TURMA_NOVA }, { user_id: ADMIN_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { class: TURMA_NOVA });
+      expect(classRepository.removeStudent).toHaveBeenCalledWith(TURMA_ANTIGA, STUDENT_ID);
+      expect(classRepository.addStudent).toHaveBeenCalledWith(TURMA_NOVA, STUDENT_ID);
+    });
+
+    it("deve só adicionar quando o aluno ainda não tinha turma", async() => {
+      responderFindById(alunoNaTurma(undefined), admin());
+
+      await service.update(STUDENT_ID, { class: TURMA_NOVA }, { user_id: ADMIN_ID });
+
+      expect(classRepository.removeStudent).not.toHaveBeenCalled();
+      expect(classRepository.addStudent).toHaveBeenCalledWith(TURMA_NOVA, STUDENT_ID);
+    });
+
+    it("deve tirar o aluno da turma quando class for null", async() => {
+      responderFindById(alunoNaTurma(TURMA_ANTIGA), admin());
+
+      await service.update(STUDENT_ID, { class: null }, { user_id: ADMIN_ID });
+
+      expect(classRepository.findPlainById).not.toHaveBeenCalled();
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { class: null });
+      expect(classRepository.removeStudent).toHaveBeenCalledWith(TURMA_ANTIGA, STUDENT_ID);
+      expect(classRepository.addStudent).not.toHaveBeenCalled();
+    });
+
+    it("não deve mexer nos arrays quando a turma não mudou", async() => {
+      responderFindById(alunoNaTurma(TURMA_NOVA), admin());
+
+      await service.update(STUDENT_ID, { class: TURMA_NOVA }, { user_id: ADMIN_ID });
+
+      expect(classRepository.removeStudent).not.toHaveBeenCalled();
+      expect(classRepository.addStudent).not.toHaveBeenCalled();
+    });
+
+    it("não deve mexer nos arrays quando class não for enviado", async() => {
+      responderFindById(alunoNaTurma(TURMA_ANTIGA), admin());
+
+      await service.update(STUDENT_ID, { name: "Novo nome" }, { user_id: ADMIN_ID });
+
+      expect(classRepository.removeStudent).not.toHaveBeenCalled();
+      expect(classRepository.addStudent).not.toHaveBeenCalled();
+    });
+
+    it("deve ignorar class enviado por quem não é admin", async() => {
+      responderFindById(alunoNaTurma(TURMA_ANTIGA), alunoNaTurma(TURMA_ANTIGA));
+
+      await service.update(STUDENT_ID, { class: TURMA_NOVA }, { user_id: STUDENT_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, {});
+      expect(classRepository.removeStudent).not.toHaveBeenCalled();
+      expect(classRepository.addStudent).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 400 sem atualizar quando a turma não existir", async() => {
+      responderFindById(alunoNaTurma(TURMA_ANTIGA), admin());
+      classRepository.findPlainById.mockResolvedValue(null);
+
+      const erro = await capturarErro(
+        service.update(STUDENT_ID, { class: TURMA_NOVA }, { user_id: ADMIN_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details).toEqual([{ path: "class", message: "Turma não encontrada." }]);
+      expect(repository.update).not.toHaveBeenCalled();
+      expect(classRepository.removeStudent).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 400 quando o alvo não for aluno", async() => {
+      responderFindById(teacher(), admin());
+
+      const erro = await capturarErro(
+        service.update(TEACHER_ID, { class: TURMA_NOVA }, { user_id: ADMIN_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details).toEqual([
+        { path: "class", message: "Apenas alunos podem ser vinculados a uma turma." },
+      ]);
       expect(repository.update).not.toHaveBeenCalled();
     });
   });
@@ -416,6 +569,23 @@ describe("UserService", () => {
       await service.delete(TEACHER_ID, { user_id: ADMIN_ID });
 
       expect(repository.delete).toHaveBeenCalledWith(TEACHER_ID);
+    });
+
+    it("deve tirar o id do aluno apagado de Class.students", async() => {
+      const CLASS_ID = "507f1f77bcf86cd799439021";
+      responderFindById(admin(), usuario(STUDENT_ID, "student", { class: CLASS_ID }));
+
+      await service.delete(STUDENT_ID, { user_id: ADMIN_ID });
+
+      expect(classRepository.removeStudent).toHaveBeenCalledWith(CLASS_ID, STUDENT_ID);
+    });
+
+    it("não deve mexer em turma quando o usuário apagado não tinha uma", async() => {
+      responderFindById(admin(), student());
+
+      await service.delete(STUDENT_ID, { user_id: ADMIN_ID });
+
+      expect(classRepository.removeStudent).not.toHaveBeenCalled();
     });
   });
 

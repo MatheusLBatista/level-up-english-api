@@ -89,7 +89,7 @@ export const UpdateUserBodySchema = z
       example: true,
       description: "Apenas admin. Ignorado nos demais papéis.",
     }),
-    class: z.string().optional().openapi({
+    class: z.string().nullable().optional().openapi({
       example: "507f1f77bcf86cd799439011",
       description: "Apenas admin. Ignorado nos demais papéis.",
     }),

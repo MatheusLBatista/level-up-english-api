@@ -1,4 +1,5 @@
 import UserRepository from "../repository/UserRepository.js";
+import ClassRepository from "../repository/ClassRepository.js";
 import { CustomError, HttpStatusCodes, messages } from "../utils/helpers/index.js";
 import TokenUtil from "../utils/TokenUtil.js";
 import bcrypt from "bcrypt";
@@ -8,8 +9,12 @@ import { forgotPasswordTemplate, welcomeStudentTemplate } from "../utils/emailTe
 import crypto from "crypto";
 
 class AuthService {
-  constructor({ userRepository = new UserRepository() } = {}) {
+  constructor({
+    userRepository = new UserRepository(),
+    classRepository = new ClassRepository(),
+  } = {}) {
     this.userRepository = userRepository;
+    this.classRepository = classRepository;
     this.tokenUtil = TokenUtil;
   }
 
@@ -98,9 +103,13 @@ class AuthService {
       });
     }
 
+    if (classId) await this.ensureActiveClass(classId);
+
     const userData = { name, email, role: "student" };
     if (classId) userData.class = classId;
     const student = await this.userRepository.create(userData);
+
+    if (classId) await this.classRepository.addStudent(classId, student._id);
 
     const code = crypto.randomBytes(32).toString("hex");
     const expiresInHours = 24;
@@ -176,6 +185,20 @@ class AuthService {
 
   async revoke(targetUserId) {
     await this.userRepository.removeTokens(targetUserId);
+  }
+
+  async ensureActiveClass(classId) {
+    const classDoc = await this.classRepository.findPlainById(classId);
+
+    if (!classDoc || !classDoc.active) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "class",
+        details: [{ path: "class", message: "Turma não encontrada ou inativa." }],
+        customMessage: "Turma não encontrada ou inativa.",
+      });
+    }
   }
 
   ensureActive(user) {

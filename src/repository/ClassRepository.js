@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Class from "../models/Class.js";
 import { CustomError, messages } from "../utils/helpers/index.js";
 
@@ -25,6 +26,24 @@ class ClassRepository {
     }
 
     return classDoc;
+  }
+
+  /**
+   * Busca sem populate e sem 404: devolve null quando o id não existe ou é
+   * malformado, para o service decidir o erro.
+   */
+  async findPlainById(id) {
+    if (!mongoose.isValidObjectId(id)) return null;
+
+    return await this.classModel.findById(id);
+  }
+
+  async addStudent(classId, studentId) {
+    return await this.classModel.updateOne({ _id: classId }, { $addToSet: { students: studentId } });
+  }
+
+  async removeStudent(classId, studentId) {
+    return await this.classModel.updateOne({ _id: classId }, { $pull: { students: studentId } });
   }
 
   async findByName(name, excludeId = null) {

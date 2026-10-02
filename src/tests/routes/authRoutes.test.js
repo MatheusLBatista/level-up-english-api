@@ -17,6 +17,7 @@ import SendMail from "../../utils/SendMail.js";
 import authRoutes from "../../routes/authRoutes.js";
 import errorHandler from "../../utils/helpers/errorHandler.js";
 import User from "../../models/User.js";
+import Class from "../../models/Class.js";
 import {
   connectTestDatabase,
   clearTestDatabase,
@@ -407,17 +408,37 @@ describe("Rotas de autenticação", () => {
       expect(res.status).toBe(201);
     });
 
-    it("deve vincular o aluno à turma informada", async() => {
+    it("deve vincular o aluno à turma informada e incluí-lo em Class.students", async() => {
       const { accessToken } = await autenticar(teacher.email);
-      const classId = new mongoose.Types.ObjectId().toString();
+      const turma = await Class.create({ name: "Turma A" });
 
       const res = await request(app)
         .post("/auth/register-student")
         .set("Authorization", `Bearer ${accessToken}`)
-        .send({ ...novoAluno, class: classId });
+        .send({ ...novoAluno, class: String(turma._id) });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.class).toBe(classId);
+      expect(res.body.data.class).toBe(String(turma._id));
+
+      const atualizada = await Class.findById(turma._id);
+      expect(atualizada.students.map(String)).toEqual([res.body.data._id]);
+    });
+
+    it.each([
+      ["inexistente", () => new mongoose.Types.ObjectId().toString()],
+      ["inativa", async() => String((await Class.create({ name: "Turma Antiga", active: false }))._id)],
+    ])("deve retornar 400 sem criar o aluno quando a turma for %s", async(_, criarTurma) => {
+      const { accessToken } = await autenticar(teacher.email);
+
+      const res = await request(app)
+        .post("/auth/register-student")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ ...novoAluno, class: await criarTurma() });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "class", message: "Turma não encontrada ou inativa." }]);
+      expect(await User.findOne({ email: novoAluno.email })).toBeNull();
+      expect(SendMail.enviaEmail).not.toHaveBeenCalled();
     });
 
     it("deve enviar o e-mail de boas-vindas com código de definição de senha", async() => {
