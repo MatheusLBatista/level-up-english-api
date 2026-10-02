@@ -10,6 +10,7 @@
     "dev": "nodemon server.js",
     "fix": "eslint . --fix",
     "seed": "node src/seeds/seeds.js",
+    "sync:class-students": "node src/migrations/sync_class_students.js",
     "start": "node server.js",
     "test": "jest --coverage --detectOpenHandles"
   },
