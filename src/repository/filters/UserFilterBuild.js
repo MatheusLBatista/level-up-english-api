@@ -25,7 +25,10 @@ class UserFilterBuild {
   }
 
   withClass(classId) {
-    if (classId) {
+    if (classId === "none") {
+      // null no Mongo casa tanto class: null quanto o campo ausente.
+      this.filters.class = null;
+    } else if (classId) {
       this.filters.class = classId;
     }
     return this;

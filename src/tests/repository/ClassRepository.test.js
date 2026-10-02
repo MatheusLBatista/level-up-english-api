@@ -25,6 +25,8 @@ describe("ClassRepository", () => {
     modelo.findOne = jest.fn();
     modelo.findByIdAndUpdate = jest.fn();
     modelo.findByIdAndDelete = jest.fn();
+    modelo.updateOne = jest.fn();
+    modelo.updateMany = jest.fn();
     modelo.paginate = jest.fn();
 
     repository = new ClassRepository({ classModel: modelo });
@@ -71,6 +73,64 @@ describe("ClassRepository", () => {
       expect(erro).toBeInstanceOf(CustomError);
       expect(erro.statusCode).toBe(404);
       expect(erro.customMessage).toBe("Recurso não encontrado em Class.");
+    });
+  });
+
+  describe("findPlainById", () => {
+    it("deve buscar a turma sem populate", async() => {
+      const turma = { _id: CLASS_ID, active: true };
+      modelo.findById.mockResolvedValue(turma);
+
+      const resultado = await repository.findPlainById(CLASS_ID);
+
+      expect(modelo.findById).toHaveBeenCalledWith(CLASS_ID);
+      expect(resultado).toBe(turma);
+    });
+
+    it("deve devolver null quando a turma não existir, sem lançar 404", async() => {
+      modelo.findById.mockResolvedValue(null);
+
+      expect(await repository.findPlainById(CLASS_ID)).toBeNull();
+    });
+
+    it("deve devolver null sem ir ao banco quando o id for malformado", async() => {
+      expect(await repository.findPlainById("id-invalido")).toBeNull();
+      expect(modelo.findById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("addStudent e removeStudent", () => {
+    const STUDENT_ID = "507f1f77bcf86cd799439004";
+
+    it("addStudent deve incluir o aluno com $addToSet", async() => {
+      await repository.addStudent(CLASS_ID, STUDENT_ID);
+
+      expect(modelo.updateOne).toHaveBeenCalledWith(
+        { _id: CLASS_ID },
+        { $addToSet: { students: STUDENT_ID } },
+      );
+    });
+
+    it("removeStudent deve tirar o aluno com $pull", async() => {
+      await repository.removeStudent(CLASS_ID, STUDENT_ID);
+
+      expect(modelo.updateOne).toHaveBeenCalledWith(
+        { _id: CLASS_ID },
+        { $pull: { students: STUDENT_ID } },
+      );
+    });
+  });
+
+  describe("removeStudentsFromOtherClasses", () => {
+    it("deve tirar os alunos de todas as turmas, menos da informada", async() => {
+      const ids = ["507f1f77bcf86cd799439004"];
+
+      await repository.removeStudentsFromOtherClasses(ids, CLASS_ID);
+
+      expect(modelo.updateMany).toHaveBeenCalledWith(
+        { _id: { $ne: CLASS_ID }, students: { $in: ids } },
+        { $pull: { students: { $in: ids } } },
+      );
     });
   });
 

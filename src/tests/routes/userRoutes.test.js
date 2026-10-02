@@ -215,6 +215,31 @@ describe("Rotas de usuários", () => {
         expect(res.status).toBe(404);
       });
 
+      it("deve listar só os alunos sem turma com class=none para o admin", async() => {
+        const solto = await criarUsuario({ name: "Solto", email: "solto@escola.com" });
+        await User.collection.updateOne({ _id: solto._id }, { $set: { class: null } });
+        await criarUsuario({ name: "Sem campo", email: "semcampo@escola.com" });
+
+        const res = await request(app)
+          .get("/users?class=none&role=student")
+          .set("Authorization", await como(admin));
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.docs.map((u) => u.email).sort()).toEqual([
+          "semcampo@escola.com",
+          "solto@escola.com",
+        ]);
+      });
+
+      it("deve retornar 403 quando a professora filtra class=none", async() => {
+        const res = await request(app)
+          .get("/users?class=none")
+          .set("Authorization", await como(teacher));
+
+        expect(res.status).toBe(403);
+        expect(res.body.message).toBe("Só o admin pode listar alunos sem turma.");
+      });
+
       it("deve permitir que o admin filtre qualquer turma", async() => {
         const res = await request(app)
           .get(`/users?class=${turmaDaOutra._id}`)
@@ -328,16 +353,30 @@ describe("Rotas de usuários", () => {
       expect(res.body.data.role).toBe("teacher");
     });
 
-    it("deve vincular o usuário à turma informada", async() => {
-      const classId = new mongoose.Types.ObjectId().toString();
+    it("deve vincular o usuário à turma informada e incluí-lo em Class.students", async() => {
+      const turma = await Class.create({ name: "Turma A" });
 
       const res = await request(app)
         .post("/users")
         .set("Authorization", await como(admin))
-        .send({ ...novoUsuario, class: classId });
+        .send({ ...novoUsuario, class: String(turma._id) });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.class).toBe(classId);
+      expect(res.body.data.class).toBe(String(turma._id));
+
+      const atualizada = await Class.findById(turma._id);
+      expect(atualizada.students.map(String)).toEqual([res.body.data._id]);
+    });
+
+    it("deve retornar 400 sem criar o usuário quando a turma não existir", async() => {
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(admin))
+        .send({ ...novoUsuario, class: ID_INEXISTENTE });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "class", message: "Turma não encontrada." }]);
+      expect(await User.findOne({ email: novoUsuario.email })).toBeNull();
     });
 
     it("deve retornar 400 quando o e-mail já estiver cadastrado", async() => {
@@ -474,6 +513,65 @@ describe("Rotas de usuários", () => {
     });
   });
 
+  describe("PATCH /users/:id com turma", () => {
+    let turmaA;
+    let turmaB;
+
+    beforeEach(async() => {
+      turmaA = await Class.create({ name: "Turma A", students: [student._id] });
+      turmaB = await Class.create({ name: "Turma B" });
+      await User.findByIdAndUpdate(student._id, { class: turmaA._id });
+    });
+
+    const alunosDe = async(turma) => (await Class.findById(turma._id)).students.map(String);
+
+    it("deve mover o id do aluno entre os arrays ao trocar de turma", async() => {
+      const res = await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(admin))
+        .send({ class: String(turmaB._id) });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.class).toBe(String(turmaB._id));
+      expect(await alunosDe(turmaA)).toEqual([]);
+      expect(await alunosDe(turmaB)).toEqual([String(student._id)]);
+    });
+
+    it("deve tirar o aluno da turma com class null", async() => {
+      const res = await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(admin))
+        .send({ class: null });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.class).toBeNull();
+      expect(await alunosDe(turmaA)).toEqual([]);
+    });
+
+    it("deve retornar 400 quando a turma não existir", async() => {
+      const res = await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(admin))
+        .send({ class: ID_INEXISTENTE });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "class", message: "Turma não encontrada." }]);
+      expect(String((await User.findById(student._id)).class)).toBe(String(turmaA._id));
+      expect(await alunosDe(turmaA)).toEqual([String(student._id)]);
+    });
+
+    it("deve retornar 400 quando o alvo não for aluno", async() => {
+      const res = await request(app)
+        .patch(`/users/${teacher._id}`)
+        .set("Authorization", await como(admin))
+        .send({ class: String(turmaB._id) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].path).toBe("class");
+      expect(await alunosDe(turmaB)).toEqual([]);
+    });
+  });
+
   describe("DELETE /users/:id", () => {
     it("deve permitir que o aluno apague a própria conta", async() => {
       const res = await request(app)
@@ -523,6 +621,18 @@ describe("Rotas de usuários", () => {
 
       expect(res.status).toBe(200);
       expect(await User.findById(teacher._id)).toBeNull();
+    });
+
+    it("deve tirar o id do aluno apagado de Class.students", async() => {
+      const turma = await Class.create({ name: "Turma A", students: [student._id] });
+      await User.findByIdAndUpdate(student._id, { class: turma._id });
+
+      const res = await request(app)
+        .delete(`/users/${student._id}`)
+        .set("Authorization", await como(admin));
+
+      expect(res.status).toBe(200);
+      expect((await Class.findById(turma._id)).students).toHaveLength(0);
     });
 
     it("deve retornar 404 quando o usuário não existir", async() => {

@@ -22,8 +22,10 @@ import { CustomError } from "../../utils/helpers/index.js";
 describe("AuthService", () => {
   let service;
   let repository;
+  let classRepository;
 
   const USER_ID = "507f1f77bcf86cd799439011";
+  const CLASS_ID = "507f1f77bcf86cd799439021";
   const SENHA_PADRAO = "senha123";
   const NOVA_SENHA = "novaSenha456";
 
@@ -51,7 +53,12 @@ describe("AuthService", () => {
       clearRecoveryCode: jest.fn(),
     };
 
-    service = new AuthService({ userRepository: repository });
+    classRepository = {
+      findPlainById: jest.fn(),
+      addStudent: jest.fn(),
+    };
+
+    service = new AuthService({ userRepository: repository, classRepository });
 
     service.tokenUtil = {
       generateAccessToken: jest.fn().mockResolvedValue("access-token"),
@@ -236,10 +243,46 @@ describe("AuthService", () => {
 
     it("deve vincular a turma somente quando ela for informada", async() => {
       prepararCriacao();
+      classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true });
 
-      await service.registerStudent({ ...aluno, class: USER_ID });
+      await service.registerStudent({ ...aluno, class: CLASS_ID });
 
-      expect(repository.create).toHaveBeenCalledWith({ ...aluno, role: "student", class: USER_ID });
+      expect(repository.create).toHaveBeenCalledWith({ ...aluno, role: "student", class: CLASS_ID });
+    });
+
+    it("deve adicionar o aluno criado em Class.students", async() => {
+      prepararCriacao();
+      classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true });
+
+      await service.registerStudent({ ...aluno, class: CLASS_ID });
+
+      expect(classRepository.addStudent).toHaveBeenCalledWith(CLASS_ID, USER_ID);
+    });
+
+    it("não deve mexer em turma quando nenhuma for informada", async() => {
+      prepararCriacao();
+
+      await service.registerStudent(aluno);
+
+      expect(classRepository.findPlainById).not.toHaveBeenCalled();
+      expect(classRepository.addStudent).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["inexistente", null],
+      ["inativa", { _id: CLASS_ID, active: false }],
+    ])("deve lançar 400 antes de criar o aluno quando a turma for %s", async(_, turma) => {
+      prepararCriacao();
+      classRepository.findPlainById.mockResolvedValue(turma);
+
+      const erro = await capturarErro(service.registerStudent({ ...aluno, class: CLASS_ID }));
+
+      expect(erro).toBeInstanceOf(CustomError);
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details).toEqual([{ path: "class", message: "Turma não encontrada ou inativa." }]);
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(repository.setRecoveryCode).not.toHaveBeenCalled();
+      expect(SendMail.enviaEmail).not.toHaveBeenCalled();
     });
 
     it("deve gravar um código de definição de senha válido por 24 horas", async() => {
