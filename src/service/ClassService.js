@@ -1,11 +1,7 @@
 import mongoose from "mongoose";
 import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
-import {
-  CustomError,
-  HttpStatusCodes,
-  messages,
-} from "../utils/helpers/index.js";
+import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
 
 class ClassService {
   constructor() {
@@ -25,7 +21,7 @@ class ClassService {
           errorType: "permissionError",
           field: "Class",
           details: [],
-          customMessage: "Students can only view their own class.",
+          customMessage: "Você só pode ver a sua turma.",
         });
       }
 
@@ -53,6 +49,8 @@ class ClassService {
 
     if (loggedUser.role === "teacher") {
       parsedData.teacher = req.user_id;
+    } else if (parsedData.teacher) {
+      await this.ensureActiveTeacher(parsedData.teacher);
     }
 
     if (parsedData.students) {
@@ -82,11 +80,13 @@ class ClassService {
           errorType: "permissionError",
           field: "Class",
           details: [],
-          customMessage: "Teachers can only update their own classes.",
+          customMessage: "Você só pode editar as suas turmas.",
         });
       }
 
       delete parsedData.teacher;
+    } else if (parsedData.teacher) {
+      await this.ensureActiveTeacher(parsedData.teacher);
     }
 
     if (parsedData.name) {
@@ -158,14 +158,24 @@ class ClassService {
         statusCode: HttpStatusCodes.BAD_REQUEST.code,
         errorType: "validationError",
         field: "name",
-        details: [
-          {
-            path: "name",
-            message: messages.validation.generic.resourceAlreadyExists("Class"),
-          },
-        ],
-        customMessage:
-          messages.validation.generic.resourceAlreadyExists("Class"),
+        details: [{ path: "name", message: "Já existe uma turma com este nome." }],
+        customMessage: "Já existe uma turma com este nome.",
+      });
+    }
+  }
+
+  async ensureActiveTeacher(teacherId) {
+    const [teacher] = mongoose.isValidObjectId(teacherId)
+      ? await this.userRepository.findByIds([teacherId])
+      : [];
+
+    if (!teacher || teacher.role !== "teacher" || !teacher.active) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
+        field: "teacher",
+        details: [{ path: "teacher", message: "Escolha um professor ativo." }],
+        customMessage: "Escolha um professor ativo.",
       });
     }
   }

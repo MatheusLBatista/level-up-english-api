@@ -140,7 +140,7 @@ describe("ClassService", () => {
 
       expect(erro).toBeInstanceOf(CustomError);
       expect(erro.statusCode).toBe(403);
-      expect(erro.customMessage).toBe("Students can only view their own class.");
+      expect(erro.customMessage).toBe("Você só pode ver a sua turma.");
       expect(repository.findById).not.toHaveBeenCalled();
     });
 
@@ -193,6 +193,7 @@ describe("ClassService", () => {
     it("deve respeitar a professora informada pelo admin", async() => {
       repository.findByName.mockResolvedValue(null);
       userRepository.findById.mockResolvedValue(admin());
+      userRepository.findByIds.mockResolvedValue([{ ...teacher(), active: true }]);
       repository.create.mockResolvedValue({});
 
       await service.create({ name: "Turma A", teacher: TEACHER_ID }, { user_id: ADMIN_ID });
@@ -207,8 +208,66 @@ describe("ClassService", () => {
 
       expect(erro).toBeInstanceOf(CustomError);
       expect(erro.statusCode).toBe(400);
-      expect(erro.customMessage).toBe("Class já existe.");
+      expect(erro.customMessage).toBe("Já existe uma turma com este nome.");
       expect(repository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("professor informado pelo admin", () => {
+    const professorAtivo = { _id: OUTRO_TEACHER_ID, role: "teacher", active: true };
+
+    beforeEach(() => {
+      userRepository.findById.mockResolvedValue(admin());
+      repository.findByName.mockResolvedValue(null);
+      repository.findById.mockResolvedValue({ _id: TURMA_A, teacher: TEACHER_ID, students: [] });
+      repository.create.mockResolvedValue({ _id: TURMA_A });
+      repository.update.mockResolvedValue({ _id: TURMA_A });
+    });
+
+    it.each([
+      ["não existir", []],
+      ["não for professor", [{ ...professorAtivo, role: "student" }]],
+      ["estiver inativo", [{ ...professorAtivo, active: false }]],
+    ])("deve lançar 400 no create quando o professor %s", async(_, encontrados) => {
+      userRepository.findByIds.mockResolvedValue(encontrados);
+
+      const erro = await capturarErro(
+        service.create({ name: "Turma A", teacher: OUTRO_TEACHER_ID }, { user_id: ADMIN_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details).toEqual([{ path: "teacher", message: "Escolha um professor ativo." }]);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 400 no update quando o professor não for válido", async() => {
+      userRepository.findByIds.mockResolvedValue([{ ...professorAtivo, active: false }]);
+
+      const erro = await capturarErro(
+        service.update(TURMA_A, { teacher: OUTRO_TEACHER_ID }, { user_id: ADMIN_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details[0].path).toBe("teacher");
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 400 sem ir ao banco quando o id for malformado", async() => {
+      const erro = await capturarErro(
+        service.create({ name: "Turma A", teacher: "id-invalido" }, { user_id: ADMIN_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(userRepository.findByIds).not.toHaveBeenCalled();
+    });
+
+    it("não deve validar professor quando quem cria é a própria professora", async() => {
+      userRepository.findById.mockResolvedValue(teacher());
+
+      await service.create({ name: "Turma A", teacher: OUTRO_TEACHER_ID }, { user_id: TEACHER_ID });
+
+      expect(userRepository.findByIds).not.toHaveBeenCalled();
+      expect(repository.create).toHaveBeenCalledWith({ name: "Turma A", teacher: TEACHER_ID });
     });
   });
 
@@ -341,7 +400,7 @@ describe("ClassService", () => {
       );
 
       expect(erro.statusCode).toBe(403);
-      expect(erro.customMessage).toBe("Teachers can only update their own classes.");
+      expect(erro.customMessage).toBe("Você só pode editar as suas turmas.");
       expect(repository.update).not.toHaveBeenCalled();
     });
 
@@ -362,6 +421,7 @@ describe("ClassService", () => {
     it("deve permitir que o admin altere turma de qualquer professora", async() => {
       repository.findById.mockResolvedValue(turmaDe(TEACHER_ID));
       userRepository.findById.mockResolvedValue(admin());
+      userRepository.findByIds.mockResolvedValue([{ _id: OUTRO_TEACHER_ID, role: "teacher", active: true }]);
       repository.update.mockResolvedValue({});
 
       await service.update(TURMA_A, { teacher: OUTRO_TEACHER_ID }, { user_id: ADMIN_ID });
@@ -393,7 +453,7 @@ describe("ClassService", () => {
       );
 
       expect(erro.statusCode).toBe(400);
-      expect(erro.customMessage).toBe("Class já existe.");
+      expect(erro.customMessage).toBe("Já existe uma turma com este nome.");
       expect(repository.update).not.toHaveBeenCalled();
     });
 

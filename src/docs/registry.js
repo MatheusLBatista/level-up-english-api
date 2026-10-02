@@ -525,7 +525,7 @@ registry.registerPath({
     401: error401Token,
     403: errorResponse(
       "Aluno consultando turma que não é a dele",
-      "Students can only view their own class.",
+      "Você só pode ver a sua turma.",
     ),
     404: error404Class,
   },
@@ -568,7 +568,7 @@ registry.registerPath({
     401: error401Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou turma de outro professor",
-      "Teachers can only update their own classes.",
+      "Você só pode editar as suas turmas.",
     ),
     404: error404Class,
   },
