@@ -11,6 +11,7 @@ import {
   welcomeTeacherTemplate,
 } from "../utils/emailTemplates.js";
 import crypto from "crypto";
+import { ensureTeacherCanEnroll } from "../utils/ClassOwnershipHelper.js";
 
 class AuthService {
   constructor({
@@ -95,7 +96,13 @@ class AuthService {
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
-  async registerStudent({ name, email, class: classId }) {
+  async registerStudent({ name, email, class: classId }, loggedUserId) {
+    const loggedUser = await this.userRepository.findById(loggedUserId);
+
+    if (loggedUser.role === "teacher") {
+      await ensureTeacherCanEnroll(this.classRepository, classId, loggedUser);
+    }
+
     await this.ensureEmailAvailable(email);
 
     if (classId) await this.ensureActiveClasses([classId], "class");

@@ -227,11 +227,71 @@ describe("AuthService", () => {
 
   describe("registerStudent", () => {
     const aluno = { name: "Maria Silva", email: "maria@escola.com" };
+    const ADMIN_ID = "507f1f77bcf86cd799439031";
+    const TEACHER_ID = "507f1f77bcf86cd799439032";
+    const OUTRO_TEACHER_ID = "507f1f77bcf86cd799439033";
 
     const prepararCriacao = () => {
       repository.findByEmail.mockResolvedValue(null);
       repository.create.mockResolvedValue(usuario({ ...aluno, role: "student", password: undefined }));
     };
+
+    // Por padrão quem cadastra é o admin, que não tem restrição de turma.
+    beforeEach(() => {
+      repository.findById.mockResolvedValue(usuario({ _id: ADMIN_ID, role: "admin" }));
+    });
+
+    describe("quando quem cadastra é professor", () => {
+      beforeEach(() => {
+        repository.findById.mockResolvedValue(usuario({ _id: TEACHER_ID, role: "teacher" }));
+      });
+
+      it("deve cadastrar o aluno na turma ativa que é dele", async() => {
+        prepararCriacao();
+        classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true, teacher: TEACHER_ID });
+
+        await service.registerStudent({ ...aluno, class: CLASS_ID }, TEACHER_ID);
+
+        expect(repository.findById).toHaveBeenCalledWith(TEACHER_ID);
+        expect(repository.create).toHaveBeenCalledWith({ ...aluno, role: "student", class: CLASS_ID });
+        expect(classRepository.addStudent).toHaveBeenCalledWith(CLASS_ID, USER_ID);
+        expect(SendMail.enviaEmail).toHaveBeenCalled();
+      });
+
+      it("deve lançar 400 quando a turma não for informada", async() => {
+        prepararCriacao();
+
+        const erro = await capturarErro(service.registerStudent(aluno, TEACHER_ID));
+
+        expect(erro).toBeInstanceOf(CustomError);
+        expect(erro.statusCode).toBe(400);
+        expect(erro.errorType).toBe("validationError");
+        expect(erro.details).toEqual([{ path: "class", message: "Escolha uma das suas turmas." }]);
+        expect(repository.create).not.toHaveBeenCalled();
+        expect(SendMail.enviaEmail).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["de outro professor", { _id: CLASS_ID, active: true, teacher: OUTRO_TEACHER_ID }],
+        ["sem professor", { _id: CLASS_ID, active: true, teacher: null }],
+        ["inexistente", null],
+        ["inativa, mesmo sendo dele", { _id: CLASS_ID, active: false, teacher: TEACHER_ID }],
+      ])("deve lançar 403 sem criar nem enviar e-mail quando a turma for %s", async(_, turma) => {
+        prepararCriacao();
+        classRepository.findPlainById.mockResolvedValue(turma);
+
+        const erro = await capturarErro(service.registerStudent({ ...aluno, class: CLASS_ID }, TEACHER_ID));
+
+        expect(erro).toBeInstanceOf(CustomError);
+        expect(erro.statusCode).toBe(403);
+        expect(erro.errorType).toBe("permissionError");
+        expect(erro.field).toBe("class");
+        expect(erro.customMessage).toBe("Você só pode cadastrar alunos nas suas turmas.");
+        expect(repository.create).not.toHaveBeenCalled();
+        expect(repository.setRecoveryCode).not.toHaveBeenCalled();
+        expect(SendMail.enviaEmail).not.toHaveBeenCalled();
+      });
+    });
 
     it("deve criar o usuário com o papel de aluno", async() => {
       prepararCriacao();

@@ -15,7 +15,7 @@ class AuthController {
 
   async registerStudent(req, res) {
     const body = RegisterStudentBodySchema.parse(req.body);
-    const student = await this.service.registerStudent(body);
+    const student = await this.service.registerStudent(body, req.user_id);
     return CommonResponse.success(res, student, 201, "Aluno cadastrado com sucesso. E-mail de boas-vindas enviado no email cadastrado.");
   }
 

@@ -230,9 +230,11 @@ registry.registerPath({
   tags: ["Auth"],
   summary: "Cadastrar aluno (teacher/admin) — envia e-mail de boas-vindas",
   description:
-    "Se class for informado, a turma precisa existir e estar ativa; isso é conferido "
-    + "antes de criar o aluno, então uma turma inválida não deixa usuário criado pela "
-    + "metade. Criado o aluno, o id dele entra em Class.students da turma.",
+    "Para professor, class é obrigatório e a turma precisa existir, estar ativa e ser "
+    + "dele; admin cadastra em qualquer turma ou sem turma. Se class for informado, a "
+    + "turma precisa existir e estar ativa; isso é conferido antes de criar o aluno e "
+    + "enviar o e-mail, então uma turma inválida não deixa usuário criado pela metade. "
+    + "Criado o aluno, o id dele entra em Class.students da turma.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -242,13 +244,18 @@ registry.registerPath({
   responses: {
     201: commonResponse(UserSchema, "Aluno cadastrado e e-mail enviado"),
     400: errorResponse(
-      "Dados inválidos, e-mail já cadastrado (path email) ou turma inexistente/inativa "
-      + "(path class, \"Turma não encontrada ou inativa.\")",
+      "Dados inválidos, e-mail já cadastrado (path email), turma inexistente/inativa "
+      + "(path class, \"Turma não encontrada ou inativa.\") ou professor sem turma "
+      + "(path class, \"Escolha uma das suas turmas.\")",
       "Turma não encontrada ou inativa.",
       [{ path: "class", message: "Turma não encontrada ou inativa." }],
     ),
     401: error401Token,
-    403: error403,
+    403: errorResponse(
+      "Conta desativada, papel sem acesso à rota, ou professor usando turma que não é "
+      + "dele, inexistente ou inativa",
+      "Você só pode cadastrar alunos nas suas turmas.",
+    ),
   },
 });
 
@@ -457,9 +464,10 @@ registry.registerPath({
   tags: ["Users"],
   summary: "Criar usuário (teacher/admin; professor só cria aluno)",
   description:
-    "Se class for informado, o usuário precisa ser aluno e a turma precisa existir e "
-    + "estar ativa, conferidos antes de criar. Criado o aluno, o id dele entra em "
-    + "Class.students da turma.",
+    "Para professor, class é obrigatório e a turma precisa existir, estar ativa e ser "
+    + "dele; admin cria em qualquer turma ou sem turma. Se class for informado, o "
+    + "usuário precisa ser aluno e a turma precisa existir e estar ativa, conferidos "
+    + "antes de criar. Criado o aluno, o id dele entra em Class.students da turma.",
   security: [{ bearerAuth: [] }],
   request: {
     body: { content: { "application/json": { schema: CreateUserBodySchema } } },
@@ -468,15 +476,18 @@ registry.registerPath({
     201: commonResponse(UserSchema, "Usuário criado"),
     400: errorResponse(
       "Dados inválidos, e-mail já cadastrado, ou turma inválida (path class: "
-      + "\"Turma não encontrada.\", \"Turma não encontrada ou inativa.\" ou "
-      + "\"Apenas alunos podem ser vinculados a uma turma.\")",
+      + "\"Turma não encontrada.\", \"Turma não encontrada ou inativa.\", "
+      + "\"Apenas alunos podem ser vinculados a uma turma.\" ou, para professor sem "
+      + "turma, \"Escolha uma das suas turmas.\")",
       "Turma não encontrada ou inativa.",
       [{ path: "class", message: "Turma não encontrada ou inativa." }],
     ),
     401: error401Token,
     403: errorResponse(
-      "Papel sem acesso à rota, ou professor tentando criar teacher/admin",
-      "Only admins can create users with a role other than student.",
+      "Papel sem acesso à rota, professor tentando criar teacher/admin (\"Only admins "
+      + "can create users with a role other than student.\"), ou professor usando turma "
+      + "que não é dele, inexistente ou inativa",
+      "Você só pode cadastrar alunos nas suas turmas.",
     ),
   },
 });
@@ -535,7 +546,10 @@ registry.registerPath({
   method: "delete",
   path: "/users/{id}",
   tags: ["Users"],
-  summary: "Deletar usuário (aluno só a própria conta; professor, contas de aluno e a dele)",
+  summary: "Deletar usuário (aluno só a própria conta; professor, alunos das turmas dele e a própria conta)",
+  description:
+    "Professor só exclui aluno cuja turma é dele (ativa ou não); aluno sem turma ou de "
+    + "turma de outro professor devolve 403. Admin exclui qualquer conta.",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -546,9 +560,10 @@ registry.registerPath({
     200: commonResponse(z.null(), "Usuário deletado"),
     401: error401Token,
     403: errorResponse(
-      "Aluno tentando deletar a conta de outro usuário, ou professor tentando deletar "
-      + "conta de teacher/admin",
-      "Teachers can only delete student accounts.",
+      "Aluno tentando deletar a conta de outro usuário, professor tentando deletar conta "
+      + "de teacher/admin (\"Teachers can only delete student accounts.\"), ou professor "
+      + "tentando deletar aluno sem turma ou de turma de outro professor",
+      "Você só pode excluir alunos das suas turmas.",
     ),
     404: error404User,
   },

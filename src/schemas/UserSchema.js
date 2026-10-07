@@ -78,7 +78,8 @@ export const CreateUserBodySchema = z
     }),
     class: z.string().optional().openapi({
       example: "507f1f77bcf86cd799439011",
-      description: "Turma ativa. Só para alunos; o id do aluno entra em Class.students.",
+      description: "Turma ativa. Só para alunos; obrigatória para professor, e precisa ser dele. "
+        + "O id do aluno entra em Class.students.",
     }),
   })
   .openapi("CreateUserBody");

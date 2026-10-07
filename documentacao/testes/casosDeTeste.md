@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.6 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.7 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -16,6 +16,7 @@ _versão 2.6 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 30/09/2026 | 2.4    | Regras de conteúdo por tipo no `PATCH /missions/{id}` e `content_url` só http/https: casos `CT-MISSION-017` a `022` | Matheus Lucas |
 | 02/10/2026 | 2.5    | Sincronização aluno ↔ turma, professor válido na turma, `class=none` e migração `sync:class-students`: casos `CT-AUTH-023` a `025`, `CT-USER-022` a `030` e `CT-CLASS-013` a `021`; `class=none` no `CT-PERM-009`; mensagens em português nos `CT-CLASS-002`, `006` e `009` | Matheus Lucas |
 | 02/10/2026 | 2.6    | Cadastro de professor pelo admin (`POST /auth/register-teacher`) e `teacher: null` no `PATCH /classes/{id}`: casos `CT-AUTH-026` a `030` e `CT-CLASS-022` a `024` | Matheus Lucas |
+| 07/10/2026 | 2.7    | Posse da turma no cadastro e na exclusão de aluno pelo professor: casos `CT-AUTH-031` a `034` e `CT-USER-031` a `035`; `CT-AUTH-019`, `024`, `025` e `CT-USER-006`, `016` ajustados; células de professor nos `CT-PERM-002`, `010` e `013` | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -84,18 +85,22 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-016  | Recuperação com e-mail inexistente     | e-mail fora da base                                                 | 200 silencioso, sem código gravado e sem revelar que a conta não existe                  | RF-002 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-017  | Redefinição com código válido          | `POST /auth/reset-password` com o código recebido                   | 200; login com a nova senha funciona e o código é invalidado após o uso                  | RF-002 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-018  | Redefinição com código expirado        | código com `exp_password_recovery_code` no passado                  | 400, "Código de recuperação inválido ou expirado."                                       | RF-002 | Int   | `routes/authRoutes`                | ✅       |
-| CT-AUTH-019  | Cadastro de aluno pelo professor       | `POST /auth/register-student` com nome, e-mail e turma              | 201, usuário criado com `role: "student"`, sem senha definida e com e-mail de boas-vindas | RF-001 | Int   | `routes/authRoutes`                | ✅       |
+| CT-AUTH-019  | Cadastro de aluno pelo professor       | `POST /auth/register-student` como `profA` com nome, e-mail e a `turmaA` | 201, usuário criado com `role: "student"`, sem senha definida e com e-mail de boas-vindas | RF-001 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-020  | Cadastro com e-mail duplicado          | e-mail já usado por outro usuário                                   | 400, "Este e-mail já está cadastrado."                                                   | RF-001 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-021  | Cadastro de aluno por aluno            | `alunoA` chamando `register-student`                                | 403, "Permissão insuficiente para executar a operação."                                  | RF-011 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-022  | Revogação de sessão pelo admin         | `POST /auth/revoke/{userId}` sobre uma sessão ativa                 | 200; o token do alvo deixa de ser aceito na requisição seguinte                          | RF-010 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-023  | Cadastro de aluno sincroniza a turma   | `POST /auth/register-student` com `class` de uma turma ativa        | 201; o id do aluno criado passa a constar em `Class.students` da turma                   | RF-001 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
-| CT-AUTH-024  | Cadastro com turma inexistente         | `class` com id válido que não existe                                | 400 no path `class`, "Turma não encontrada ou inativa."; nenhum usuário criado e nenhum e-mail enviado | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
-| CT-AUTH-025  | Cadastro com turma inativa             | `class` de uma turma com `active: false`                            | 400 com a mesma mensagem do CT-AUTH-024; nenhum usuário criado                           | RF-001 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-024  | Cadastro com turma inexistente         | `class` com id válido que não existe, como `admin`                  | 400 no path `class`, "Turma não encontrada ou inativa."; nenhum usuário criado e nenhum e-mail enviado | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-025  | Cadastro com turma inativa             | `class` de uma turma com `active: false`, como `admin`              | 400 com a mesma mensagem do CT-AUTH-024; nenhum usuário criado                           | RF-001 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-026  | Cadastro de professor pelo admin       | `POST /auth/register-teacher` com nome e e-mail como `admin`        | 201 com `role: "teacher"` e sem `password`; nenhuma senha gravada, código de definição válido por 24 h e e-mail de boas-vindas com o link `/set-password?code=` | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-027  | Cadastro de professor com turmas       | `classes` com a Turma A (dona: `profA`) e uma turma sem professor   | 201; o novo professor passa a ser o `teacher` das duas turmas — o `profA` é substituído na Turma A | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-028  | Cadastro de professor com turma inválida | `classes` com uma turma válida e outra inexistente ou inativa     | 400 no path `classes`, "Turma não encontrada ou inativa."; nenhum usuário criado, nenhuma turma alterada e nenhum e-mail enviado | RF-001 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-029  | Cadastro de professor com e-mail duplicado | e-mail já usado por outro usuário                               | 400 no path `email`, "Este e-mail já está cadastrado."                                  | RF-001 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-030  | Cadastro de professor sem ser admin    | `profA` ou `alunoA` chamando `register-teacher`                     | 403; nenhum usuário criado                                                               | RF-011 | Int   | `routes/authRoutes`                | ✅       |
+| CT-AUTH-031  | Professor cadastra aluno sem turma     | `POST /auth/register-student` como `profA` sem `class`              | 400 no path `class`, "Escolha uma das suas turmas."; nenhum usuário criado e nenhum e-mail enviado | RF-011 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-032  | Professor cadastra aluno em turma alheia | `register-student` como `profA` com `class` da `turmaB`           | 403, "Você só pode cadastrar alunos nas suas turmas."; nenhum usuário criado e nenhum e-mail enviado | RF-011 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-033  | Professor usa turma sem professor, inexistente ou inativa | `register-student` como `profA` com cada uma dessas turmas (a inativa sendo dele) | 403 com a mesma mensagem do CT-AUTH-032 — para o professor, a posse é conferida antes da validação da turma | RF-011 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-034  | Admin cadastra aluno sem turma         | `register-student` como `admin` sem `class`                         | 201; o admin não passa pela regra de posse e pode cadastrar em qualquer turma ou sem turma | RF-001 | Int   | `routes/authRoutes`                | ✅       |
 **Pendência do módulo.** O `CT-AUTH-012` é o único caso de autenticação sem teste. Ele é o caminho que passa pelo `else if (err.name === "TokenExpiredError")` do `AuthMiddleware`, e forçá-lo exige assinar um access token com `expiresIn` negativo — não dá para esperar o token vencer dentro da suíte. A classe `TokenExpiredError` já tem teste próprio em `utils/errors/TokenExpiredError`, mas o caminho da rota, do token vencido até o corpo da resposta, não é exercido por ninguém.
 
 ---
@@ -109,7 +114,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-USER-003  | Aluno consulta o próprio perfil      | `GET /users/{id do alunoA}` como `alunoA`                               | 200 com os dados dele, sem `password`                                                     | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-004  | Aluno consulta perfil alheio         | `GET /users/{id do alunoB}` como `alunoA`                               | 403, "Students can only view their own profile."                                          | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-005  | Consulta de usuário inexistente      | id válido que não existe                                                | 404, "Recurso não encontrado em User."                                                    | RF-001 | Int   | `routes/userRoutes`   | ✅       |
-| CT-USER-006  | Professor cria aluno                 | `POST /users` com `role: "student"` e senha                             | 201; a senha é gravada com hash bcrypt e nunca retorna na resposta                        | RF-001 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-006  | Professor cria aluno                 | `POST /users` como `profA` com `role: "student"`, senha e a `turmaA`    | 201; a senha é gravada com hash bcrypt e nunca retorna na resposta                        | RF-001 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-007  | Professor tenta criar admin          | `POST /users` com `role: "admin"`                                       | 403, "Only admins can create users with a role other than student."                       | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-008  | Criação com e-mail duplicado         | e-mail já cadastrado                                                    | 400, "Email already registered."                                                          | RF-001 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-009  | Atualização do próprio perfil        | `PATCH /users/{próprio id}` com `{ name }`                              | 200 com o nome atualizado                                                                 | RF-001 | Int   | `routes/userRoutes`   | ✅       |
@@ -119,7 +124,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-USER-013  | Aluno exclui conta alheia            | `alunoA` excluindo `alunoB`                                             | 403, "Students can only delete their own account."                                        | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-014  | Professor exclui conta de admin      | `profA` excluindo `admin`                                               | 403, "Teachers can only delete student accounts."                                         | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-015  | Professor exclui outro professor     | `profA` excluindo `profB`                                               | 403, mesma mensagem do CT-USER-014                                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
-| CT-USER-016  | Professor exclui aluno               | `profA` excluindo `alunoA`                                              | 200 e o aluno some da base                                                                | RF-011 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-016  | Professor exclui aluno da turma dele | `profA` excluindo `alunoA`                                              | 200; o aluno some da base e sai de `Class.students` da `turmaA`                           | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-017  | Recálculo de níveis pelo admin       | `POST /users/recalculate-levels` com usuários de nível defasado          | 200 e `updated` igual à quantidade de usuários corrigidos                                 | RF-006 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-018  | Professor lista alunos da turma dele | `GET /users?role=student&class={turmaA}&active=true&limit=100` como `profA` | 200, apenas os alunos ativos da `turmaA` — sem o filtro de papel e situação, vêm todos os usuários da turma | RF-001 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
 | CT-USER-019  | Professor filtra turma alheia        | `GET /users?class={turmaB}` como `profA`                                | 403, "Você só pode listar alunos das suas turmas."                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
@@ -134,6 +139,11 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-USER-028  | Exclusão de aluno com turma          | `DELETE /users/{alunoA}` como `admin`                                   | 200; o id do aluno sai de `Class.students` da `turmaA`                                    | RF-001 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-029  | Admin lista usuários sem turma       | `GET /users?class=none&role=student` como `admin`                       | 200, apenas os alunos com `class` nulo ou ausente; nenhuma turma é consultada              | RF-001 | Int   | `routes/userRoutes`, `services/UserService`, `repository/filters/UserFilterBuild` | ✅ |
 | CT-USER-030  | Professor usa `class=none`           | `GET /users?class=none` como `profA`                                    | 403, "Só o admin pode listar alunos sem turma."                                           | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-031  | Professor cria aluno sem turma       | `POST /users` como `profA` sem `class`                                  | 400 no path `class`, "Escolha uma das suas turmas."; nenhum usuário criado                | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-032  | Professor cria aluno em turma alheia | `POST /users` como `profA` com `class` da `turmaB`                      | 403, "Você só pode cadastrar alunos nas suas turmas."; nenhum usuário criado              | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-033  | Admin cria aluno sem turma           | `POST /users` como `admin` sem `class`                                  | 201; o admin não passa pela regra de posse                                                | RF-001 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-034  | Professor exclui aluno de turma alheia | `profA` excluindo `alunoB`                                            | 403, "Você só pode excluir alunos das suas turmas."; o aluno segue na base e em `Class.students` da `turmaB` | RF-011 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-035  | Professor exclui aluno sem turma     | `profA` excluindo `semTurma`                                            | 403 com a mesma mensagem do CT-USER-034; o aluno segue na base                            | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 
 ---
 
@@ -284,7 +294,7 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | ID           | Operação                          | student                         | teacher                              | admin | Suíte                       | Situação |
 | ------------ | --------------------------------- | ------------------------------- | ------------------------------------ | ----- | --------------------------- | -------- |
 | CT-PERM-001  | `POST /auth/login`                | público                         | público                              | público | `routes/authRoutes`       | ✅       |
-| CT-PERM-002  | `POST /auth/register-student`     | 403                             | 201                                  | 201   | `routes/authRoutes`         | ✅       |
+| CT-PERM-002  | `POST /auth/register-student`     | 403                             | 201 na própria turma / 403 turma de outro | 201 | `routes/authRoutes`         | ✅       |
 | CT-PERM-003  | `POST /auth/refresh`              | público                         | público                              | público | `routes/authRoutes`       | ✅       |
 | CT-PERM-004  | `POST /auth/forgot-password`      | público                         | público                              | público | `routes/authRoutes`       | ✅       |
 | CT-PERM-005  | `POST /auth/reset-password`       | público                         | público                              | público | `routes/authRoutes`       | ✅       |
@@ -292,10 +302,10 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-007  | `POST /auth/logout`               | 200                             | 200                                  | 200   | `routes/authRoutes`         | ✅       |
 | CT-PERM-008  | `POST /auth/revoke/{userId}`      | 403                             | 403                                  | 200   | `routes/authRoutes`         | ✅       |
 | CT-PERM-009  | `GET /users`                      | 403                             | 200 / 403 com `class` de outra turma ou `class=none` | 200   | `routes/userRoutes`         | ✅       |
-| CT-PERM-010  | `POST /users`                     | 403                             | 201 aluno / 403 teacher ou admin     | 201   | `routes/userRoutes`         | ✅       |
+| CT-PERM-010  | `POST /users`                     | 403                             | 201 aluno na própria turma / 403 teacher, admin ou turma de outro | 201 | `routes/userRoutes`         | ✅       |
 | CT-PERM-011  | `GET /users/{id}`                 | 200 próprio / 403 outro         | 200                                  | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-012  | `PATCH /users/{id}`               | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
-| CT-PERM-013  | `DELETE /users/{id}`              | 200 próprio / 403 outro         | 200 aluno e próprio / 403 privilegiado | 200 | `routes/userRoutes`         | ✅       |
+| CT-PERM-013  | `DELETE /users/{id}`              | 200 próprio / 403 outro         | 200 aluno da própria turma e próprio / 403 privilegiado ou aluno de outra turma | 200 | `routes/userRoutes`         | ✅       |
 | CT-PERM-014  | `POST /users/recalculate-levels`  | 403                             | 403                                  | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-015  | `GET /classes`                    | 200 só a própria turma          | 200                                  | 200   | `routes/classRoutes`        | ✅       |
 | CT-PERM-016  | `POST /classes`                   | 403                             | 201                                  | 201   | `routes/classRoutes`        | ✅       |
@@ -380,12 +390,12 @@ Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Ele
 
 ## 11 - Resumo
 
-Situação em 02/10/2026, com a suíte em **48 arquivos de teste e 1093 testes**, executando em cerca de 7 segundos.
+Situação em 07/10/2026, com a suíte em **48 arquivos de teste e 1117 testes**, executando em cerca de 7 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
-| Autenticação e sessão         | `CT-AUTH`    | 30    | 29               | 1            |
-| Usuários                      | `CT-USER`    | 30    | 30               | 0            |
+| Autenticação e sessão         | `CT-AUTH`    | 34    | 33               | 1            |
+| Usuários                      | `CT-USER`    | 35    | 35               | 0            |
 | Turmas                        | `CT-CLASS`   | 24    | 24               | 0            |
 | Missões                       | `CT-MISSION` | 22    | 22               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 21    | 21               | 0            |
@@ -393,7 +403,7 @@ Situação em 02/10/2026, com a suíte em **48 arquivos de teste e 1093 testes**
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **202** | **196 (97,0%)** | **6**        |
+| **Total**                     | -            | **211** | **205 (97,2%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 
