@@ -632,13 +632,51 @@ describe("Rotas de usuários", () => {
       expect(await User.findById(outro._id)).not.toBeNull();
     });
 
-    it("deve permitir que a professora apague a conta de um aluno", async() => {
+    it("deve permitir que a professora apague um aluno da turma dela", async() => {
+      const turma = await Class.create({ name: "Turma A", teacher: teacher._id, students: [student._id] });
+      await User.findByIdAndUpdate(student._id, { class: turma._id });
+
       const res = await request(app)
         .delete(`/users/${student._id}`)
         .set("Authorization", await como(teacher));
 
       expect(res.status).toBe(200);
       expect(await User.findById(student._id)).toBeNull();
+      expect((await Class.findById(turma._id)).students).toHaveLength(0);
+    });
+
+    it("deve retornar 403 quando a professora apaga um aluno de turma de outro professor", async() => {
+      const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com", role: "teacher" });
+      const turma = await Class.create({ name: "Turma B", teacher: outro._id, students: [student._id] });
+      await User.findByIdAndUpdate(student._id, { class: turma._id });
+
+      const res = await request(app)
+        .delete(`/users/${student._id}`)
+        .set("Authorization", await como(teacher));
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Você só pode excluir alunos das suas turmas.");
+      expect(await User.findById(student._id)).not.toBeNull();
+      expect((await Class.findById(turma._id)).students.map(String)).toEqual([String(student._id)]);
+    });
+
+    it("deve retornar 403 quando a professora apaga um aluno sem turma", async() => {
+      const res = await request(app)
+        .delete(`/users/${student._id}`)
+        .set("Authorization", await como(teacher));
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Você só pode excluir alunos das suas turmas.");
+      expect(await User.findById(student._id)).not.toBeNull();
+    });
+
+    it("deve permitir que a professora apague a própria conta", async() => {
+      const res = await request(app)
+        .delete(`/users/${teacher._id}`)
+        .set("Authorization", await como(teacher));
+
+      expect(res.status).toBe(200);
+      expect(await User.findById(teacher._id)).toBeNull();
     });
 
     it("deve retornar 403 quando a professora apaga uma conta privilegiada", async() => {

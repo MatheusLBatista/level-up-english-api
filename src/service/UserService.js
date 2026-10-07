@@ -192,6 +192,12 @@ class UserService {
       });
     }
 
+    if (loggedUser.role === "teacher" && !isSelf) {
+      const classDoc = target.class ? await this.classRepository.findPlainById(target.class) : null;
+
+      ensureTeacherOwnsClass(classDoc, loggedUser, "Você só pode excluir alunos das suas turmas.");
+    }
+
     const deleted = await this.repository.delete(id);
 
     if (target.class) {
