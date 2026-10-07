@@ -309,22 +309,59 @@ describe("Rotas de usuários", () => {
   describe("POST /users", () => {
     const novoUsuario = { name: "Maria Silva", email: "maria@escola.com", password: "senha123" };
 
-    it("deve permitir que a professora cadastre um aluno", async() => {
+    it("deve permitir que a professora cadastre um aluno na turma dela", async() => {
+      const turma = await Class.create({ name: "Turma A", teacher: teacher._id });
+
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(teacher))
+        .send({ ...novoUsuario, class: String(turma._id) });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.email).toBe(novoUsuario.email);
+      expect(res.body.data.role).toBe("student");
+      expect(res.body.data.class).toBe(String(turma._id));
+      expect(res.body.data).not.toHaveProperty("password");
+    });
+
+    it("deve permitir que o admin cadastre um aluno sem turma", async() => {
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(admin))
+        .send(novoUsuario);
+
+      expect(res.status).toBe(201);
+    });
+
+    it("deve retornar 400 quando a professora não informar a turma", async() => {
       const res = await request(app)
         .post("/users")
         .set("Authorization", await como(teacher))
         .send(novoUsuario);
 
-      expect(res.status).toBe(201);
-      expect(res.body.data.email).toBe(novoUsuario.email);
-      expect(res.body.data.role).toBe("student");
-      expect(res.body.data).not.toHaveProperty("password");
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "class", message: "Escolha uma das suas turmas." }]);
+      expect(await User.findOne({ email: novoUsuario.email })).toBeNull();
+    });
+
+    it("deve retornar 403 sem criar o aluno quando a turma for de outro professor", async() => {
+      const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com", role: "teacher" });
+      const turma = await Class.create({ name: "Turma B", teacher: outro._id });
+
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(teacher))
+        .send({ ...novoUsuario, class: String(turma._id) });
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Você só pode cadastrar alunos nas suas turmas.");
+      expect(await User.findOne({ email: novoUsuario.email })).toBeNull();
     });
 
     it("deve gravar a senha com hash bcrypt", async() => {
       await request(app)
         .post("/users")
-        .set("Authorization", await como(teacher))
+        .set("Authorization", await como(admin))
         .send(novoUsuario);
 
       const criado = await User.findOne({ email: novoUsuario.email }).select("+password");
@@ -382,7 +419,7 @@ describe("Rotas de usuários", () => {
     it("deve retornar 400 quando o e-mail já estiver cadastrado", async() => {
       const res = await request(app)
         .post("/users")
-        .set("Authorization", await como(teacher))
+        .set("Authorization", await como(admin))
         .send({ ...novoUsuario, email: student.email });
 
       expect(res.status).toBe(400);

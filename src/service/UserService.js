@@ -5,6 +5,7 @@ import {
 import AuthHelper from "../utils/AuthHelper.js";
 import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
+import { ensureTeacherCanEnroll, ensureTeacherOwnsClass } from "../utils/ClassOwnershipHelper.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
 
 class UserService {
@@ -38,17 +39,7 @@ class UserService {
 
     if (loggedUser.role !== "teacher") return;
 
-    const ownerId = classDoc.teacher?._id ?? classDoc.teacher;
-
-    if (String(ownerId) !== String(loggedUser._id)) {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.FORBIDDEN.code,
-        errorType: "permissionError",
-        field: "class",
-        details: [],
-        customMessage: "Você só pode listar alunos das suas turmas.",
-      });
-    }
+    ensureTeacherOwnsClass(classDoc, loggedUser, "Você só pode listar alunos das suas turmas.");
   }
 
   async list(req) {
@@ -90,6 +81,10 @@ class UserService {
         details: [],
         customMessage: "Only admins can create users with a role other than student.",
       });
+    }
+
+    if (loggedUser.role === "teacher") {
+      await ensureTeacherCanEnroll(this.classRepository, parsedData.class, loggedUser);
     }
 
     await this.validateEmail(parsedData.email);

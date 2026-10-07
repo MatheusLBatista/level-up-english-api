@@ -383,57 +383,77 @@ describe("Rotas de autenticação", () => {
   describe("POST /auth/register-student", () => {
     const novoAluno = { name: "Maria Silva", email: "maria@escola.com" };
 
-    it("deve permitir que a professora cadastre um aluno", async() => {
-      const { accessToken } = await autenticar(teacher.email);
+    const cadastrarAluno = async(quem, corpo) => {
+      const { accessToken } = await autenticar(quem.email);
 
-      const res = await request(app)
+      return await request(app)
         .post("/auth/register-student")
         .set("Authorization", `Bearer ${accessToken}`)
-        .send(novoAluno);
+        .send(corpo);
+    };
+
+    it("deve permitir que a professora cadastre um aluno na turma dela", async() => {
+      const turma = await Class.create({ name: "Turma A", teacher: teacher._id });
+
+      const res = await cadastrarAluno(teacher, { ...novoAluno, class: String(turma._id) });
 
       expect(res.status).toBe(201);
       expect(res.body.data.email).toBe(novoAluno.email);
       expect(res.body.data.role).toBe("student");
-      expect(res.body.data).not.toHaveProperty("password");
-    });
-
-    it("deve permitir que o admin cadastre um aluno", async() => {
-      const { accessToken } = await autenticar(admin.email);
-
-      const res = await request(app)
-        .post("/auth/register-student")
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send(novoAluno);
-
-      expect(res.status).toBe(201);
-    });
-
-    it("deve vincular o aluno à turma informada e incluí-lo em Class.students", async() => {
-      const { accessToken } = await autenticar(teacher.email);
-      const turma = await Class.create({ name: "Turma A" });
-
-      const res = await request(app)
-        .post("/auth/register-student")
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send({ ...novoAluno, class: String(turma._id) });
-
-      expect(res.status).toBe(201);
       expect(res.body.data.class).toBe(String(turma._id));
+      expect(res.body.data).not.toHaveProperty("password");
 
       const atualizada = await Class.findById(turma._id);
       expect(atualizada.students.map(String)).toEqual([res.body.data._id]);
     });
 
+    it("deve permitir que o admin cadastre um aluno sem turma", async() => {
+      const res = await cadastrarAluno(admin, novoAluno);
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.class).toBeUndefined();
+    });
+
+    it("deve permitir que o admin cadastre um aluno em turma de qualquer professor", async() => {
+      const turma = await Class.create({ name: "Turma A", teacher: teacher._id });
+
+      const res = await cadastrarAluno(admin, { ...novoAluno, class: String(turma._id) });
+
+      expect(res.status).toBe(201);
+    });
+
+    it("deve retornar 400 sem enviar e-mail quando a professora não informar a turma", async() => {
+      const res = await cadastrarAluno(teacher, novoAluno);
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "class", message: "Escolha uma das suas turmas." }]);
+      expect(await User.findOne({ email: novoAluno.email })).toBeNull();
+      expect(SendMail.enviaEmail).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["de outro professor", async() => {
+        const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com", role: "teacher" });
+        return String((await Class.create({ name: "Turma B", teacher: outro._id }))._id);
+      }],
+      ["sem professor", async() => String((await Class.create({ name: "Turma C" }))._id)],
+      ["inexistente", () => new mongoose.Types.ObjectId().toString()],
+      ["inativa", async() =>
+        String((await Class.create({ name: "Turma Antiga", teacher: teacher._id, active: false }))._id)],
+    ])("deve retornar 403 sem criar o aluno nem enviar e-mail quando a professora usar turma %s", async(_, criarTurma) => {
+      const res = await cadastrarAluno(teacher, { ...novoAluno, class: await criarTurma() });
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Você só pode cadastrar alunos nas suas turmas.");
+      expect(await User.findOne({ email: novoAluno.email })).toBeNull();
+      expect(SendMail.enviaEmail).not.toHaveBeenCalled();
+    });
+
     it.each([
       ["inexistente", () => new mongoose.Types.ObjectId().toString()],
       ["inativa", async() => String((await Class.create({ name: "Turma Antiga", active: false }))._id)],
-    ])("deve retornar 400 sem criar o aluno quando a turma for %s", async(_, criarTurma) => {
-      const { accessToken } = await autenticar(teacher.email);
-
-      const res = await request(app)
-        .post("/auth/register-student")
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send({ ...novoAluno, class: await criarTurma() });
+    ])("deve retornar 400 sem criar o aluno quando o admin usar turma %s", async(_, criarTurma) => {
+      const res = await cadastrarAluno(admin, { ...novoAluno, class: await criarTurma() });
 
       expect(res.status).toBe(400);
       expect(res.body.errors).toEqual([{ path: "class", message: "Turma não encontrada ou inativa." }]);
@@ -442,12 +462,7 @@ describe("Rotas de autenticação", () => {
     });
 
     it("deve enviar o e-mail de boas-vindas com código de definição de senha", async() => {
-      const { accessToken } = await autenticar(teacher.email);
-
-      await request(app)
-        .post("/auth/register-student")
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send(novoAluno);
+      await cadastrarAluno(admin, novoAluno);
 
       expect(SendMail.enviaEmail).toHaveBeenCalledWith(expect.objectContaining({ to: novoAluno.email }));
 
@@ -468,12 +483,7 @@ describe("Rotas de autenticação", () => {
     });
 
     it("deve retornar 400 quando o e-mail já estiver cadastrado", async() => {
-      const { accessToken } = await autenticar(teacher.email);
-
-      const res = await request(app)
-        .post("/auth/register-student")
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send({ ...novoAluno, email: student.email });
+      const res = await cadastrarAluno(admin, { ...novoAluno, email: student.email });
 
       expect(res.status).toBe(400);
       expect(res.body.message).toBe("Este e-mail já está cadastrado.");
