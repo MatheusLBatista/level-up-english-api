@@ -31,7 +31,8 @@ export const RegisterStudentBodySchema = z
     email: z.string().email().openapi({ example: "joao@escola.com" }),
     class: z.string().optional().openapi({
       example: "507f1f77bcf86cd799439011",
-      description: "Turma ativa. O id do aluno criado entra em Class.students.",
+      description: "Turma ativa. Obrigatória para professor, e precisa ser dele. "
+        + "O id do aluno criado entra em Class.students.",
     }),
   })
   .openapi("RegisterStudentBody");
