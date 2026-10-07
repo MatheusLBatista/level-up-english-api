@@ -39,7 +39,7 @@ Camadas no padrão **Controller → Service → Repository**, com:
 * MongoDB + Mongoose (paginação via `mongoose-paginate-v2`)
 * Zod + zod-to-openapi (validação e Swagger)
 * JWT (`jsonwebtoken`) + Bcrypt
-* MailerSend (envio de e-mail via API HTTP)
+* Nodemailer + Gmail (envio de e-mail via SMTP)
 * Helmet, CORS, Compression
 * Docker / Docker Compose
 * Jest + Supertest + `mongodb-memory-server` (testes)
@@ -97,7 +97,7 @@ Todas as variáveis, com comentários, estão em `.env.example`. As obrigatória
 * `DB_URL` — string de conexão do MongoDB.
 * `APP_PORT` — porta da aplicação (padrão `5011`).
 * `JWT_SECRET_ACCESS_TOKEN`, `JWT_SECRET_REFRESH_TOKEN`, `JWT_SECRET_PASSWORD_RECOVERY` — gere com `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`.
-* `MAILERSEND_API_KEY`, `MAILERSEND_FROM_EMAIL`, `MAILERSEND_FROM_NAME` — envio de e-mail (recuperação de senha) via API HTTP do MailerSend. Use `DISABLED_EMAIL=true` para desativar o envio (ex.: em testes locais).
+* `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_FROM_NAME` — envio de e-mail (recuperação de senha) via SMTP do Gmail, com senha de app. Use `DISABLED_EMAIL=true` para desativar o envio (ex.: em testes locais).
 * `FRONTEND_URL` — usada para montar o link de reset de senha enviado por e-mail.
 
 Opcionais (têm valor padrão ou só fazem sentido em produção):
