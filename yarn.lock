@@ -4251,6 +4251,11 @@ node-releases@^2.0.19:
   resolved "https://registry.npmjs.org/node-releases/-/node-releases-2.0.19.tgz"
   integrity sha512-xxOWJsBKtzAq7DY0J+DTzuz58K8e7sJbdgwkbMWQe8UYB6ekmsQ45q0M/tJDsGaZmbC+l7n57UV8Hl5tHxO9uw==
 
+nodemailer@^10.0.16:
+  version "10.0.16"
+  resolved "https://registry.npmjs.org/nodemailer/-/nodemailer-10.0.16.tgz"
+  integrity sha512-VL9xKErxN+el77o8eBOuYKUPMyEx7F9hfnDCuiUKJRp9v3wnWMOudYgP/SWbwSHy8rUL4cylobuXtki1LpQS7A==
+
 nodemon@^3.1.9:
   version "3.1.10"
   resolved "https://registry.npmjs.org/nodemon/-/nodemon-3.1.10.tgz"
