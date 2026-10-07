@@ -89,7 +89,7 @@ describe("AuthController", () => {
 
       await controller.registerStudent(req, res);
 
-      expect(controller.service.registerStudent).toHaveBeenCalledWith(aluno);
+      expect(controller.service.registerStudent).toHaveBeenCalledWith(aluno, USER_ID);
       esperarResposta(
         201,
         "Aluno cadastrado com sucesso. E-mail de boas-vindas enviado no email cadastrado.",
@@ -103,7 +103,7 @@ describe("AuthController", () => {
 
       await controller.registerStudent(req, res);
 
-      expect(controller.service.registerStudent).toHaveBeenCalledWith({ ...aluno, class: USER_ID });
+      expect(controller.service.registerStudent).toHaveBeenCalledWith({ ...aluno, class: USER_ID }, USER_ID);
     });
 
     it("deve rejeitar quando o nome tiver menos de 2 caracteres", async() => {

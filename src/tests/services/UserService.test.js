@@ -198,35 +198,65 @@ describe("UserService", () => {
     const novoAluno = { name: "Maria", email: "maria@escola.com", password: "senha123" };
 
     it("deve criar o usuário com a senha em hash", async() => {
-      responderFindById(teacher());
+      responderFindById(admin());
       repository.findByEmail.mockResolvedValue(null);
       repository.create.mockResolvedValue({});
 
-      await service.create({ ...novoAluno }, { user_id: TEACHER_ID });
+      await service.create({ ...novoAluno }, { user_id: ADMIN_ID });
 
       const [dados] = repository.create.mock.calls[0];
       expect(dados.password).not.toBe(novoAluno.password);
       expect(await bcrypt.compare(novoAluno.password, dados.password)).toBe(true);
     });
 
-    it("deve permitir que a professora crie aluno", async() => {
-      responderFindById(teacher());
-      repository.findByEmail.mockResolvedValue(null);
-      repository.create.mockResolvedValue({});
+    describe("quando quem cria é professora", () => {
+      const CLASS_ID = "507f1f77bcf86cd799439021";
 
-      await service.create({ ...novoAluno, role: "student" }, { user_id: TEACHER_ID });
+      beforeEach(() => {
+        responderFindById(teacher());
+        repository.findByEmail.mockResolvedValue(null);
+        repository.create.mockResolvedValue({ _id: STUDENT_ID });
+      });
 
-      expect(repository.create).toHaveBeenCalled();
-    });
+      it.each([
+        ["informando o papel de aluno", { role: "student" }],
+        ["sem informar papel", {}],
+      ])("deve criar o aluno na turma dela %s", async(_, papel) => {
+        classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true, teacher: TEACHER_ID });
 
-    it("deve permitir que a professora crie sem informar papel", async() => {
-      responderFindById(teacher());
-      repository.findByEmail.mockResolvedValue(null);
-      repository.create.mockResolvedValue({});
+        await service.create({ ...novoAluno, ...papel, class: CLASS_ID }, { user_id: TEACHER_ID });
 
-      await service.create({ ...novoAluno }, { user_id: TEACHER_ID });
+        expect(repository.create).toHaveBeenCalled();
+        expect(classRepository.addStudent).toHaveBeenCalledWith(CLASS_ID, STUDENT_ID);
+      });
 
-      expect(repository.create).toHaveBeenCalled();
+      it("deve lançar 400 quando a turma não for informada", async() => {
+        const erro = await capturarErro(service.create({ ...novoAluno }, { user_id: TEACHER_ID }));
+
+        expect(erro.statusCode).toBe(400);
+        expect(erro.errorType).toBe("validationError");
+        expect(erro.details).toEqual([{ path: "class", message: "Escolha uma das suas turmas." }]);
+        expect(repository.create).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["de outro professor", { _id: CLASS_ID, active: true, teacher: OUTRO_ID }],
+        ["inexistente", null],
+        ["inativa, mesmo sendo dela", { _id: CLASS_ID, active: false, teacher: TEACHER_ID }],
+      ])("deve lançar 403 sem criar o usuário quando a turma for %s", async(_, turma) => {
+        classRepository.findPlainById.mockResolvedValue(turma);
+
+        const erro = await capturarErro(
+          service.create({ ...novoAluno, class: CLASS_ID }, { user_id: TEACHER_ID }),
+        );
+
+        expect(erro.statusCode).toBe(403);
+        expect(erro.errorType).toBe("permissionError");
+        expect(erro.field).toBe("class");
+        expect(erro.customMessage).toBe("Você só pode cadastrar alunos nas suas turmas.");
+        expect(repository.create).not.toHaveBeenCalled();
+        expect(classRepository.addStudent).not.toHaveBeenCalled();
+      });
     });
 
     it("deve lançar 403 quando a professora tenta criar um usuário privilegiado", async() => {
@@ -558,13 +588,55 @@ describe("UserService", () => {
       expect(repository.delete).not.toHaveBeenCalled();
     });
 
-    it("deve permitir que a professora apague a conta de um aluno", async() => {
-      responderFindById(teacher(), student());
-      repository.delete.mockResolvedValue({ _id: STUDENT_ID });
+    describe("quando a professora apaga um aluno", () => {
+      const CLASS_ID = "507f1f77bcf86cd799439021";
+      const alunoDaTurma = () => usuario(STUDENT_ID, "student", { class: CLASS_ID });
 
-      await service.delete(STUDENT_ID, { user_id: TEACHER_ID });
+      it("deve apagar o aluno da turma dela", async() => {
+        responderFindById(teacher(), alunoDaTurma());
+        classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true, teacher: TEACHER_ID });
+        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
 
-      expect(repository.delete).toHaveBeenCalledWith(STUDENT_ID);
+        await service.delete(STUDENT_ID, { user_id: TEACHER_ID });
+
+        expect(classRepository.findPlainById).toHaveBeenCalledWith(CLASS_ID);
+        expect(repository.delete).toHaveBeenCalledWith(STUDENT_ID);
+        expect(classRepository.removeStudent).toHaveBeenCalledWith(CLASS_ID, STUDENT_ID);
+      });
+
+      it("deve apagar o aluno mesmo que a turma dela esteja inativa", async() => {
+        responderFindById(teacher(), alunoDaTurma());
+        classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: false, teacher: TEACHER_ID });
+
+        await service.delete(STUDENT_ID, { user_id: TEACHER_ID });
+
+        expect(repository.delete).toHaveBeenCalledWith(STUDENT_ID);
+      });
+
+      it("deve lançar 403 quando o aluno for de turma de outro professor", async() => {
+        responderFindById(teacher(), alunoDaTurma());
+        classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true, teacher: OUTRO_ID });
+
+        const erro = await capturarErro(service.delete(STUDENT_ID, { user_id: TEACHER_ID }));
+
+        expect(erro.statusCode).toBe(403);
+        expect(erro.errorType).toBe("permissionError");
+        expect(erro.field).toBe("class");
+        expect(erro.customMessage).toBe("Você só pode excluir alunos das suas turmas.");
+        expect(repository.delete).not.toHaveBeenCalled();
+        expect(classRepository.removeStudent).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 403 quando o aluno não tiver turma", async() => {
+        responderFindById(teacher(), student());
+
+        const erro = await capturarErro(service.delete(STUDENT_ID, { user_id: TEACHER_ID }));
+
+        expect(erro.statusCode).toBe(403);
+        expect(erro.customMessage).toBe("Você só pode excluir alunos das suas turmas.");
+        expect(classRepository.findPlainById).not.toHaveBeenCalled();
+        expect(repository.delete).not.toHaveBeenCalled();
+      });
     });
 
     it("deve lançar 403 quando a professora tenta apagar uma conta não-aluno", async() => {
