@@ -26,7 +26,7 @@ router
   .post("/auth/forgot-password", asyncWrapper(authController.forgotPassword.bind(authController)))
   .post("/auth/reset-password", asyncWrapper(authController.resetPassword.bind(authController)))
   .patch("/auth/change-password", authMiddleware, asyncWrapper(authController.changePassword.bind(authController)))
-  .post("/auth/logout", authMiddleware, asyncWrapper(authController.logout.bind(authController)))
+  .post("/auth/logout", asyncWrapper(authController.logout.bind(authController)))
   .post(
     "/auth/revoke/:userId",
     authMiddleware,

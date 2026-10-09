@@ -156,10 +156,60 @@ describe("AuthService", () => {
   });
 
   describe("logout", () => {
-    it("deve remover os tokens do usuário", async() => {
-      await service.logout(USER_ID);
+    const armazenado = "refresh-armazenado";
 
+    beforeEach(() => {
+      service.tokenUtil.verifyRefreshToken.mockResolvedValue({ id: USER_ID });
+    });
+
+    it("deve remover os tokens quando o refresh token for o salvo no usuário", async() => {
+      repository.findById.mockResolvedValue(usuario({ refreshtoken: armazenado }));
+
+      await service.logout(armazenado);
+
+      expect(service.tokenUtil.verifyRefreshToken).toHaveBeenCalledWith(armazenado);
+      expect(repository.findById).toHaveBeenCalledWith(USER_ID, true);
       expect(repository.removeTokens).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it("não deve lançar nem remover tokens quando o refresh token for inválido", async() => {
+      service.tokenUtil.verifyRefreshToken.mockRejectedValue(new Error("jwt expired"));
+
+      await expect(service.logout("token-expirado")).resolves.toBeUndefined();
+
+      expect(repository.findById).not.toHaveBeenCalled();
+      expect(repository.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it("não deve remover tokens quando o refresh token não conferir com o salvo", async() => {
+      repository.findById.mockResolvedValue(usuario({ refreshtoken: "outro-refresh" }));
+
+      await expect(service.logout(armazenado)).resolves.toBeUndefined();
+
+      expect(repository.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it("não deve remover tokens quando o usuário já não tiver sessão", async() => {
+      repository.findById.mockResolvedValue(usuario({ refreshtoken: null }));
+
+      await expect(service.logout(armazenado)).resolves.toBeUndefined();
+
+      expect(repository.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it("não deve lançar quando o usuário do token não existir mais", async() => {
+      repository.findById.mockRejectedValue(new CustomError({ statusCode: 404, errorType: "resourceNotFound" }));
+
+      await expect(service.logout(armazenado)).resolves.toBeUndefined();
+
+      expect(repository.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it("deve propagar erros que não sejam de usuário inexistente", async() => {
+      const falhaBanco = new Error("conexão perdida");
+      repository.findById.mockRejectedValue(falhaBanco);
+
+      await expect(service.logout(armazenado)).rejects.toBe(falhaBanco);
     });
   });
 
