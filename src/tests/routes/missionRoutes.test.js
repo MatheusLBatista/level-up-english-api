@@ -404,6 +404,20 @@ describe("Rotas de missões", () => {
       expect(await xpDe(alunoA)).toBe(100);
     });
 
+    it("deve manter gravada a melhor nota quando o aluno refaz e piora", async() => {
+      await submeter(alunoA, quiz, { answers: GABARITO });
+
+      const res = await submeter(alunoA, quiz, { answers: ["a", "b", "c", "a", "b"] });
+
+      expect(res.body.data.score).toBe(60);
+      expect(res.body.data.correct_answers).toBe(3);
+      expect(res.body.data.best_score).toBe(100);
+
+      const salvo = await User.findById(alunoA._id);
+      expect(salvo.mission_progress[0].score).toBe(100);
+      expect(salvo.mission_progress[0].done).toBe(true);
+    });
+
     it("deve exigir o score em missão que não é quiz", async() => {
       const res = await submeter(alunoA, vocabulario, {});
 

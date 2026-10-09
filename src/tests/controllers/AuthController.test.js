@@ -176,14 +176,21 @@ describe("AuthController", () => {
   });
 
   describe("logout", () => {
-    it("deve encerrar a sessão do usuário autenticado", async() => {
+    it("deve repassar o refresh token do corpo ao service", async() => {
+      req.body = { refreshToken: "refresh" };
       controller.service.logout.mockResolvedValue(undefined);
 
       await controller.logout(req, res);
 
-      // O id vem do token, nunca do corpo da requisição.
-      expect(controller.service.logout).toHaveBeenCalledWith(USER_ID);
+      expect(controller.service.logout).toHaveBeenCalledWith("refresh");
       esperarResposta(200, "Logout realizado com sucesso.", null);
+    });
+
+    it("deve rejeitar e não chamar o service quando o refresh token não for enviado", async() => {
+      req.body = {};
+
+      await expect(controller.logout(req, res)).rejects.toThrow();
+      expect(controller.service.logout).not.toHaveBeenCalled();
     });
   });
 

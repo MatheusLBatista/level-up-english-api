@@ -15,6 +15,7 @@ import {
   RevokeParamsSchema,
   RefreshBodySchema,
   RefreshResponseSchema,
+  LogoutBodySchema,
   ChangePasswordBodySchema,
   ForgotPasswordBodySchema,
   ResetPasswordBodySchema,
@@ -117,6 +118,7 @@ registry.register("ResetPasswordBody", ResetPasswordBodySchema);
 registry.register("ChangePasswordBody", ChangePasswordBodySchema);
 registry.register("RefreshBody", RefreshBodySchema);
 registry.register("RefreshResponse", RefreshResponseSchema);
+registry.register("LogoutBody", LogoutBodySchema);
 registry.register("CreateUserBody", CreateUserBodySchema);
 registry.register("UpdateUserBody", UpdateUserBodySchema);
 registry.register("Ranking", RankingSchema);
@@ -375,10 +377,22 @@ registry.registerPath({
   path: "/auth/logout",
   tags: ["Auth"],
   summary: "Logout",
-  security: [{ bearerAuth: [] }],
+  description:
+    "Não exige access token: o refresh token do corpo identifica a sessão, então o "
+    + "logout funciona mesmo depois que o access token expirou. Se o refresh token for "
+    + "válido e for o que está salvo no usuário, os tokens são removidos. Token inválido, "
+    + "expirado ou já substituído também responde 200, sem alterar nada, para não revelar "
+    + "se a sessão existia.",
+  request: {
+    body: { content: { "application/json": { schema: LogoutBodySchema } } },
+  },
   responses: {
     200: commonResponse(z.null(), "Logout realizado com sucesso"),
-    401: error401Token,
+    400: errorResponse(
+      "Corpo inválido",
+      "Erro de validação. 1 campo(s) inválido(s).",
+      [{ path: "refreshToken", message: "Required" }],
+    ),
   },
 });
 
@@ -782,7 +796,9 @@ registry.registerPath({
     + "e áudio o score é obrigatório no corpo. O XP é proporcional ao score sobre o "
     + "xp_reward e segue o melhor desempenho: cada submissão credita apenas a diferença "
     + "em relação ao que já foi pago antes (campo credited_so_far). Repetir ou piorar "
-    + "o score retorna xp_earned igual a 0.",
+    + "o score retorna xp_earned igual a 0. O progresso gravado guarda o melhor score "
+    + "(devolvido em best_score) e uma missão concluída não volta a ficar pendente; "
+    + "score, correct_answers e total_questions se referem a esta submissão.",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
