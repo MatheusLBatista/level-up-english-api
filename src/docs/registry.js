@@ -782,7 +782,9 @@ registry.registerPath({
     + "e áudio o score é obrigatório no corpo. O XP é proporcional ao score sobre o "
     + "xp_reward e segue o melhor desempenho: cada submissão credita apenas a diferença "
     + "em relação ao que já foi pago antes (campo credited_so_far). Repetir ou piorar "
-    + "o score retorna xp_earned igual a 0.",
+    + "o score retorna xp_earned igual a 0. O progresso gravado guarda o melhor score "
+    + "(devolvido em best_score) e uma missão concluída não volta a ficar pendente; "
+    + "score, correct_answers e total_questions se referem a esta submissão.",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,

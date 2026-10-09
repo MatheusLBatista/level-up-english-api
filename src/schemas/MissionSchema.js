@@ -163,7 +163,12 @@ export const MissionProgressSchema = z
     mission: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
     student: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
     done: z.boolean().openapi({ example: true }),
-    score: z.number().openapi({ example: 80 }),
+    score: z
+      .number()
+      .openapi({ example: 80, description: "Score desta submissão." }),
+    best_score: z
+      .number()
+      .openapi({ example: 80, description: "Melhor score do aluno nesta missão; é o valor gravado no progresso." }),
     correct_answers: z
       .number()
       .nullable()

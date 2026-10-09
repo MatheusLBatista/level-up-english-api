@@ -190,7 +190,8 @@ class MissionService {
 
     const xp_earned = Math.max(entitled - credited_so_far, 0);
 
-    const progressData = { done, score };
+    const best_score = Math.max(previous?.score ?? 0, score);
+    const progressData = { done: done || previous?.done === true, score: best_score };
 
     if (xp_earned > 0) {
       progressData.xp_earned = credited_so_far + xp_earned;
@@ -208,6 +209,7 @@ class MissionService {
       student: String(loggedUser._id),
       done,
       score,
+      best_score,
       correct_answers,
       total_questions,
       xp_earned,

@@ -373,6 +373,63 @@ describe("MissionService", () => {
       expect(progressionService.applyXp).not.toHaveBeenCalled();
     });
 
+    it("deve manter a melhor nota quando o aluno refaz e tira menos", async() => {
+      userRepository.findMissionProgress.mockResolvedValue({ done: true, score: 80, xp_earned: 80 });
+
+      // 2 de 5 = 40%.
+      const resultado = await service.submitProgress(
+        MISSION_ID,
+        { answers: ["a", "b", "a", "a", "b"], done: true },
+        req,
+      );
+
+      const [, , dados] = userRepository.upsertMissionProgress.mock.calls[0];
+      expect(dados).toEqual({ done: true, score: 80 });
+      expect(resultado.score).toBe(40);
+      expect(resultado.best_score).toBe(80);
+      expect(resultado.correct_answers).toBe(2);
+      expect(resultado.xp_earned).toBe(0);
+      expect(progressionService.applyXp).not.toHaveBeenCalled();
+    });
+
+    it("deve gravar a nova nota e creditar só a diferença quando o aluno melhora", async() => {
+      userRepository.findMissionProgress.mockResolvedValue({ done: true, score: 40, xp_earned: 40 });
+
+      // 4 de 5 = 80%.
+      const resultado = await service.submitProgress(
+        MISSION_ID,
+        { answers: ["a", "b", "c", "d", "b"], done: true },
+        req,
+      );
+
+      const [, , dados] = userRepository.upsertMissionProgress.mock.calls[0];
+      expect(dados).toMatchObject({ done: true, score: 80, xp_earned: 80 });
+      expect(resultado.score).toBe(80);
+      expect(resultado.best_score).toBe(80);
+      expect(resultado.xp_earned).toBe(40);
+      expect(progressionService.applyXp).toHaveBeenCalledWith(ALUNO_A_ID, 40);
+    });
+
+    it("não deve voltar a missão concluída para pendente", async() => {
+      userRepository.findMissionProgress.mockResolvedValue({ done: true, score: 100, xp_earned: 100 });
+
+      const resultado = await service.submitProgress(
+        MISSION_ID,
+        { ...todasCertas, done: false },
+        req,
+      );
+
+      const [, , dados] = userRepository.upsertMissionProgress.mock.calls[0];
+      expect(dados.done).toBe(true);
+      expect(resultado.xp_earned).toBe(0);
+    });
+
+    it("deve devolver best_score igual ao score na primeira submissão", async() => {
+      const resultado = await service.submitProgress(MISSION_ID, todasCertas, req);
+
+      expect(resultado.best_score).toBe(100);
+    });
+
     it("deve preservar a data da primeira conclusão", async() => {
       const primeira = new Date("2026-01-01T00:00:00.000Z");
       userRepository.findMissionProgress.mockResolvedValue({ xp_earned: 60, completed_at: primeira });
