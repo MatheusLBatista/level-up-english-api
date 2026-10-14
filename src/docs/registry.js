@@ -796,9 +796,11 @@ registry.registerPath({
   tags: ["Missions"],
   summary: "Registrar progresso do aluno logado em uma missão (student)",
   description:
-    "Em missões do tipo quiz o aluno envia answers e o score é apurado pelo servidor "
-    + "contra o gabarito (um score enviado no corpo é ignorado); nos tipos vocabulário "
-    + "e áudio o score é obrigatório no corpo. O XP é proporcional ao score sobre o "
+    "O score é sempre apurado pelo servidor; um score enviado no corpo é ignorado. "
+    + "Missão com perguntas (quiz, e vocabulário ou áudio com perguntas de checagem): o "
+    + "aluno envia answers, uma por pergunta e na ordem cadastrada, e o score é a "
+    + "porcentagem de acertos. Vocabulário ou áudio antigo, cadastrado sem perguntas: "
+    + "a conclusão (done true) vale score 100, e done false vale 0. O XP é proporcional ao score sobre o "
     + "xp_reward e segue o melhor desempenho: cada submissão credita apenas a diferença "
     + "em relação ao que já foi pago antes (campo credited_so_far). Repetir ou piorar "
     + "o score retorna xp_earned igual a 0. O progresso gravado guarda o melhor score "

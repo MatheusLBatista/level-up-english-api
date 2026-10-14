@@ -167,14 +167,19 @@ export const SubmitMissionProgressBodySchema = z
       .optional()
       .openapi({
         example: 80,
-        description: "Obrigatório para missões de vocabulário e áudio. Ignorado em quiz, onde o score é calculado pelo servidor.",
+        deprecated: true,
+        description:
+          "Não é mais usado: o score é sempre calculado pelo servidor, em todos os tipos. "
+          + "Continua aceito no corpo só para não quebrar clientes antigos.",
       }),
     answers: z
       .array(z.enum(["a", "b", "c", "d"]))
       .optional()
       .openapi({
         example: ["a", "c", "b", "d", "a"],
-        description: "Obrigatório em missões do tipo quiz: uma resposta por questão, na ordem em que foram cadastradas.",
+        description:
+          "Obrigatório em missão com perguntas — quiz, e vocabulário ou áudio com perguntas "
+          + "de checagem: uma resposta por pergunta, na ordem em que foram cadastradas.",
       }),
     done: z.boolean().default(true).openapi({ example: true }),
   })
@@ -194,11 +199,11 @@ export const MissionProgressSchema = z
     correct_answers: z
       .number()
       .nullable()
-      .openapi({ example: 4, description: "Acertos no quiz; null nos demais tipos." }),
+      .openapi({ example: 4, description: "Acertos nesta submissão; null em missão sem perguntas." }),
     total_questions: z
       .number()
       .nullable()
-      .openapi({ example: 5, description: "Total de questões do quiz; null nos demais tipos." }),
+      .openapi({ example: 5, description: "Total de perguntas da missão; null em missão sem perguntas." }),
     xp_earned: z
       .number()
       .openapi({ example: 80, description: "XP creditado nesta submissão." }),

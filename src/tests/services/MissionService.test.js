@@ -222,26 +222,41 @@ describe("MissionService", () => {
   });
 
   describe("resolveScore", () => {
-    it("deve exigir o score fora do quiz", () => {
-      const vocabulario = missao({ type: "vocabulary", questions: undefined });
+    it("deve dar 100 à missão antiga de vocabulário concluída, ignorando o score do corpo", () => {
+      const antiga = missao({ type: "vocabulary", questions: undefined });
 
-      expect(() => service.resolveScore(vocabulario, {})).toThrow(CustomError);
-    });
-
-    it("deve aceitar o score informado fora do quiz", () => {
-      const vocabulario = missao({ type: "vocabulary", questions: undefined });
-
-      expect(service.resolveScore(vocabulario, { score: 80 })).toEqual({
-        score: 80,
+      expect(service.resolveScore(antiga, { done: true, score: 30 })).toEqual({
+        score: 100,
         correct_answers: null,
         total_questions: null,
       });
     });
 
-    it("deve aceitar score zero fora do quiz", () => {
-      const audio = missao({ type: "audio", questions: undefined });
+    it("deve dar 0 à missão antiga de áudio não concluída, mesmo com score no corpo", () => {
+      const antiga = missao({ type: "audio", questions: [] });
 
-      expect(service.resolveScore(audio, { score: 0 }).score).toBe(0);
+      expect(service.resolveScore(antiga, { done: false, score: 100 }).score).toBe(0);
+    });
+
+    it("deve corrigir vocabulário e áudio com perguntas pelo gabarito, como o quiz", () => {
+      const vocabulario = missao({ type: "vocabulary", questions: questoes(["a", "b"]) });
+      const audio = missao({ type: "audio", questions: questoes(["a", "b", "c"]) });
+
+      expect(service.resolveScore(vocabulario, { answers: ["a", "c"], score: 100, done: true })).toEqual({
+        score: 50,
+        correct_answers: 1,
+        total_questions: 2,
+      });
+      expect(service.resolveScore(audio, { answers: ["a", "b", "c"], done: true }).score).toBe(100);
+    });
+
+    it("deve exigir as respostas em vocabulário com perguntas, mesmo com score no corpo", () => {
+      const vocabulario = missao({ type: "vocabulary", questions: questoes(["a", "b"]) });
+
+      const erro = capturarErroSync(() => service.resolveScore(vocabulario, { score: 100, done: true }));
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.customMessage).toBe("Envie exatamente 2 respostas, na ordem das questões.");
     });
 
     it("deve apurar o score do quiz pelo gabarito", () => {
