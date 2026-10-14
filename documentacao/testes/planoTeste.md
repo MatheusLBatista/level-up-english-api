@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.1_
+_versão 3.2_
 
 ## Histórico das alterações
 
@@ -12,6 +12,7 @@ _versão 3.1_
 | 14/08/2026 | 2.0    | Atualização após os módulos de atitudes, ranking, progresso de missão e controle de acesso por papel e posse | Matheus Lucas |
 | 19/08/2026 | 3.0    | Suíte implementada: estrutura real, cobertura medida, RNF-005 atendido e o que ficou fora do plano original  | Matheus Lucas |
 | 24/09/2026 | 3.1    | Ajuste manual de XP (RF-013, `POST /xp-adjustments`): arquitetura, casos, estrutura da suíte e métricas atualizadas | Matheus Lucas |
+| 13/10/2026 | 3.2    | RF-005: score apurado pelo servidor nos três tipos de missão, com perguntas de checagem em vocabulário e áudio | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -86,7 +87,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-002 | Login de Usuários              | Login com JWT (access + refresh token). Conta desativada não autentica.                                                              | Essencial     | Implementado    |
 | RF-003 | Gestão de Turmas               | Teacher e admin criam, listam e atualizam turmas; a exclusão é exclusiva do admin. O professor só altera as turmas dele.             | Essencial     | Implementado    |
 | RF-004 | Criação de Missões             | Teacher e admin criam missões de quiz, vocabulário e áudio, vinculadas a uma turma. O professor só cria nas turmas dele.             | Essencial     | Implementado    |
-| RF-005 | Progresso de Missões           | O aluno submete a missão; em quiz o servidor corrige contra o gabarito e ignora o score enviado no corpo.                             | Essencial     | Implementado    |
+| RF-005 | Progresso de Missões           | O aluno submete a missão e o servidor apura o score nos três tipos, ignorando o enviado no corpo: quiz e vocabulário ou áudio com perguntas de checagem são corrigidos contra o gabarito; vocabulário ou áudio antigo, sem perguntas, vale 100 na conclusão. | Essencial     | Implementado    |
 | RF-006 | Sistema de XP e Nível          | O XP é proporcional ao score sobre o `xp_reward` e paga apenas a diferença do melhor desempenho. O nível segue curva quadrática.     | Essencial     | Implementado    |
 | RF-007 | Ranking Global e por Turma     | Ranking dos 30 melhores por XP, global e por turma, recalculado a cada mudança de XP.                                                | Essencial     | Implementado    |
 | RF-008 | Registro de Atitudes           | Professor aplica atitudes positivas e negativas a alunos das turmas dele, creditando ou descontando XP; desfazer estorna o XP.       | Essencial     | Implementado    |
@@ -144,7 +145,7 @@ A estratégia busca garantir qualidade funcional e de segurança através de ní
 - Responsabilidade: desenvolvedor, durante a implementação.
 - Escopo:
   - `LevelHelper`: curva de nível, XP por nível, progresso e limites (nível mínimo 1, máximo 50)
-  - `MissionService.resolveScore`: correção do quiz e obrigatoriedade do score fora do quiz
+  - `MissionService.resolveScore`: correção pelo gabarito em toda missão com perguntas e score 100 na conclusão de vocabulário ou áudio antigo
   - `RankingService.buildEntries`: ordenação e corte no top 30
   - `ProgressionService`: aplicação do XP com `$inc`, recálculo de nível e resiliência quando o ranking falha
   - Schemas Zod: campos obrigatórios, enums e regras condicionais (quiz exige no mínimo 5 questões). São exercitados **através dos controllers**, que é onde o `parse` acontece — não há suíte própria de schema, e a cobertura deles vem daí
