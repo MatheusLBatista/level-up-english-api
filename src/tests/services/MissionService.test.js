@@ -71,7 +71,7 @@ describe("MissionService", () => {
     repository = {
       list: jest.fn(),
       findById: jest.fn().mockResolvedValue(missao()),
-      findByTitle: jest.fn().mockResolvedValue(null),
+      findByTitleInClass: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -574,13 +574,20 @@ describe("MissionService", () => {
       expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ createdBy: ADMIN_ID }));
     });
 
-    it("deve lançar 400 quando o título já existir", async() => {
-      repository.findByTitle.mockResolvedValue({ _id: "outra" });
+    it("deve conferir o título só na turma da missão nova", async() => {
+      await service.create({ ...nova }, { user_id: PROF_A_ID });
+
+      expect(repository.findByTitleInClass).toHaveBeenCalledWith("Nova Missão", TURMA_A_ID, null);
+    });
+
+    it("deve lançar 400 quando o título já existir na turma", async() => {
+      repository.findByTitleInClass.mockResolvedValue({ _id: "outra" });
 
       const erro = await capturarErro(service.create({ ...nova }, { user_id: PROF_A_ID }));
 
       expect(erro.statusCode).toBe(400);
-      expect(erro.customMessage).toBe("Título já cadastrado.");
+      expect(erro.customMessage).toBe("Título já cadastrado nesta turma.");
+      expect(erro.details).toEqual([{ path: "title", message: "Já existe uma missão com este título nesta turma." }]);
       expect(repository.create).not.toHaveBeenCalled();
     });
   });
@@ -643,11 +650,11 @@ describe("MissionService", () => {
     it("deve ignorar a própria missão ao conferir o título", async() => {
       await service.update(MISSION_ID, { title: "Explorador" }, { user_id: PROF_A_ID });
 
-      expect(repository.findByTitle).toHaveBeenCalledWith("Explorador", MISSION_ID);
+      expect(repository.findByTitleInClass).toHaveBeenCalledWith("Explorador", TURMA_A_ID, MISSION_ID);
     });
 
     it("deve lançar 400 quando o título novo já for de outra missão", async() => {
-      repository.findByTitle.mockResolvedValue({ _id: "outra" });
+      repository.findByTitleInClass.mockResolvedValue({ _id: "outra" });
 
       const erro = await capturarErro(
         service.update(MISSION_ID, { title: "Outra" }, { user_id: PROF_A_ID }),
@@ -657,10 +664,10 @@ describe("MissionService", () => {
       expect(repository.update).not.toHaveBeenCalled();
     });
 
-    it("não deve conferir o título quando ele não for alterado", async() => {
+    it("não deve conferir o título quando nem ele nem a turma forem alterados", async() => {
       await service.update(MISSION_ID, { xp_reward: 200 }, { user_id: PROF_A_ID });
 
-      expect(repository.findByTitle).not.toHaveBeenCalled();
+      expect(repository.findByTitleInClass).not.toHaveBeenCalled();
     });
 
     it("deve mover a referência da missão ao trocar de turma", async() => {
@@ -732,6 +739,58 @@ describe("MissionService", () => {
       );
 
       expect(erro.statusCode).toBe(404);
+      expect(repository.findByTitleInClass).not.toHaveBeenCalled();
+    });
+
+    it("deve conferir o título atual na turma nova quando só a turma mudar", async() => {
+      Class.findById.mockResolvedValue({ _id: TURMA_B_ID, teacher: PROF_A_ID });
+
+      await service.update(MISSION_ID, { class_id: TURMA_B_ID }, { user_id: PROF_A_ID });
+
+      expect(repository.findByTitleInClass).toHaveBeenCalledWith("Explorador", TURMA_B_ID, MISSION_ID);
+    });
+
+    it("deve conferir o título novo na turma nova quando os dois mudarem", async() => {
+      Class.findById.mockResolvedValue({ _id: TURMA_B_ID, teacher: PROF_A_ID });
+
+      await service.update(MISSION_ID, { title: "Outra", class_id: TURMA_B_ID }, { user_id: PROF_A_ID });
+
+      expect(repository.findByTitleInClass).toHaveBeenCalledWith("Outra", TURMA_B_ID, MISSION_ID);
+    });
+
+    it("deve lançar 400 ao mover para turma que já tem o título, sem mexer nas turmas", async() => {
+      Class.findById.mockResolvedValue({ _id: TURMA_B_ID, teacher: PROF_A_ID });
+      repository.findByTitleInClass.mockResolvedValue({ _id: "outra" });
+
+      const erro = await capturarErro(
+        service.update(MISSION_ID, { class_id: TURMA_B_ID }, { user_id: PROF_A_ID }),
+      );
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.customMessage).toBe("Título já cadastrado nesta turma.");
+      expect(repository.update).not.toHaveBeenCalled();
+      expect(Class.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it("deve conferir a turma antes do título ao mover para turma de outra professora", async() => {
+      Class.findById.mockResolvedValue({ _id: TURMA_B_ID, teacher: PROF_B_ID });
+      repository.findByTitleInClass.mockResolvedValue({ _id: "outra" });
+
+      const erro = await capturarErro(
+        service.update(MISSION_ID, { class_id: TURMA_B_ID }, { user_id: PROF_A_ID }),
+      );
+
+      expect(erro.statusCode).toBe(403);
+      expect(repository.findByTitleInClass).not.toHaveBeenCalled();
+    });
+
+    it("deve mover a referência da missão só depois de gravar a atualização", async() => {
+      Class.findById.mockResolvedValue({ _id: TURMA_B_ID, teacher: PROF_A_ID });
+      repository.update.mockRejectedValue(new Error("E11000"));
+
+      await capturarErro(service.update(MISSION_ID, { class_id: TURMA_B_ID }, { user_id: PROF_A_ID }));
+
+      expect(Class.findByIdAndUpdate).not.toHaveBeenCalled();
     });
   });
 

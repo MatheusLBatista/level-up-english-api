@@ -61,6 +61,7 @@ src/
 ├── docs/             # configuração do Swagger (registry.js gera o spec a partir dos schemas Zod)
 ├── utils/            # helpers (JWT, nível/XP, envio de e-mail, respostas padrão, erros)
 ├── seeds/            # popula o banco com dados fake para desenvolvimento
+├── migrations/       # scripts avulsos que ajustam dados ou índices de um banco existente
 └── tests/            # suíte de testes, espelhando as camadas acima
 ```
 
@@ -149,6 +150,19 @@ O pipeline (`.gitlab-ci.yml`) roda em cada push: lint (`eslint .`) e testes (`np
 * **API:** [Render](https://render.com), build via Docker (usa o `Dockerfile` do repositório). O deploy é disparado a partir deste repositório no GitHub — o desenvolvimento também é espelhado num GitLab self-hosted, mas é o GitHub quem o Render enxerga.
 * **Banco:** MongoDB Atlas, com database de produção separado do de desenvolvimento (para o `npm run seed` de desenvolvimento nunca atingir produção).
 * O plano gratuito do Render hiberna após 15 minutos sem requisições — a primeira chamada depois disso pode levar dezenas de segundos.
+
+### Migrações
+
+Fora do desenvolvimento o `autoIndex` do Mongoose fica desligado (`src/config/dbConnect.js`): mudar um índice no model não muda o banco. E mesmo em desenvolvimento o `autoIndex` só cria índices, nunca apaga um que saiu do model. Por isso as mudanças de índice vêm com uma migração, rodada à mão contra o banco do `.env` — em produção e em qualquer banco de desenvolvimento que já exista. Todas são idempotentes — rodar de novo não muda nada.
+
+**`npm run migrate:mission-title-index`** — rodar **uma vez, logo depois do deploy** que tornou o título da missão único por turma. Apaga o índice antigo `title_1` (título único na escola inteira) e cria o `class_id_1_title_1` (único por turma, sem diferenciar maiúsculas). Antes de mexer em qualquer coisa, procura títulos repetidos na mesma turma; se achar, lista as missões e aborta sem alterar nenhum índice — renomeie as repetidas e rode de novo. Enquanto a migração não roda, o `title_1` continua barrando o mesmo título em turmas diferentes.
+
+```bash
+# com o DB_URL do banco de produção no .env
+npm run migrate:mission-title-index
+```
+
+**`npm run sync:class-students`** — reconstrói `Class.students` a partir de `User.class`.
 
 ## Equipe
 

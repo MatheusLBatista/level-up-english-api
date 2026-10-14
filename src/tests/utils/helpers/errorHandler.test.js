@@ -111,6 +111,35 @@ describe("errorHandler", () => {
         { path: undefined, message: "O valor \"duplicado\" já está em uso." },
       ]);
     });
+
+    it("deve responder 400 no título apontado pelo índice composto de missão por turma", () => {
+      const erro = Object.assign(new Error("E11000"), {
+        code: 11000,
+        keyPattern: { class_id: 1, title: 1 },
+        keyValue: { class_id: "507f1f77bcf86cd799439011", title: "Lesson 1" },
+      });
+
+      errorHandler(erro, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(corpo()).toEqual({
+        message: "Título já cadastrado nesta turma.",
+        data: null,
+        errors: [{ path: "title", message: "Já existe uma missão com este título nesta turma." }],
+      });
+    });
+
+    it("deve manter o 409 genérico para outro índice composto", () => {
+      const erro = Object.assign(new Error("E11000"), {
+        code: 11000,
+        keyPattern: { class_id: 1, name: 1 },
+        keyValue: { class_id: "507f1f77bcf86cd799439011", name: "X" },
+      });
+
+      errorHandler(erro, req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+    });
   });
 
   describe("erro de validação do Mongoose", () => {

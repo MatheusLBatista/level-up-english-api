@@ -39,6 +39,21 @@ const errorHandler = (err, req, res, next) => {
     );
   }
 
+  // Título repetido na turma que passou pela checagem do MissionService numa
+  // corrida entre duas requisições: o índice composto barra, e a resposta é a
+  // mesma da checagem.
+  if (err.code === 11000 && err.keyPattern?.class_id && err.keyPattern?.title) {
+    logger.warn("Título de missão duplicado na turma", { keyValue: err.keyValue, path: req.path, requestId });
+    return CommonResponse.error(
+      res,
+      400,
+      "validationError",
+      "title",
+      [{ path: "title", message: "Já existe uma missão com este título nesta turma." }],
+      "Título já cadastrado nesta turma.",
+    );
+  }
+
   // Tratamento para erro de chave duplicada no MongoDB (código 11000)
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue || {})[0];

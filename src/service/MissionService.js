@@ -5,6 +5,8 @@ import ProgressionService from "./ProgressionService.js";
 import Class from "../models/Class.js";
 import { getMissionContentIssues } from "../schemas/MissionSchema.js";
 
+const DUPLICATE_TITLE_MESSAGE = "Já existe uma missão com este título nesta turma.";
+
 class MissionService {
   constructor() {
     this.repository = new MissionRepository();
@@ -77,7 +79,7 @@ class MissionService {
 
     this.ensureOwnsClass(classDoc, loggedUser);
 
-    await this.validateTitle(parsedData.title);
+    await this.validateTitle(parsedData.title, parsedData.class_id);
 
     const mission = await this.repository.create({
       ...parsedData,
@@ -123,25 +125,30 @@ class MissionService {
       });
     }
 
-    if (parsedData.title) {
-      await this.validateTitle(parsedData.title, id);
-    }
+    const oldClassId = String(mission.class_id?._id ?? mission.class_id);
 
     if (parsedData.class_id) {
       const targetClass = await this.ensureClassExists(parsedData.class_id);
 
       this.ensureOwnsClass(targetClass, loggedUser);
-
-      const oldClassId = String(mission.class_id?._id ?? mission.class_id);
-      const newClassId = String(parsedData.class_id);
-
-      if (oldClassId !== newClassId) {
-        await Class.findByIdAndUpdate(oldClassId, { $pull: { missions: mission._id } });
-        await Class.findByIdAndUpdate(newClassId, { $addToSet: { missions: mission._id } });
-      }
     }
 
-    return await this.repository.update(id, parsedData);
+    // Mudar só a turma também pode colidir com uma missão de mesmo título na
+    // turma de destino, então a checagem usa o título e a turma finais.
+    if (parsedData.title || parsedData.class_id) {
+      await this.validateTitle(parsedData.title ?? mission.title, parsedData.class_id ?? oldClassId, id);
+    }
+
+    const updated = await this.repository.update(id, parsedData);
+
+    const newClassId = parsedData.class_id ? String(parsedData.class_id) : oldClassId;
+
+    if (oldClassId !== newClassId) {
+      await Class.findByIdAndUpdate(oldClassId, { $pull: { missions: mission._id } });
+      await Class.findByIdAndUpdate(newClassId, { $addToSet: { missions: mission._id } });
+    }
+
+    return updated;
   }
 
   async delete(id, req) {
@@ -263,15 +270,16 @@ class MissionService {
     };
   }
 
-  async validateTitle(title, excludeId = null) {
-    const existing = await this.repository.findByTitle(title, excludeId);
+  /** O título é único por turma; missão desativada continua ocupando o título. */
+  async validateTitle(title, classId, excludeId = null) {
+    const existing = await this.repository.findByTitleInClass(title, classId, excludeId);
     if (existing) {
       throw new CustomError({
         statusCode: HttpStatusCodes.BAD_REQUEST.code,
         errorType: "validationError",
         field: "title",
-        details: [{ path: "title", message: "Já existe uma missão com este título." }],
-        customMessage: "Título já cadastrado.",
+        details: [{ path: "title", message: DUPLICATE_TITLE_MESSAGE }],
+        customMessage: "Título já cadastrado nesta turma.",
       });
     }
   }
