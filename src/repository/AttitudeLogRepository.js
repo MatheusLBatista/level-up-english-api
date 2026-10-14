@@ -51,6 +51,13 @@ class AttitudeLogRepository {
     return await this.attitudeLogModel.paginate(filters, options);
   }
 
+  async findByStudent(studentId) {
+    return await this.attitudeLogModel
+      .find({ student: studentId })
+      .populate("attitude", "name")
+      .populate("teacher", "name");
+  }
+
   async create(data) {
     const log = new this.attitudeLogModel(data);
     return await log.save();

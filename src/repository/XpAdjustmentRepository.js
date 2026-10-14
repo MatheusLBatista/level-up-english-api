@@ -9,6 +9,10 @@ class XpAdjustmentRepository {
     const adjustment = new this.xpAdjustmentModel(data);
     return await adjustment.save();
   }
+
+  async findByStudent(studentId) {
+    return await this.xpAdjustmentModel.find({ student: studentId }).populate("teacher", "name");
+  }
 }
 
 export default XpAdjustmentRepository;

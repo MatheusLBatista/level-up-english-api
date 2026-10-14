@@ -130,6 +130,21 @@ describe("AttitudeLogRepository", () => {
     });
   });
 
+  describe("findByStudent", () => {
+    it("deve buscar os logs do aluno com o nome da atitude e de quem aplicou", async() => {
+      const logs = [{ _id: LOG_ID }];
+      const encadeavel = query(logs);
+      modelo.find = jest.fn().mockReturnValue(encadeavel);
+
+      const resultado = await repository.findByStudent("aluno-1");
+
+      expect(modelo.find).toHaveBeenCalledWith({ student: "aluno-1" });
+      expect(encadeavel.populate).toHaveBeenNthCalledWith(1, "attitude", "name");
+      expect(encadeavel.populate).toHaveBeenNthCalledWith(2, "teacher", "name");
+      expect(resultado).toBe(logs);
+    });
+  });
+
   describe("create", () => {
     it("deve instanciar o model com os dados e salvar", async() => {
       const salvo = { _id: LOG_ID, xp_applied: 10 };
