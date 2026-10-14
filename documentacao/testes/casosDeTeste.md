@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.14 — complementa o [Plano de Teste](planoTeste.md) v3.4_
+_versão 2.15 — complementa o [Plano de Teste](planoTeste.md) v3.4_
 
 ## Histórico das alterações
 
@@ -24,6 +24,7 @@ _versão 2.14 — complementa o [Plano de Teste](planoTeste.md) v3.4_
 | 13/10/2026 | 2.12   | Perguntas de checagem em vocabulário e áudio e correção pelo servidor nos três tipos: casos `CT-MISSION-026` a `033` e `CT-XP-025` a `028`; `CT-XP-008` ajustado (o score do corpo deixou de ser obrigatório) | Matheus Lucas |
 | 14/10/2026 | 2.13   | Histórico de XP do aluno (`GET /users/{id}/xp-history`, RF-014): casos `CT-XP-029` a `039` e `CT-PERM-042` | Matheus Lucas |
 | 14/10/2026 | 2.14   | Rate limit no login, no `forgot-password` e no `reset-password` (RNF-007): casos `CT-AUTH-040` a `050`; o `CT-RATE-001` deixa de estar bloqueado e é substituído por eles | Matheus Lucas |
+| 14/10/2026 | 2.15   | Título da missão único por turma, e não na escola inteira: casos `CT-MISSION-034` a `042`; `CT-MISSION-007` e `025` ajustados para a nova regra e a nova mensagem | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -219,7 +220,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-MISSION-004  | Vocabulário sem conteúdo                 | `type: "vocabulary"` sem `content`                                         | 400, "Missões do tipo vocabulário precisam de conteúdo (content)."                           | RF-004 | Unit  | `controllers/MissionController`           | ✅       |
 | CT-MISSION-005  | Áudio sem URL                            | `type: "audio"` sem `content_url`                                          | 400, "Missões do tipo áudio precisam de uma URL (content_url)."                              | RF-004 | Unit  | `controllers/MissionController`           | ✅       |
 | CT-MISSION-006  | Missão em turma de outro professor       | `profA` criando missão na Turma B                                          | 403, "Você só pode criar missões nas suas turmas."                                           | RF-011 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
-| CT-MISSION-007  | Título de missão duplicado               | título já usado por outra missão                                           | 400, "Título já cadastrado."                                                                 | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-007  | Título de missão duplicado na turma      | `POST /missions` na Turma A com o título de outra missão da Turma A        | 400, "Título já cadastrado nesta turma.", com `errors: [{ path: "title", message: "Já existe uma missão com este título nesta turma." }]`; a regra vale também no `PATCH` | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅       |
 | CT-MISSION-008  | Listagem pelo aluno                      | `GET /missions` como `alunoA`, com missões nas duas turmas                 | 200 apenas com as missões da Turma A, e **sem** `questions[].correct_answer`                 | RF-012 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-MISSION-009  | Listagem pelo professor                  | `GET /missions` como `profA`                                              | 200 com o gabarito presente nas questões                                                     | RF-012 | Int   | `routes/missionRoutes`                    | ✅       |
 | CT-MISSION-010  | Aluno abre missão da própria turma       | `GET /missions/{id}` como `alunoA`                                        | 200 com `question` e `options` preservados e `correct_answer` ausente                        | RF-012 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
@@ -237,7 +238,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-MISSION-022  | URL de áudio com esquema não http        | `POST /missions` com `type: "audio"` e `content_url: "javascript:alert(1)"` | 400, "URL inválida." em `content_url`; só `http` e `https` são aceitos, no POST e no PATCH  | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
 | CT-MISSION-023  | Título de missão com parêntese           | `POST /missions` com `title: "Animais (parte 1"`                          | 201 com o título gravado como enviado, e não 500 por regex inválida                        | RF-004 | Int   | `routes/missionRoutes`, `repository/MissionRepository` | ✅ |
 | CT-MISSION-024  | Ponto no título não gera duplicado falso | `Unidade1` cadastrada; `POST /missions` com `title: "Unidade."`             | 201 — a checagem de duplicado compara o texto literal                                      | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
-| CT-MISSION-025  | Título duplicado com outra caixa         | `Animais` cadastrada; `POST /missions` com `title: "animais"`              | 400, "Título já cadastrado." — a comparação é insensível a maiúsculas                   | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-025  | Título duplicado com outra caixa         | `Animais` cadastrada na Turma A; `POST /missions` na Turma A com `title: "animais"` | 400 em `title`, como no CT-MISSION-007 — a comparação é insensível a maiúsculas | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
 | CT-MISSION-026  | Vocabulário ou áudio sem perguntas de checagem | `POST /missions` com `type: "vocabulary"` (ou `"audio"`) sem `questions` | 400 em `questions`, "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." (no áudio, "Missões de áudio…"); nada é gravado | RF-004 | Int | `routes/missionRoutes`, `controllers/MissionController`, `schemas/MissionSchema` | ✅ |
 | CT-MISSION-027  | Mais de três perguntas de checagem       | `POST /missions` com `type: "audio"` e 4 perguntas                         | 400 em `questions`, "Missões de áudio precisam de 1 a 3 perguntas de checagem."            | RF-004 | Int   | `routes/missionRoutes`, `controllers/MissionController` | ✅ |
 | CT-MISSION-028  | Limites de 1 e 3 perguntas aceitos       | vocabulário com 1 pergunta e áudio com 3                                    | 201 nos dois, com as perguntas gravadas                                                      | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
@@ -246,6 +247,17 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-MISSION-031  | Missão antiga só ativada ou desativada   | mesmo vocabulário; `PATCH` com `{ active: false }` (ou só `class_id`)       | 200 sem exigir perguntas — não é edição de conteúdo                                          | RF-004 | Int   | `routes/missionRoutes`, `schemas/MissionSchema` | ✅ |
 | CT-MISSION-032  | Edição parcial de vocabulário com perguntas | vocabulário salvo com perguntas; `PATCH` só com `title`                  | 200; as perguntas salvas continuam valendo, como no quiz (CT-MISSION-020)                    | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-MISSION-033  | Aluno não recebe gabarito de vocabulário e áudio | `GET /missions` e `GET /missions/{id}` como `alunoA`, em vocabulário e áudio com perguntas | 200 com `question` e `options`, sem `correct_answer` — a mesma regra do quiz (CT-MISSION-008 e 010) | RF-012 | Int | `routes/missionRoutes` | ✅ |
+| CT-MISSION-034  | Mesmo título em outra turma | `Animais` na Turma A; `profB` cria `Animais` na Turma B | 201 — turmas diferentes têm missões independentes; antes desta versão respondia 400 | RF-004 | Int | `routes/missionRoutes` | ✅ |
+| CT-MISSION-035  | Missão desativada ocupa o título | `Animais` da Turma A com `active: false`; nova `Animais` na Turma A | 400 em `title` — o título continua ocupado, para a missão poder ser reativada sem conflito | RF-004 | Int | `routes/missionRoutes` | ✅ |
+| CT-MISSION-036  | Edição mantendo o próprio título | `PATCH /missions/{quiz}` com o título atual e `xp_reward: 120` | 200 — a missão não conflita consigo mesma | RF-004 | Int | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-MISSION-037  | Mover para turma que já tem o título | `quiz de cores` na Turma B; `PATCH /missions/{Quiz de Cores da Turma A}` só com `class_id` da Turma B | 400 em `title` — a checagem usa o título atual e a turma nova; a missão continua na Turma A e nenhuma turma muda o array `missions`. Sem conflito, a troca segue o CT-MISSION-014 | RF-004 | Int | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-MISSION-038  | Título e turma alterados juntos | `PATCH` com `title` e `class_id` novos | a checagem usa o título novo na turma nova, excluindo a própria missão | RF-004 | Unit | `services/MissionService` | ✅ |
+| CT-MISSION-039  | Turma conferida antes do título | `PATCH` com `class_id` de turma inexistente ou de outra professora, cujo título também conflitaria | 404 ou 403 da turma, e não 400 do título — a checagem de título nem chega a rodar | RF-004 | Unit | `services/MissionService` | ✅ |
+| CT-MISSION-040  | Duplicata barrada pelo índice | duas requisições com o mesmo título na mesma turma passam juntas pela checagem (simulado deixando a checagem passar) | o índice único `{ class_id, title }`, com collation que ignora maiúsculas, recusa a segunda com E11000, e a resposta é o mesmo 400 em `title`; outros E11000 continuam 409 | RF-004 | Int | `routes/missionRoutes`, `utils/helpers/errorHandler` | ✅ |
+| CT-MISSION-041  | Migração do índice | `npm run migrate:mission-title-index` num banco só com o índice antigo `title_1`; depois, de novo | apaga o `title_1` e cria o `class_id_1_title_1` (único, collation `pt`/strength 2); a segunda execução não muda nada; também roda num banco ainda sem a coleção | RF-004 | Int | `migrations/migrateMissionTitleIndex` | ✅ |
+| CT-MISSION-042  | Migração com título repetido na turma | `Lesson 1` e `lesson 1` na mesma turma (o `title_1` diferencia maiúsculas e deixou passar) | lista as duplicatas (turma, títulos e ids) e aborta sem mexer em nenhum índice; o mesmo título em turmas diferentes não conta como duplicata | RF-004 | Int | `migrations/migrateMissionTitleIndex` | ✅ |
+
+**Título por turma (`CT-MISSION-007`, `025` e `034` a `042`).** O título é único dentro da turma, sem diferenciar maiúsculas, e missão desativada continua contando. A regra tem duas camadas: a checagem do `MissionService`, que dá a mensagem, e o índice único composto no banco, que fecha a corrida entre duas requisições simultâneas. Como o `autoIndex` fica desligado em produção, a troca do índice antigo pelo novo é feita pela migração do `CT-MISSION-041`, rodada uma vez depois do deploy (README, seção "Migrações").
 
 ---
 
@@ -456,20 +468,20 @@ O `CT-RATE-001` saiu desta tabela na v2.14: o rate limit foi implementado (RNF-0
 
 ## 11 - Resumo
 
-Situação em 14/10/2026, com a suíte em **53 arquivos de teste e 1236 testes**, executando em cerca de 7 segundos.
+Situação em 14/10/2026, com a suíte em **54 arquivos de teste e 1255 testes**, executando em cerca de 7 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
 | Autenticação e sessão         | `CT-AUTH`    | 50    | 49               | 1            |
 | Usuários                      | `CT-USER`    | 37    | 37               | 0            |
 | Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
-| Missões                       | `CT-MISSION` | 33    | 33               | 0            |
+| Missões                       | `CT-MISSION` | 42    | 42               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 39    | 39               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 42    | 41               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **265** | **259 (97,7%)** | **6**        |
+| **Total**                     | -            | **274** | **268 (97,8%)** | **6**        |
 
 Os 3 casos bloqueados da seção 10 não entram nesta contagem.
 

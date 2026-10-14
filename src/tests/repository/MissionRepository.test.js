@@ -86,13 +86,14 @@ describe("MissionRepository", () => {
     });
   });
 
-  describe("findByTitle", () => {
-    it("deve casar o título inteiro, sem diferenciar maiúsculas", async() => {
+  describe("findByTitleInClass", () => {
+    it("deve casar o título inteiro na turma, sem diferenciar maiúsculas", async() => {
       modelo.findOne.mockResolvedValue(null);
 
-      await repository.findByTitle("Explorador de Palavras");
+      await repository.findByTitleInClass("Explorador de Palavras", CLASS_ID);
 
       expect(modelo.findOne).toHaveBeenCalledWith({
+        class_id: CLASS_ID,
         title: { $regex: "^Explorador de Palavras$", $options: "i" },
       });
     });
@@ -100,9 +101,10 @@ describe("MissionRepository", () => {
     it("deve escapar caracteres de regex do título antes de montar o filtro", async() => {
       modelo.findOne.mockResolvedValue(null);
 
-      await repository.findByTitle("Quiz (parte 1)");
+      await repository.findByTitleInClass("Quiz (parte 1)", CLASS_ID);
 
       expect(modelo.findOne).toHaveBeenCalledWith({
+        class_id: CLASS_ID,
         title: { $regex: "^Quiz \\(parte 1\\)$", $options: "i" },
       });
     });
@@ -110,9 +112,10 @@ describe("MissionRepository", () => {
     it("deve excluir a própria missão da busca", async() => {
       modelo.findOne.mockResolvedValue(null);
 
-      await repository.findByTitle("Explorador", MISSION_ID);
+      await repository.findByTitleInClass("Explorador", CLASS_ID, MISSION_ID);
 
       expect(modelo.findOne).toHaveBeenCalledWith({
+        class_id: CLASS_ID,
         title: { $regex: "^Explorador$", $options: "i" },
         _id: { $ne: MISSION_ID },
       });
