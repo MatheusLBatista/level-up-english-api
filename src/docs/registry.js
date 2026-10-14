@@ -838,7 +838,9 @@ registry.registerPath({
     "Regras de conteúdo por type: quiz exige questions com no mínimo 5 itens; vocabulary "
     + "exige content não vazio e questions com 1 a 3 perguntas de checagem; audio exige "
     + "content_url http ou https e questions com 1 a 3 perguntas de checagem. As perguntas "
-    + "de checagem têm o mesmo formato das do quiz e são corrigidas pelo servidor.",
+    + "de checagem têm o mesmo formato das do quiz e são corrigidas pelo servidor. "
+    + "O título é único por turma, sem diferenciar maiúsculas: outra turma pode ter uma "
+    + "missão com o mesmo título, e uma missão desativada continua ocupando o dela.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -847,7 +849,11 @@ registry.registerPath({
   },
   responses: {
     201: commonResponse(MissionWriteResponseSchema, "Missão criada (class_id e createdBy como ids)"),
-    400: error400,
+    400: errorResponse(
+      "Dados inválidos, ou título já usado por outra missão da mesma turma (path title)",
+      "Título já cadastrado nesta turma.",
+      [{ path: "title", message: "Já existe uma missão com este título nesta turma." }],
+    ),
     401: error401Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou class_id de uma turma de outro professor",
@@ -893,6 +899,11 @@ registry.registerPath({
   path: "/missions/{id}",
   tags: ["Missions"],
   summary: "Atualizar missão (teacher/admin; professor só as que criou)",
+  description:
+    "O título é único por turma, sem diferenciar maiúsculas, e missão desativada "
+    + "continua ocupando o dela. Ao mudar o title ou o class_id, a checagem usa o título "
+    + "e a turma finais: mover a missão para uma turma que já tem outra com o mesmo "
+    + "título também responde 400 (path title, \"Título já cadastrado nesta turma.\").",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
@@ -903,7 +914,7 @@ registry.registerPath({
   responses: {
     200: commonResponse(MissionWriteResponseSchema, "Missão atualizada (class_id e createdBy como ids)"),
     400: errorResponse(
-      "Dados inválidos. Além do formato do corpo e do título duplicado, o conteúdo "
+      "Dados inválidos. Além do formato do corpo e do título já usado na turma, o conteúdo "
       + "enviado é validado pelo type da missão já salva (o type não vem no corpo): "
       + "quiz exige questions com no mínimo 5 itens; vocabulary exige content não "
       + "vazio; audio exige content_url não vazio; em vocabulary e audio, questions "

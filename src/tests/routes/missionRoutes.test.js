@@ -9,6 +9,7 @@ import User from "../../models/User.js";
 import Class from "../../models/Class.js";
 import Mission from "../../models/Mission.js";
 import Ranking from "../../models/Ranking.js";
+import MissionRepository from "../../repository/MissionRepository.js";
 import {
   connectTestDatabase,
   clearTestDatabase,
@@ -316,24 +317,68 @@ describe("Rotas de missões", () => {
       expect(res.body.message).toBe("Turma não encontrada.");
     });
 
-    it("deve retornar 400 quando o título já existir", async() => {
+    it("deve retornar 400 quando o título já existir na mesma turma", async() => {
       const res = await request(app)
         .post("/missions")
         .set("Authorization", await como(profA))
         .send({ ...nova, title: "Animais", class_id: String(turmaA._id) });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("Título já cadastrado.");
+      expect(res.body.message).toBe("Título já cadastrado nesta turma.");
+      expect(res.body.errors).toEqual([{ path: "title", message: "Já existe uma missão com este título nesta turma." }]);
     });
 
-    it("deve barrar título repetido mesmo com outra caixa", async() => {
+    it("deve barrar título repetido na turma mesmo com outra caixa", async() => {
       const res = await request(app)
         .post("/missions")
         .set("Authorization", await como(profA))
         .send({ ...nova, title: "animais", class_id: String(turmaA._id) });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("Título já cadastrado.");
+      expect(res.body.errors).toEqual([{ path: "title", message: "Já existe uma missão com este título nesta turma." }]);
+    });
+
+    it("deve permitir o mesmo título em outra turma", async() => {
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profB))
+        .send({ ...nova, title: "Animais", class_id: String(turmaB._id) });
+
+      expect(res.status).toBe(201);
+      expect(await Mission.countDocuments({ title: "Animais" })).toBe(2);
+    });
+
+    it("deve responder 400 no título quando o índice barrar a duplicata que passou pela checagem", async() => {
+      // Simula a corrida: as duas requisições passam pela checagem antes de
+      // qualquer uma gravar, e quem barra é o índice composto.
+      await Mission.init();
+      const checagem = jest.spyOn(MissionRepository.prototype, "findByTitleInClass").mockResolvedValue(null);
+
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, title: "ANIMAIS", class_id: String(turmaA._id) });
+
+      checagem.mockRestore();
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        message: "Título já cadastrado nesta turma.",
+        data: null,
+        errors: [{ path: "title", message: "Já existe uma missão com este título nesta turma." }],
+      });
+      expect(await Mission.countDocuments({ class_id: turmaA._id })).toBe(2);
+    });
+
+    it("deve manter o título ocupado pela missão desativada da turma", async() => {
+      await Mission.findByIdAndUpdate(vocabulario._id, { active: false });
+
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, title: "Animais", class_id: String(turmaA._id) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "title", message: "Já existe uma missão com este título nesta turma." }]);
     });
 
     it("deve criar missão com parêntese no título", async() => {
@@ -735,14 +780,45 @@ describe("Rotas de missões", () => {
       expect(destino.missions.map(String)).toContain(String(quiz._id));
     });
 
-    it("deve retornar 400 quando o título novo já for de outra missão", async() => {
+    it("deve retornar 400 quando o título novo já for de outra missão da turma", async() => {
       const res = await request(app)
         .patch(`/missions/${quiz._id}`)
         .set("Authorization", await como(profA))
         .send({ title: "Animais" });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("Título já cadastrado.");
+      expect(res.body.message).toBe("Título já cadastrado nesta turma.");
+      expect(res.body.errors).toEqual([{ path: "title", message: "Já existe uma missão com este título nesta turma." }]);
+    });
+
+    it("deve permitir salvar a missão com o próprio título", async() => {
+      const res = await request(app)
+        .patch(`/missions/${quiz._id}`)
+        .set("Authorization", await como(profA))
+        .send({ title: "Quiz de Cores", xp_reward: 120 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.xp_reward).toBe(120);
+    });
+
+    it("deve retornar 400 ao mover a missão para turma que já tem o mesmo título", async() => {
+      await Mission.create({
+        title: "quiz de cores",
+        type: "vocabulary",
+        content: "red",
+        class_id: turmaB._id,
+        createdBy: profB._id,
+      });
+
+      const res = await request(app)
+        .patch(`/missions/${quiz._id}`)
+        .set("Authorization", await como(admin))
+        .send({ class_id: String(turmaB._id) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{ path: "title", message: "Já existe uma missão com este título nesta turma." }]);
+      expect(String((await Mission.findById(quiz._id)).class_id)).toBe(String(turmaA._id));
+      expect((await Class.findById(turmaB._id)).missions.map(String)).not.toContain(String(quiz._id));
     });
 
     it("deve retornar 400 quando o quiz ficar com menos de cinco questões", async() => {

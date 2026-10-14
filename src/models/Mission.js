@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
 
+export const TITLE_PER_CLASS_INDEX = "class_id_1_title_1";
+
 class Mission {
   constructor() {
     const questionSchema = new mongoose.Schema(
@@ -19,7 +21,7 @@ class Mission {
 
     const missionSchema = new mongoose.Schema(
       {
-        title: { type: String, required: true, unique: true },
+        title: { type: String, required: true },
         description: { type: String, default: null },
 
         type: { type: String, enum: ["quiz", "vocabulary", "audio"], required: true },
@@ -49,6 +51,14 @@ class Mission {
         timestamps: true,
         versionKey: false,
       },
+    );
+
+    // Título único por turma, sem diferenciar maiúsculas: o mesmo critério do
+    // MissionService. Em produção o autoIndex é desligado, e o índice é criado
+    // pela migração migrate:mission-title-index.
+    missionSchema.index(
+      { class_id: 1, title: 1 },
+      { unique: true, name: TITLE_PER_CLASS_INDEX, collation: { locale: "pt", strength: 2 } },
     );
 
     missionSchema.plugin(mongoosePaginate);
