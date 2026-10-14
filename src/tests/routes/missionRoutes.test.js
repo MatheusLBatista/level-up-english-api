@@ -293,6 +293,43 @@ describe("Rotas de missões", () => {
       expect(res.body.message).toBe("Título já cadastrado.");
     });
 
+    it("deve barrar título repetido mesmo com outra caixa", async() => {
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, title: "animais", class_id: String(turmaA._id) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe("Título já cadastrado.");
+    });
+
+    it("deve criar missão com parêntese no título", async() => {
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, title: "Animais (parte 1", class_id: String(turmaA._id) });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.title).toBe("Animais (parte 1");
+    });
+
+    it("não deve acusar duplicado por causa de ponto no título", async() => {
+      await Mission.create({
+        title: "Unidade1",
+        type: "vocabulary",
+        content: "texto",
+        class_id: turmaA._id,
+        createdBy: profA._id,
+      });
+
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, title: "Unidade.", class_id: String(turmaA._id) });
+
+      expect(res.status).toBe(201);
+    });
+
     it("deve retornar 400 quando o quiz tiver menos de cinco questões", async() => {
       const res = await request(app)
         .post("/missions")

@@ -16,6 +16,12 @@ describe("UserFilterBuild", () => {
       });
     });
 
+    it("deve tratar o nome como texto literal, escapando caracteres de regex", () => {
+      expect(builder.withName("Ana.").build()).toEqual({
+        name: { $regex: "Ana\\.", $options: "i" },
+      });
+    });
+
     it("deve ignorar nome vazio ou não informado", () => {
       expect(builder.withName("").build()).toEqual({});
       expect(new UserFilterBuild().withName(undefined).build()).toEqual({});
@@ -26,6 +32,12 @@ describe("UserFilterBuild", () => {
     it("deve filtrar por trecho do e-mail, sem diferenciar maiúsculas", () => {
       expect(builder.withEmail("escola").build()).toEqual({
         email: { $regex: "escola", $options: "i" },
+      });
+    });
+
+    it("deve tratar o e-mail como texto literal, escapando caracteres de regex", () => {
+      expect(builder.withEmail("ana+1@escola.com").build()).toEqual({
+        email: { $regex: "ana\\+1@escola\\.com", $options: "i" },
       });
     });
 

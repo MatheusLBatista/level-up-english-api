@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Class from "../models/Class.js";
-import { CustomError, messages } from "../utils/helpers/index.js";
+import { CustomError, escapeRegex, messages } from "../utils/helpers/index.js";
 
 class ClassRepository {
   constructor({ classModel = Class } = {}) {
@@ -59,7 +59,7 @@ class ClassRepository {
   }
 
   async findByName(name, excludeId = null) {
-    const filter = { name: { $regex: `^${name}$`, $options: "i" } };
+    const filter = { name: { $regex: `^${escapeRegex(name)}$`, $options: "i" } };
 
     if (excludeId) {
       filter._id = { $ne: excludeId };
@@ -73,7 +73,7 @@ class ClassRepository {
     const limit = Math.min(parseInt(req.query?.limit, 10) || 10, 100);
 
     const filters = {};
-    if (name) filters.name = { $regex: name, $options: "i" };
+    if (name) filters.name = { $regex: escapeRegex(name), $options: "i" };
     if (teacher) filters.teacher = teacher;
     if (id) filters._id = id;
     if (active !== undefined) {

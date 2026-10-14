@@ -14,6 +14,12 @@ describe("AttitudeFilterBuild", () => {
       expect(filtros).toEqual({ name: { $regex: "particip", $options: "i" } });
     });
 
+    it("deve tratar o nome como texto literal, escapando caracteres de regex", () => {
+      expect(builder.withName("Ajuda (extra)").build()).toEqual({
+        name: { $regex: "Ajuda \\(extra\\)", $options: "i" },
+      });
+    });
+
     it("deve ignorar nome vazio", () => {
       expect(builder.withName("").build()).toEqual({});
     });

@@ -113,6 +113,17 @@ describe("Rotas de autenticação", () => {
       expect(res.body.message).toBe("Credenciais inválidas. Verifique seu usuário e senha.");
     });
 
+    it("deve retornar 401 quando a conta ainda não tiver senha definida", async() => {
+      // É como register-student/teacher criam o usuário, antes do link de definição de senha.
+      const semSenha = await User.create({ name: "Sem senha", email: "semsenha@escola.com", role: "student" });
+
+      const res = await login(semSenha.email);
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toBe("Credenciais inválidas. Verifique seu usuário e senha.");
+      expect((await User.findById(semSenha._id).select("+refreshtoken")).refreshtoken).toBeFalsy();
+    });
+
     it("deve retornar 401 quando a conta estiver desativada", async() => {
       const inativo = await criarUsuario({ name: "Inativo", email: "inativo@escola.com", active: false });
 
@@ -298,7 +309,7 @@ describe("Rotas de autenticação", () => {
       expect(comAntiga.status).toBe(401);
     });
 
-    it("deve retornar 401 quando a senha atual estiver incorreta", async() => {
+    it("deve retornar 400 quando a senha atual estiver incorreta", async() => {
       const { accessToken } = await autenticar(teacher.email);
 
       const res = await request(app)
@@ -306,8 +317,15 @@ describe("Rotas de autenticação", () => {
         .set("Authorization", `Bearer ${accessToken}`)
         .send({ currentPassword: "senhaErrada", newPassword: "novaSenha456" });
 
-      expect(res.status).toBe(401);
+      // 400 e não 401: o usuário está autenticado, só errou um campo do formulário.
+      expect(res.status).toBe(400);
       expect(res.body.message).toBe("Senha atual incorreta.");
+      expect(res.body.errors).toEqual([
+        { path: "currentPassword", message: "Senha atual incorreta." },
+      ]);
+
+      expect((await login(teacher.email, SENHA_PADRAO)).status).toBe(200);
+      expect((await login(teacher.email, "novaSenha456")).status).toBe(401);
     });
 
     it("deve retornar 400 quando a nova senha for curta demais", async() => {

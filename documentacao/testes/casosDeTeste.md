@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.8 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.11 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -18,6 +18,9 @@ _versão 2.8 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 02/10/2026 | 2.6    | Cadastro de professor pelo admin (`POST /auth/register-teacher`) e `teacher: null` no `PATCH /classes/{id}`: casos `CT-AUTH-026` a `030` e `CT-CLASS-022` a `024` | Matheus Lucas |
 | 07/10/2026 | 2.7    | Posse da turma no cadastro e na exclusão de aluno pelo professor: casos `CT-AUTH-031` a `034` e `CT-USER-031` a `035`; `CT-AUTH-019`, `024`, `025` e `CT-USER-006`, `016` ajustados; células de professor nos `CT-PERM-002`, `010` e `013` | Matheus Lucas |
 | 09/10/2026 | 2.8    | Melhor nota gravada no progresso da missão e logout só com o refresh token: casos `CT-XP-022` a `024` e `CT-AUTH-035` a `038`; `CT-AUTH-009` e `CT-PERM-007` ajustados | Matheus Lucas |
+| 13/10/2026 | 2.9    | Nomes e buscas com caracteres especiais de regex tratados como texto literal: casos `CT-USER-036` e `037`, `CT-CLASS-025` a `028`, `CT-MISSION-023` a `025` e `CT-ATT-023` e `024` | Matheus Lucas |
+| 13/10/2026 | 2.10   | Senha atual errada no `PATCH /auth/change-password` passa de 401 para 400: `CT-AUTH-014` ajustado | Matheus Lucas |
+| 13/10/2026 | 2.11   | Login de conta que ainda não definiu a senha responde 401, e não 500: caso `CT-AUTH-039` | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -81,7 +84,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-011  | Token malformado                       | `Authorization: Token abc`, ou Bearer sem valor                     | **498**, "Formato do token de autenticação inválido!"                                    | RF-011 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-012  | Token expirado                         | access token com `exp` no passado                                   | **498**, "O token JWT está expirado!"                                                    | RF-011 | Int   | —                                  | ⬜       |
 | CT-AUTH-013  | Troca de senha pelo próprio usuário    | `PATCH /auth/change-password` com a senha atual correta             | 200; o login passa a funcionar com a nova senha e falha com a antiga                     | RF-002 | Int   | `routes/authRoutes`                | ✅       |
-| CT-AUTH-014  | Troca de senha com senha atual errada  | `currentPassword` incorreta                                         | 401, "Senha atual incorreta."; a senha no banco não muda                                 | RF-002 | Int   | `routes/authRoutes`                | ✅       |
+| CT-AUTH-014  | Troca de senha com senha atual errada  | `currentPassword` incorreta                                         | 400 com `{ path: "currentPassword", message: "Senha atual incorreta." }` em `errors`; a senha no banco não muda. Não é 401: o usuário está autenticado, e o front trata 401 como sessão expirada | RF-002 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-015  | Recuperação de senha, e-mail existente | `POST /auth/forgot-password`                                        | 200; código de recuperação gravado com validade de 30 minutos                            | RF-002 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-016  | Recuperação com e-mail inexistente     | e-mail fora da base                                                 | 200 silencioso, sem código gravado e sem revelar que a conta não existe                  | RF-002 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-017  | Redefinição com código válido          | `POST /auth/reset-password` com o código recebido                   | 200; login com a nova senha funciona e o código é invalidado após o uso                  | RF-002 | Int   | `routes/authRoutes`                | ✅       |
@@ -106,6 +109,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-036  | Logout com refresh token inválido      | `refreshToken` malformado ou expirado                                | 200 com a mesma mensagem do CT-AUTH-009; os tokens salvos não mudam — não revela se a sessão existia | RF-010 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-037  | Logout com refresh token que não é o salvo | refresh token válido, mas já substituído no banco, ou de usuário sem sessão; repetir o logout | 200; os tokens salvos não mudam e o logout repetido também responde 200 (idempotente) | RF-010 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-038  | Logout sem corpo                       | `POST /auth/logout` sem `refreshToken`                              | 400; só corpo malformado é recusado                                                      | RF-010 | Int   | `routes/authRoutes`, `controllers/AuthController` | ✅ |
+| CT-AUTH-039  | Login de conta sem senha definida      | usuário criado por `register-student` ou `register-teacher` que ainda não usou o link de definição de senha | 401 com a **mesma** mensagem do CT-AUTH-002, e não 500; nenhum token é gravado — não revela que a conta existe e aguarda a senha | RF-002 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 **Pendência do módulo.** O `CT-AUTH-012` é o único caso de autenticação sem teste. Ele é o caminho que passa pelo `else if (err.name === "TokenExpiredError")` do `AuthMiddleware`, e forçá-lo exige assinar um access token com `expiresIn` negativo — não dá para esperar o token vencer dentro da suíte. A classe `TokenExpiredError` já tem teste próprio em `utils/errors/TokenExpiredError`, mas o caminho da rota, do token vencido até o corpo da resposta, não é exercido por ninguém.
 
 ---
@@ -149,6 +153,8 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-USER-033  | Admin cria aluno sem turma           | `POST /users` como `admin` sem `class`                                  | 201; o admin não passa pela regra de posse                                                | RF-001 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-034  | Professor exclui aluno de turma alheia | `profA` excluindo `alunoB`                                            | 403, "Você só pode excluir alunos das suas turmas."; o aluno segue na base e em `Class.students` da `turmaB` | RF-011 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-035  | Professor exclui aluno sem turma     | `profA` excluindo `semTurma`                                            | 403 com a mesma mensagem do CT-USER-034; o aluno segue na base                            | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-036  | Busca por nome com caractere especial | `GET /users?name=Ana.` como admin, com `Ana.` e `Anax` cadastrados     | 200 apenas com `Ana.` — o ponto é texto literal, não "qualquer caractere"; a busca parcial comum segue funcionando | RF-001 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
+| CT-USER-037  | Busca com parêntese sem par          | `GET /users?name=Ana (` como admin                                      | 200 com lista vazia, e não 500 por regex inválida                                         | RF-001 | Int   | `routes/userRoutes`   | ✅       |
 
 ---
 
@@ -180,6 +186,10 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-CLASS-022  | Admin deixa a turma sem professor      | `PATCH /classes/{Turma A}` com `{ teacher: null }` como `admin` | 200 com `teacher: null`; a turma fica sem professor                               | RF-003 | Int   | `routes/classRoutes`, `services/ClassService` | ✅ |
 | CT-CLASS-023  | Professor envia `teacher: null`        | `PATCH /classes/{Turma A}` com `{ teacher: null }` como `profA` | 200, porém o campo é descartado e a turma continua com o `profA`                  | RF-011 | Int   | `routes/classRoutes`, `services/ClassService` | ✅ |
 | CT-CLASS-024  | `teacher: null` na criação             | `POST /classes` com `{ name, teacher: null }` como `admin`    | 400 no path `teacher` — só o `PATCH` aceita `null`                                | RF-003 | Int   | `routes/classRoutes`   | ✅       |
+| CT-CLASS-025  | Nome de turma com parêntese            | `POST /classes` com `name: "Turma A (manhã"`                | 201 com o nome gravado como enviado, e não 500 por regex inválida                  | RF-003 | Int   | `routes/classRoutes`, `repository/ClassRepository` | ✅ |
+| CT-CLASS-026  | Ponto no nome não gera duplicado falso | `3º ano1` cadastrada; `POST /classes` com `name: "3º ano."`   | 201 — a checagem de duplicado compara o texto literal                              | RF-003 | Int   | `routes/classRoutes`   | ✅       |
+| CT-CLASS-027  | Duplicado com caracteres especiais     | `Turma A (manhã)` cadastrada; `POST` com `turma a (MANHÃ)`    | 400, "Já existe uma turma com este nome." — o escape não desliga a comparação sem caixa do CT-CLASS-002 | RF-003 | Int | `routes/classRoutes` | ✅ |
+| CT-CLASS-028  | Filtro de nome literal na listagem     | `GET /classes?name=3º ano.` com `3º ano.` e `3º ano1`; `GET /classes?name=Turma (` | 200 só com `3º ano.`; com o parêntese sem par, 200 com lista vazia | RF-003 | Int | `routes/classRoutes`, `repository/ClassRepository` | ✅ |
 
 ---
 
@@ -209,6 +219,9 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-MISSION-020  | Edição parcial não exige conteúdo        | `PATCH /missions/{quiz}` enviando só `title`                              | 200; as regras de conteúdo só valem para os campos enviados                                  | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService`, `schemas/MissionSchema` | ✅ |
 | CT-MISSION-021  | Conteúdo inválido junto com troca de turma | `PATCH /missions/{quiz}` com `class_id` da Turma B e `questions: []`    | 400; a missão continua na Turma A e o id não entra no array `missions` da Turma B            | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-MISSION-022  | URL de áudio com esquema não http        | `POST /missions` com `type: "audio"` e `content_url: "javascript:alert(1)"` | 400, "URL inválida." em `content_url`; só `http` e `https` são aceitos, no POST e no PATCH  | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-023  | Título de missão com parêntese           | `POST /missions` com `title: "Animais (parte 1"`                          | 201 com o título gravado como enviado, e não 500 por regex inválida                        | RF-004 | Int   | `routes/missionRoutes`, `repository/MissionRepository` | ✅ |
+| CT-MISSION-024  | Ponto no título não gera duplicado falso | `Unidade1` cadastrada; `POST /missions` com `title: "Unidade."`             | 201 — a checagem de duplicado compara o texto literal                                      | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-025  | Título duplicado com outra caixa         | `Animais` cadastrada; `POST /missions` com `title: "animais"`              | 400, "Título já cadastrado." — a comparação é insensível a maiúsculas                   | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
 
 ---
 
@@ -273,6 +286,8 @@ A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nív
 | CT-ATT-020  | Correção que passa do saldo               | log de +10 em aluno que ficou com 4 XP, `PATCH` trocando por atitude de -5 | 200; a diferença pedida (-15) para em -4, o XP fica 0 e o log grava `xp_applied: 6` (10 - 4) | RF-008 | Int | `routes/attitudeLogRoutes`, `services/AttitudeLogService` | ✅ |
 | CT-ATT-021  | Estorno de positiva que passa do saldo    | log de +10 em aluno que ficou com 4 XP, `DELETE` do log                    | 200; o estorno de -10 para em 0                                                           | RF-008 | Int   | `routes/attitudeLogRoutes`, `services/AttitudeLogService` | ✅ |
 | CT-ATT-022  | Estorno de negativa que parou no piso     | aluno com 3 XP recebe atitude de -5 (`xp_applied: -3`), depois `DELETE`    | 200; o estorno devolve só os 3 descontados e o XP volta a 3                               | RF-008 | Int   | `routes/attitudeLogRoutes`     | ✅       |
+| CT-ATT-023  | Nome de atitude com parêntese             | `POST /attitudes` com `name: "Ajudou um colega (extra"`                    | 201 com o nome gravado como enviado, e não 500 por regex inválida                          | RF-008 | Int   | `routes/attitudeRoutes`, `repository/AttitudeRepository` | ✅ |
+| CT-ATT-024  | Ponto no nome não gera duplicado falso    | `Leitura1` cadastrada; `POST /attitudes` com `name: "Leitura."`            | 201 — a checagem de duplicado compara o texto literal                                      | RF-008 | Int   | `routes/attitudeRoutes`        | ✅       |
 
 ---
 
@@ -398,20 +413,20 @@ Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Ele
 
 ## 11 - Resumo
 
-Situação em 09/10/2026, com a suíte em **48 arquivos de teste e 1131 testes**, executando em cerca de 7 segundos.
+Situação em 13/10/2026, com a suíte em **49 arquivos de teste e 1161 testes**, executando em cerca de 7 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
-| Autenticação e sessão         | `CT-AUTH`    | 38    | 37               | 1            |
-| Usuários                      | `CT-USER`    | 35    | 35               | 0            |
-| Turmas                        | `CT-CLASS`   | 24    | 24               | 0            |
-| Missões                       | `CT-MISSION` | 22    | 22               | 0            |
+| Autenticação e sessão         | `CT-AUTH`    | 39    | 38               | 1            |
+| Usuários                      | `CT-USER`    | 37    | 37               | 0            |
+| Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
+| Missões                       | `CT-MISSION` | 25    | 25               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 24    | 24               | 0            |
-| Atitudes e atitudes aplicadas | `CT-ATT`     | 22    | 22               | 0            |
+| Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **218** | **212 (97,2%)** | **6**        |
+| **Total**                     | -            | **230** | **224 (97,4%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 

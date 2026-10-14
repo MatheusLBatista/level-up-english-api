@@ -363,12 +363,12 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.null(), "Senha alterada com sucesso"),
-    400: error400,
-    401: errorResponse(
-      "Senha atual incorreta ou token inválido",
+    400: errorResponse(
+      "Dados inválidos ou senha atual incorreta",
       "Senha atual incorreta.",
       [{ path: "currentPassword", message: "Senha atual incorreta." }],
     ),
+    401: error401Token,
   },
 });
 

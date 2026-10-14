@@ -103,6 +103,27 @@ describe("Rotas de usuários", () => {
       expect(res.body.data.docs[0].email).toBe(teacher.email);
     });
 
+    it("deve tratar o filtro de nome como texto literal", async() => {
+      await criarUsuario({ name: "Ana.", email: "ana.ponto@escola.com" });
+      await criarUsuario({ name: "Anax", email: "anax@escola.com" });
+
+      const res = await request(app)
+        .get(`/users?name=${encodeURIComponent("Ana.")}`)
+        .set("Authorization", await como(admin));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.docs.map((usuario) => usuario.name)).toEqual(["Ana."]);
+    });
+
+    it("não deve quebrar com parêntese aberto no filtro de nome", async() => {
+      const res = await request(app)
+        .get(`/users?name=${encodeURIComponent("Ana (")}`)
+        .set("Authorization", await como(admin));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.docs).toHaveLength(0);
+    });
+
     it("deve filtrar por situação da conta", async() => {
       await criarUsuario({ name: "Inativo", email: "inativo@escola.com", active: false });
 
