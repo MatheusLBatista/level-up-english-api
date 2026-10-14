@@ -1,3 +1,5 @@
+import { escapeRegex } from "../../utils/helpers/index.js";
+
 class MissionFilterBuild {
   constructor() {
     this.filters = {};
@@ -5,7 +7,7 @@ class MissionFilterBuild {
 
   withTitle(title) {
     if (title) {
-      this.filters.title = { $regex: title, $options: "i" };
+      this.filters.title = { $regex: escapeRegex(title), $options: "i" };
     }
     return this;
   }

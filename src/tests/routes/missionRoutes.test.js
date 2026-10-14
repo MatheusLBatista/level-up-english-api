@@ -293,6 +293,43 @@ describe("Rotas de missões", () => {
       expect(res.body.message).toBe("Título já cadastrado.");
     });
 
+    it("deve barrar título repetido mesmo com outra caixa", async() => {
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, title: "animais", class_id: String(turmaA._id) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe("Título já cadastrado.");
+    });
+
+    it("deve criar missão com parêntese no título", async() => {
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, title: "Animais (parte 1", class_id: String(turmaA._id) });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.title).toBe("Animais (parte 1");
+    });
+
+    it("não deve acusar duplicado por causa de ponto no título", async() => {
+      await Mission.create({
+        title: "Unidade1",
+        type: "vocabulary",
+        content: "texto",
+        class_id: turmaA._id,
+        createdBy: profA._id,
+      });
+
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, title: "Unidade.", class_id: String(turmaA._id) });
+
+      expect(res.status).toBe(201);
+    });
+
     it("deve retornar 400 quando o quiz tiver menos de cinco questões", async() => {
       const res = await request(app)
         .post("/missions")
@@ -402,6 +439,20 @@ describe("Rotas de missões", () => {
       expect(res.body.data.xp_earned).toBe(0);
       expect(res.body.data.progression).toBeNull();
       expect(await xpDe(alunoA)).toBe(100);
+    });
+
+    it("deve manter gravada a melhor nota quando o aluno refaz e piora", async() => {
+      await submeter(alunoA, quiz, { answers: GABARITO });
+
+      const res = await submeter(alunoA, quiz, { answers: ["a", "b", "c", "a", "b"] });
+
+      expect(res.body.data.score).toBe(60);
+      expect(res.body.data.correct_answers).toBe(3);
+      expect(res.body.data.best_score).toBe(100);
+
+      const salvo = await User.findById(alunoA._id);
+      expect(salvo.mission_progress[0].score).toBe(100);
+      expect(salvo.mission_progress[0].done).toBe(true);
     });
 
     it("deve exigir o score em missão que não é quiz", async() => {

@@ -1,3 +1,5 @@
+import { escapeRegex } from "../../utils/helpers/index.js";
+
 class AttitudeFilterBuild {
   constructor() {
     this.filters = {};
@@ -5,7 +7,7 @@ class AttitudeFilterBuild {
 
   withName(name) {
     if (name) {
-      this.filters.name = { $regex: name, $options: "i" };
+      this.filters.name = { $regex: escapeRegex(name), $options: "i" };
     }
     return this;
   }

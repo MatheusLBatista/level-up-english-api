@@ -124,6 +124,17 @@ describe("AuthService", () => {
       expect(repository.storeTokens).not.toHaveBeenCalled();
     });
 
+    it("deve lançar 401 de credenciais quando a conta não tiver senha", async() => {
+      repository.findByEmail.mockResolvedValue(usuario({ password: undefined }));
+
+      const erro = await capturarErro(service.login({ email: "professora@escola.com", password: SENHA_PADRAO }));
+
+      expect(erro).toBeInstanceOf(CustomError);
+      expect(erro.statusCode).toBe(401);
+      expect(erro.customMessage).toBe("Credenciais inválidas. Verifique seu usuário e senha.");
+      expect(repository.storeTokens).not.toHaveBeenCalled();
+    });
+
     it("deve usar a mesma mensagem para senha errada e e-mail inexistente", async() => {
       repository.findByEmail.mockResolvedValue(null);
       const semConta = await capturarErro(service.login({ email: "naoexiste@escola.com", password: SENHA_PADRAO }));
@@ -156,10 +167,60 @@ describe("AuthService", () => {
   });
 
   describe("logout", () => {
-    it("deve remover os tokens do usuário", async() => {
-      await service.logout(USER_ID);
+    const armazenado = "refresh-armazenado";
 
+    beforeEach(() => {
+      service.tokenUtil.verifyRefreshToken.mockResolvedValue({ id: USER_ID });
+    });
+
+    it("deve remover os tokens quando o refresh token for o salvo no usuário", async() => {
+      repository.findById.mockResolvedValue(usuario({ refreshtoken: armazenado }));
+
+      await service.logout(armazenado);
+
+      expect(service.tokenUtil.verifyRefreshToken).toHaveBeenCalledWith(armazenado);
+      expect(repository.findById).toHaveBeenCalledWith(USER_ID, true);
       expect(repository.removeTokens).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it("não deve lançar nem remover tokens quando o refresh token for inválido", async() => {
+      service.tokenUtil.verifyRefreshToken.mockRejectedValue(new Error("jwt expired"));
+
+      await expect(service.logout("token-expirado")).resolves.toBeUndefined();
+
+      expect(repository.findById).not.toHaveBeenCalled();
+      expect(repository.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it("não deve remover tokens quando o refresh token não conferir com o salvo", async() => {
+      repository.findById.mockResolvedValue(usuario({ refreshtoken: "outro-refresh" }));
+
+      await expect(service.logout(armazenado)).resolves.toBeUndefined();
+
+      expect(repository.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it("não deve remover tokens quando o usuário já não tiver sessão", async() => {
+      repository.findById.mockResolvedValue(usuario({ refreshtoken: null }));
+
+      await expect(service.logout(armazenado)).resolves.toBeUndefined();
+
+      expect(repository.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it("não deve lançar quando o usuário do token não existir mais", async() => {
+      repository.findById.mockRejectedValue(new CustomError({ statusCode: 404, errorType: "resourceNotFound" }));
+
+      await expect(service.logout(armazenado)).resolves.toBeUndefined();
+
+      expect(repository.removeTokens).not.toHaveBeenCalled();
+    });
+
+    it("deve propagar erros que não sejam de usuário inexistente", async() => {
+      const falhaBanco = new Error("conexão perdida");
+      repository.findById.mockRejectedValue(falhaBanco);
+
+      await expect(service.logout(armazenado)).rejects.toBe(falhaBanco);
     });
   });
 
@@ -563,13 +624,15 @@ describe("AuthService", () => {
       expect(await bcrypt.compare(NOVA_SENHA, dados.password)).toBe(true);
     });
 
-    it("deve lançar 401 quando a senha atual estiver incorreta", async() => {
+    it("deve lançar 400 quando a senha atual estiver incorreta", async() => {
       repository.findByIdWithPassword.mockResolvedValue(usuario());
 
       const erro = await capturarErro(service.changePassword(USER_ID, "senhaErrada", NOVA_SENHA));
 
       expect(erro).toBeInstanceOf(CustomError);
-      expect(erro.statusCode).toBe(401);
+      expect(erro.statusCode).toBe(400);
+      expect(erro.errorType).toBe("validationError");
+      expect(erro.details).toEqual([{ path: "currentPassword", message: "Senha atual incorreta." }]);
       expect(erro.customMessage).toBe("Senha atual incorreta.");
       expect(repository.update).not.toHaveBeenCalled();
     });

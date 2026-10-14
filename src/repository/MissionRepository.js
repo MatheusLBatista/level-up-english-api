@@ -1,5 +1,5 @@
 import Mission from "../models/Mission.js";
-import { CustomError, messages } from "../utils/helpers/index.js";
+import { CustomError, escapeRegex, messages } from "../utils/helpers/index.js";
 import MissionFilterBuild from "./filters/MissionFilterBuild.js";
 
 class MissionRepository {
@@ -24,7 +24,7 @@ class MissionRepository {
   }
 
   async findByTitle(title, excludeId = null) {
-    const filter = { title: { $regex: `^${title}$`, $options: "i" } };
+    const filter = { title: { $regex: `^${escapeRegex(title)}$`, $options: "i" } };
     if (excludeId) filter._id = { $ne: excludeId };
     return await this.missionModel.findOne(filter);
   }

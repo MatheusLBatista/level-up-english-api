@@ -34,7 +34,8 @@ class AuthService {
       customMessage: messages.auth.invalidCredentials,
     });
 
-    if (!user) throw credenciaisInvalidas;
+    // Conta criada por register-student/teacher só tem senha depois do link de definição.
+    if (!user || !user.password) throw credenciaisInvalidas;
 
     const senhaCorreta = await bcrypt.compare(password, user.password);
     if (!senhaCorreta) throw credenciaisInvalidas;
@@ -53,8 +54,27 @@ class AuthService {
     return { accessToken, refreshToken, user: userObj };
   }
 
-  async logout(userId) {
-    await this.userRepository.removeTokens(userId);
+  async logout(refreshToken) {
+    let payload;
+
+    try {
+      payload = await this.tokenUtil.verifyRefreshToken(refreshToken);
+    } catch {
+      return;
+    }
+
+    let user;
+
+    try {
+      user = await this.userRepository.findById(payload.id, true);
+    } catch (error) {
+      if (error instanceof CustomError && error.statusCode === HttpStatusCodes.NOT_FOUND.code) return;
+      throw error;
+    }
+
+    if (!user.refreshtoken || user.refreshtoken !== refreshToken) return;
+
+    await this.userRepository.removeTokens(user._id);
   }
 
   async refresh(refreshToken) {
@@ -202,8 +222,8 @@ class AuthService {
     const senhaCorreta = await bcrypt.compare(currentPassword, user.password);
     if (!senhaCorreta) {
       throw new CustomError({
-        statusCode: HttpStatusCodes.UNAUTHORIZED.code,
-        errorType: "authenticationError",
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
         field: "currentPassword",
         details: [{ path: "currentPassword", message: "Senha atual incorreta." }],
         customMessage: "Senha atual incorreta.",

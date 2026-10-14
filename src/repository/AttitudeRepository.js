@@ -1,5 +1,5 @@
 import Attitude from "../models/Attitude.js";
-import { CustomError, messages } from "../utils/helpers/index.js";
+import { CustomError, escapeRegex, messages } from "../utils/helpers/index.js";
 import AttitudeFilterBuild from "./filters/AttitudeFilterBuild.js";
 
 class AttitudeRepository {
@@ -46,7 +46,7 @@ class AttitudeRepository {
   }
 
   async findByName(name, excludeId = null) {
-    const filter = { name: { $regex: `^${name}$`, $options: "i" } };
+    const filter = { name: { $regex: `^${escapeRegex(name)}$`, $options: "i" } };
     if (excludeId) filter._id = { $ne: excludeId };
     return await this.attitudeModel.findOne(filter);
   }

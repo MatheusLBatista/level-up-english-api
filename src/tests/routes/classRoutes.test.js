@@ -152,6 +152,27 @@ describe("Rotas de turmas", () => {
       expect(res.body.data.docs[0].name).toBe("Turma A");
     });
 
+    it("deve tratar o filtro de nome como texto literal", async() => {
+      await Class.create({ name: "3º ano.", teacher: profA._id });
+      await Class.create({ name: "3º ano1", teacher: profA._id });
+
+      const res = await request(app)
+        .get(`/classes?name=${encodeURIComponent("3º ano.")}`)
+        .set("Authorization", await como(admin));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.docs.map((turma) => turma.name)).toEqual(["3º ano."]);
+    });
+
+    it("não deve quebrar com parêntese aberto no filtro de nome", async() => {
+      const res = await request(app)
+        .get(`/classes?name=${encodeURIComponent("Turma (")}`)
+        .set("Authorization", await como(admin));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.docs).toHaveLength(0);
+    });
+
     it("deve filtrar por situação da turma", async() => {
       await Class.findByIdAndUpdate(turmaB._id, { active: false });
 
@@ -313,6 +334,39 @@ describe("Rotas de turmas", () => {
         .post("/classes")
         .set("Authorization", await como(admin))
         .send({ name: "turma a" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe("Já existe uma turma com este nome.");
+    });
+
+    it("deve criar turma com parêntese no nome", async() => {
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(admin))
+        .send({ name: "Turma A (manhã" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.name).toBe("Turma A (manhã");
+    });
+
+    it("não deve acusar duplicado por causa de ponto no nome", async() => {
+      await Class.create({ name: "3º ano1", teacher: profA._id });
+
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(admin))
+        .send({ name: "3º ano." });
+
+      expect(res.status).toBe(201);
+    });
+
+    it("deve barrar duplicado de nome com caracteres especiais", async() => {
+      await Class.create({ name: "Turma A (manhã)", teacher: profA._id });
+
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(admin))
+        .send({ name: "turma a (MANHÃ)" });
 
       expect(res.status).toBe(400);
       expect(res.body.message).toBe("Já existe uma turma com este nome.");

@@ -81,6 +81,16 @@ describe("AttitudeRepository", () => {
       });
     });
 
+    it("deve escapar caracteres de regex do nome antes de montar o filtro", async() => {
+      modelo.findOne.mockResolvedValue(null);
+
+      await repository.findByName("Ajuda (extra)");
+
+      expect(modelo.findOne).toHaveBeenCalledWith({
+        name: { $regex: "^Ajuda \\(extra\\)$", $options: "i" },
+      });
+    });
+
     it("deve excluir a própria atitude da busca", async() => {
       modelo.findOne.mockResolvedValue(null);
 

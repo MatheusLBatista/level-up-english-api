@@ -230,6 +230,27 @@ describe("Rotas de atitudes", () => {
       expect(res.body.message).toBe("Attitude já existe.");
     });
 
+    it("deve cadastrar atitude com parêntese no nome", async() => {
+      const res = await request(app)
+        .post("/attitudes")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, name: "Ajudou um colega (extra" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.name).toBe("Ajudou um colega (extra");
+    });
+
+    it("não deve acusar duplicado por causa de ponto no nome", async() => {
+      await Attitude.create({ name: "Leitura1", xp_value: 5, type: "positive", createdBy: profA._id });
+
+      const res = await request(app)
+        .post("/attitudes")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, name: "Leitura." });
+
+      expect(res.status).toBe(201);
+    });
+
     it("deve retornar 400 quando o tipo for inválido", async() => {
       const res = await request(app)
         .post("/attitudes")

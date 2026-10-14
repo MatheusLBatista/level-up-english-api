@@ -1,6 +1,6 @@
 import AuthService from "../service/AuthService.js";
 import { CommonResponse } from "../utils/helpers/index.js";
-import { LoginBodySchema, RevokeParamsSchema, RefreshBodySchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema, RegisterStudentBodySchema, RegisterTeacherBodySchema } from "../schemas/AuthSchema.js";
+import { LoginBodySchema, RevokeParamsSchema, RefreshBodySchema, LogoutBodySchema, ChangePasswordBodySchema, ForgotPasswordBodySchema, ResetPasswordBodySchema, RegisterStudentBodySchema, RegisterTeacherBodySchema } from "../schemas/AuthSchema.js";
 
 class AuthController {
   constructor() {
@@ -32,7 +32,8 @@ class AuthController {
   }
 
   async logout(req, res) {
-    await this.service.logout(req.user_id);
+    const { refreshToken } = LogoutBodySchema.parse(req.body);
+    await this.service.logout(refreshToken);
     return CommonResponse.success(res, null, 200, "Logout realizado com sucesso.");
   }
 

@@ -1,6 +1,6 @@
 import User from "../models/User.js";
 import UserFilterBuild from "./filters/UserFilterBuild.js";
-import { CustomError, messages } from "../utils/helpers/index.js";
+import { CustomError, escapeRegex, messages } from "../utils/helpers/index.js";
 
 class UserRepository {
   constructor({ userModel = User } = {}) {
@@ -77,7 +77,7 @@ class UserRepository {
   }
 
   async findByName(name, excludeId = null) {
-    const filter = { name: { $regex: name, $options: "i" } };
+    const filter = { name: { $regex: escapeRegex(name), $options: "i" } };
 
     if (excludeId) {
       filter._id = { $ne: excludeId };

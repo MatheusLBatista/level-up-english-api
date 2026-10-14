@@ -113,6 +113,17 @@ describe("Rotas de autenticação", () => {
       expect(res.body.message).toBe("Credenciais inválidas. Verifique seu usuário e senha.");
     });
 
+    it("deve retornar 401 quando a conta ainda não tiver senha definida", async() => {
+      // É como register-student/teacher criam o usuário, antes do link de definição de senha.
+      const semSenha = await User.create({ name: "Sem senha", email: "semsenha@escola.com", role: "student" });
+
+      const res = await login(semSenha.email);
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toBe("Credenciais inválidas. Verifique seu usuário e senha.");
+      expect((await User.findById(semSenha._id).select("+refreshtoken")).refreshtoken).toBeFalsy();
+    });
+
     it("deve retornar 401 quando a conta estiver desativada", async() => {
       const inativo = await criarUsuario({ name: "Inativo", email: "inativo@escola.com", active: false });
 
@@ -184,50 +195,90 @@ describe("Rotas de autenticação", () => {
   });
 
   describe("POST /auth/logout", () => {
-    it("deve deslogar e limpar os tokens do usuário", async() => {
-      const { accessToken } = await autenticar(teacher.email);
+    const tokensSalvos = async(usuario) =>
+      await User.findById(usuario._id).select("+accesstoken +refreshtoken");
 
-      const res = await request(app)
-        .post("/auth/logout")
-        .set("Authorization", `Bearer ${accessToken}`);
+    it("deve deslogar com o refresh token e limpar os tokens do usuário", async() => {
+      const { refreshToken } = await autenticar(teacher.email);
+
+      const res = await request(app).post("/auth/logout").send({ refreshToken });
 
       expect(res.status).toBe(200);
       expect(res.body.message).toBe("Logout realizado com sucesso.");
 
-      const salvo = await User.findById(teacher._id).select("+accesstoken +refreshtoken");
+      const salvo = await tokensSalvos(teacher);
       expect(salvo.accesstoken).toBeNull();
       expect(salvo.refreshtoken).toBeNull();
     });
 
-    it("deve invalidar o access token usado antes do logout", async() => {
-      const { accessToken } = await autenticar(teacher.email);
-      await request(app).post("/auth/logout").set("Authorization", `Bearer ${accessToken}`);
+    it("não deve exigir o access token no cabeçalho", async() => {
+      const { refreshToken } = await autenticar(teacher.email);
 
-      const res = await request(app).post("/auth/logout").set("Authorization", `Bearer ${accessToken}`);
+      // Simula a aba parada: o access token já expirou e só o refresh é enviado.
+      const res = await request(app)
+        .post("/auth/logout")
+        .set("Authorization", "Bearer token-expirado")
+        .send({ refreshToken });
+
+      expect(res.status).toBe(200);
+      expect((await tokensSalvos(teacher)).refreshtoken).toBeNull();
+    });
+
+    it("deve invalidar o access token da sessão encerrada", async() => {
+      const { accessToken, refreshToken } = await autenticar(teacher.email);
+      await request(app).post("/auth/logout").send({ refreshToken });
+
+      const res = await request(app)
+        .patch("/auth/change-password")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ currentPassword: SENHA_PADRAO, newPassword: "novaSenha456" });
 
       expect(res.status).toBe(401);
       expect(res.body.message).toBe("Refresh token inválido, autentique novamente!");
     });
 
-    it("deve retornar 498 quando o token não for enviado", async() => {
-      const res = await request(app).post("/auth/logout");
+    it("deve impedir a renovação com o refresh token usado no logout", async() => {
+      const { refreshToken } = await autenticar(teacher.email);
+      await request(app).post("/auth/logout").send({ refreshToken });
 
-      expect(res.status).toBe(498);
-      expect(res.body.message).toBe("O token de autenticação não existe!");
+      const res = await request(app).post("/auth/refresh").send({ refreshToken });
+
+      expect(res.status).toBe(401);
     });
 
-    it("deve retornar 498 quando o formato do cabeçalho for inválido", async() => {
-      const res = await request(app).post("/auth/logout").set("Authorization", "token-solto");
+    it("deve responder 200 sem mexer no banco quando o refresh token for inválido", async() => {
+      const { refreshToken } = await autenticar(teacher.email);
 
-      expect(res.status).toBe(498);
-      expect(res.body.message).toBe("Formato do token de autenticação inválido!");
+      const res = await request(app).post("/auth/logout").send({ refreshToken: "token-invalido" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toBe("Logout realizado com sucesso.");
+      expect((await tokensSalvos(teacher)).refreshtoken).toBe(refreshToken);
     });
 
-    it("deve retornar 498 quando o token for malformado", async() => {
-      const res = await request(app).post("/auth/logout").set("Authorization", "Bearer token-invalido");
+    it("deve responder 200 sem mexer no banco quando o refresh token não for mais o armazenado", async() => {
+      const { refreshToken } = await autenticar(teacher.email);
+      await User.findByIdAndUpdate(teacher._id, { refreshtoken: "refresh-de-outra-sessao" });
 
-      expect(res.status).toBe(498);
-      expect(res.body.message).toBe("Token JWT inválido!");
+      const res = await request(app).post("/auth/logout").send({ refreshToken });
+
+      expect(res.status).toBe(200);
+      expect((await tokensSalvos(teacher)).refreshtoken).toBe("refresh-de-outra-sessao");
+    });
+
+    it("deve ser idempotente quando o logout é repetido", async() => {
+      const { refreshToken } = await autenticar(teacher.email);
+      await request(app).post("/auth/logout").send({ refreshToken });
+
+      const res = await request(app).post("/auth/logout").send({ refreshToken });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("deve retornar 400 quando o corpo não trouxer o refresh token", async() => {
+      const res = await request(app).post("/auth/logout").send({});
+
+      expect(res.status).toBe(400);
     });
   });
 
@@ -258,7 +309,7 @@ describe("Rotas de autenticação", () => {
       expect(comAntiga.status).toBe(401);
     });
 
-    it("deve retornar 401 quando a senha atual estiver incorreta", async() => {
+    it("deve retornar 400 quando a senha atual estiver incorreta", async() => {
       const { accessToken } = await autenticar(teacher.email);
 
       const res = await request(app)
@@ -266,8 +317,15 @@ describe("Rotas de autenticação", () => {
         .set("Authorization", `Bearer ${accessToken}`)
         .send({ currentPassword: "senhaErrada", newPassword: "novaSenha456" });
 
-      expect(res.status).toBe(401);
+      // 400 e não 401: o usuário está autenticado, só errou um campo do formulário.
+      expect(res.status).toBe(400);
       expect(res.body.message).toBe("Senha atual incorreta.");
+      expect(res.body.errors).toEqual([
+        { path: "currentPassword", message: "Senha atual incorreta." },
+      ]);
+
+      expect((await login(teacher.email, SENHA_PADRAO)).status).toBe(200);
+      expect((await login(teacher.email, "novaSenha456")).status).toBe(401);
     });
 
     it("deve retornar 400 quando a nova senha for curta demais", async() => {
@@ -620,8 +678,9 @@ describe("Rotas de autenticação", () => {
       await request(app).post(`/auth/revoke/${student._id}`).set("Authorization", `Bearer ${accessToken}`);
 
       const res = await request(app)
-        .post("/auth/logout")
-        .set("Authorization", `Bearer ${sessaoAluno.accessToken}`);
+        .patch("/auth/change-password")
+        .set("Authorization", `Bearer ${sessaoAluno.accessToken}`)
+        .send({ currentPassword: SENHA_PADRAO, newPassword: "novaSenha456" });
 
       expect(res.status).toBe(401);
       expect(res.body.message).toBe("Refresh token inválido, autentique novamente!");

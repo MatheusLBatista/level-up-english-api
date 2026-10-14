@@ -75,6 +75,12 @@ export const RefreshBodySchema = z
   })
   .openapi("RefreshBody");
 
+export const LogoutBodySchema = z
+  .object({
+    refreshToken: z.string().openapi({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
+  })
+  .openapi("LogoutBody");
+
 export const RefreshResponseSchema = z
   .object({
     accessToken: z.string().openapi({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
