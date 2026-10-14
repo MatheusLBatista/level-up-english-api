@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.3_
+_versão 3.4_
 
 ## Histórico das alterações
 
@@ -14,6 +14,7 @@ _versão 3.3_
 | 24/09/2026 | 3.1    | Ajuste manual de XP (RF-013, `POST /xp-adjustments`): arquitetura, casos, estrutura da suíte e métricas atualizadas | Matheus Lucas |
 | 13/10/2026 | 3.2    | RF-005: score apurado pelo servidor nos três tipos de missão, com perguntas de checagem em vocabulário e áudio | Matheus Lucas |
 | 14/10/2026 | 3.3    | Histórico de XP do aluno (RF-014, `GET /users/{id}/xp-history`): requisito, arquitetura e casos | Matheus Lucas |
+| 14/10/2026 | 3.4    | RNF-007: rate limit no login e na recuperação de senha; RNF-001 passa a Implementado e o `CT-RATE-001` deixa de estar bloqueado | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -68,6 +69,7 @@ São **8 domínios**, expostos em **27 caminhos** e **42 operações** documenta
   - `AuthPermission` (`authorize(...roles)`): bloqueia conta desativada e papel fora da lista da rota
   - `asyncWrapper`: captura erros de handlers assíncronos
   - `LogRoutesMiddleware`: log de requisições quando `DEBUGLOG` está ligado
+  - `RateLimitMiddleware`: limita as tentativas de login, `forgot-password` e `reset-password` (RNF-007)
 
 ### Regra de autorização
 
@@ -106,12 +108,15 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 
 | Código  | Nome              | Descrição                                                                                                                     | Situação                        |
 | ------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| RNF-001 | Segurança         | JWT para autenticação, senhas com bcrypt, cabeçalhos com helmet, CORS e rate limiting.                                          | Parcial — sem rate limiting     |
+| RNF-001 | Segurança         | JWT para autenticação, senhas com bcrypt, cabeçalhos com helmet, CORS e rate limiting.                                          | Implementado — rate limiting detalhado no RNF-007 |
 | RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | Parcial — limite aplicado nos 5 repositórios; o p95 ainda não foi medido |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
 | RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,69% de linhas e as 40 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Fora do escopo desta versão     |
+| RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
+
+`RNF-007` guarda os contadores em memória: um restart ou deploy no Render os zera, e com mais de uma instância cada uma contaria separado. Para a escala do projeto, com uma instância, é aceitável; o passo seguinte seria um store compartilhado (Redis ou o próprio MongoDB).
 
 ## 4 - Casos de Teste
 
@@ -119,7 +124,7 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 
 | Módulo                        | Prefixo      | Casos | Requisitos cobertos         |
 | ----------------------------- | ------------ | ----- | --------------------------- |
-| Autenticação e sessão         | `CT-AUTH`    | 22    | RF-001, RF-002, RF-010      |
+| Autenticação e sessão         | `CT-AUTH`    | 22    | RF-001, RF-002, RF-010, RNF-007 |
 | Usuários                      | `CT-USER`    | 17    | RF-001, RF-006, RF-011      |
 | Turmas                        | `CT-CLASS`   | 12    | RF-003, RF-011              |
 | Missões                       | `CT-MISSION` | 16    | RF-004, RF-011, RF-012      |
@@ -130,7 +135,7 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
 | **Total**                     | -            | **158** | -                         |
 
-Além destes, 4 casos ficam **bloqueados** enquanto badges, streak e rate limiting não existirem (seção 10 do catálogo).
+Além destes, 3 casos ficam **bloqueados** enquanto badges e streak não existirem (seção 10 do catálogo).
 
 **Situação em 24/09/2026: 152 dos 158 casos estão automatizados (96,2%).** As seis pendências são o token expirado em rota (`CT-AUTH-012`), a célula restritiva de `GET /attitude-logs/{id}` (`CT-PERM-033`) e os quatro fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
 
