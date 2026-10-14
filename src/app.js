@@ -11,6 +11,10 @@ import { setupDocs } from "./docs/config/head.js";
 
 const app = express();
 
+// No Render a API fica atrás de proxy: sem isto o req.ip seria o do proxy, e o
+// rate limit do login valeria para todo mundo junto.
+app.set("trust proxy", 1);
+
 await DbConnect.conectar();
 
 app.use(helmet());

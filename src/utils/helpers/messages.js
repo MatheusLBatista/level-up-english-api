@@ -30,6 +30,7 @@ const messages = {
     externalServiceError: "Erro ao se comunicar com um serviço externo.",
     invalidApiKey: "Chave de API inválida.",
     operationCanceled: "Operação cancelada pelo usuário.",
+    tooManyRequests: "Muitas requisições. Tente novamente mais tarde.",
     internalServerError: (resource) => `Erro interno no servidor ao processar ${resource}.`,
     unauthorized: (resource) => `Erro de autorização: ${resource}.`,
     resourceConflict: (resource,  conflictField) => `Conflito de recurso em ${resource} contém ${conflictField}.`,

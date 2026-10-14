@@ -158,6 +158,22 @@ const errorResponse = (description, messageExample, errorsExample = []) => ({
   },
 });
 
+// Rate limit do login e da recuperação de senha: o RateLimit traz limite, restante
+// e reset da janela; o Retry-After só vem no 429.
+const error429 = (description, message) => ({
+  ...errorResponse(description, message),
+  headers: {
+    "Retry-After": {
+      description: "Segundos até a janela liberar novas tentativas.",
+      schema: { type: "integer", example: 900 },
+    },
+    RateLimit: {
+      description: "Limite, tentativas restantes e segundos até o reset (draft-7).",
+      schema: { type: "string", example: "limit=10, remaining=0, reset=900" },
+    },
+  },
+});
+
 const error400 = errorResponse(
   "Dados inválidos",
   "Erro de validação. 1 campo(s) inválido(s).",
@@ -224,6 +240,11 @@ registry.registerPath({
     200: commonResponse(LoginResponseSchema, "Login realizado com sucesso"),
     400: error400,
     401: error401Credentials,
+    429: error429(
+      "10 tentativas que falharam em 15 minutos para o mesmo IP + e-mail, ou 100 do mesmo IP "
+      + "com e-mails variados. Login certo não conta.",
+      "Muitas tentativas de login. Tente de novo em 15 minutos.",
+    ),
   },
 });
 
@@ -323,6 +344,10 @@ registry.registerPath({
   responses: {
     200: commonResponse(z.null(), "Instruções enviadas por e-mail"),
     400: error400,
+    429: error429(
+      "Mais de 5 pedidos em 1 hora para o mesmo IP + e-mail; nenhum e-mail é enviado.",
+      "Muitos pedidos de recuperação. Tente de novo em 1 hora.",
+    ),
   },
 });
 
@@ -347,6 +372,11 @@ registry.registerPath({
           message: "Código de recuperação inválido ou expirado.",
         },
       ],
+    ),
+    429: error429(
+      "10 tentativas que falharam em 15 minutos do mesmo IP. Vale também para o primeiro "
+      + "acesso, que define a senha por esta rota com o código do e-mail de boas-vindas.",
+      "Muitas tentativas. Tente de novo em 15 minutos.",
     ),
   },
 });

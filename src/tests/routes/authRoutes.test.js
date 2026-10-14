@@ -84,6 +84,12 @@ describe("Rotas de autenticação", () => {
       expect(res.body.data.user.email).toBe(teacher.email);
     });
 
+    it("deve passar pelo rate limit, com limite alto no ambiente de teste", async() => {
+      const res = await login(teacher.email);
+
+      expect(res.headers.ratelimit).toMatch(/limit=10000/);
+    });
+
     it("não deve devolver a senha do usuário na resposta", async() => {
       const res = await login(teacher.email);
 
