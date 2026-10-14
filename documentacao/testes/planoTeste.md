@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.2_
+_versão 3.3_
 
 ## Histórico das alterações
 
@@ -13,6 +13,7 @@ _versão 3.2_
 | 19/08/2026 | 3.0    | Suíte implementada: estrutura real, cobertura medida, RNF-005 atendido e o que ficou fora do plano original  | Matheus Lucas |
 | 24/09/2026 | 3.1    | Ajuste manual de XP (RF-013, `POST /xp-adjustments`): arquitetura, casos, estrutura da suíte e métricas atualizadas | Matheus Lucas |
 | 13/10/2026 | 3.2    | RF-005: score apurado pelo servidor nos três tipos de missão, com perguntas de checagem em vocabulário e áudio | Matheus Lucas |
+| 14/10/2026 | 3.3    | Histórico de XP do aluno (RF-014, `GET /users/{id}/xp-history`): requisito, arquitetura e casos | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -26,13 +27,13 @@ O escopo desta versão é a API REST. O front-end e a integração com ele ficam
 
 A aplicação é construída em uma arquitetura modular em camadas, utilizando Node.js, Express 5, MongoDB com Mongoose, Zod para validação de dados, JWT para autenticação e Swagger (zod-to-openapi) para documentação.
 
-São **8 domínios**, expostos em **25 caminhos** e **40 operações** documentadas em `/api-docs`.
+São **8 domínios**, expostos em **27 caminhos** e **42 operações** documentadas em `/api-docs`.
 
 ### Camadas
 
 - **Routes**: definem os endpoints, declaram quem pode chamá-los e direcionam para os controllers.
   - `authRoutes.js`: autenticação e gestão de sessão
-  - `userRoutes.js`: gerenciamento de usuários
+  - `userRoutes.js`: gerenciamento de usuários e histórico de XP do aluno
   - `classRoutes.js`: gerenciamento de turmas
   - `missionRoutes.js`: gerenciamento de missões e submissão de progresso
   - `attitudeRoutes.js`: catálogo de atitudes
@@ -41,7 +42,7 @@ São **8 domínios**, expostos em **25 caminhos** e **40 operações** documenta
   - `xpAdjustmentRoutes.js`: ajuste manual de XP pelo professor
 
 - **Controllers**: validam o corpo da requisição com Zod e chamam o service correspondente.
-  - `AuthController`, `UserController`, `ClassController`, `MissionController`, `AttitudeController`, `AttitudeLogController`, `RankingController`, `XpAdjustmentController`
+  - `AuthController`, `UserController`, `ClassController`, `MissionController`, `AttitudeController`, `AttitudeLogController`, `RankingController`, `XpAdjustmentController`, `XpHistoryController`
 
 - **Services**: concentram as regras de negócio e a verificação de posse do recurso.
   - `AuthService`: login, refresh rotation, recuperação e troca de senha
@@ -51,6 +52,7 @@ São **8 domínios**, expostos em **25 caminhos** e **40 operações** documenta
   - `AttitudeService` / `AttitudeLogService`: catálogo de atitudes e aplicação de XP
   - `RankingService`: montagem do ranking global e por turma
   - `XpAdjustmentService`: ajuste manual de XP, com posse do professor e histórico de auditoria
+  - `XpHistoryService`: linha do tempo do XP do aluno (atitudes, ajustes e missões), paginada em memória
   - `ProgressionService`: aplica XP, recalcula o nível e atualiza os rankings; no ajuste manual, com piso em 0 XP
 
 - **Repositories**: acessam o MongoDB, isolando a persistência.
@@ -96,6 +98,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-011 | Controle de Acesso             | Papel declarado na rota e posse do recurso conferida no service; conta desativada perde acesso mesmo com token válido.                | Essencial     | Implementado    |
 | RF-012 | Sigilo do Gabarito             | O aluno recebe a missão sem `questions[].correct_answer`; o gabarito fica restrito a teacher e admin.                                 | Essencial     | Implementado    |
 | RF-013 | Ajuste Manual de XP            | Professor adiciona ou remove XP de aluno das turmas dele sem atitude cadastrada; o XP nunca fica negativo e cada ajuste fica registrado. | Essencial     | Implementado    |
+| RF-014 | Histórico de XP                | O aluno vê de onde veio o próprio XP — atitudes, ajustes manuais e missões —, com o valor efetivamente aplicado, do mais recente ao mais antigo e paginado. O professor vê o dos alunos das turmas dele; o admin, o de qualquer aluno. | Essencial     | Implementado    |
 
 `RF-009` continua no plano porque os campos `badges` e `streak` já existem no model, mas nenhuma regra os alimenta. Enquanto for assim, os casos correspondentes ficam marcados como **bloqueados** no catálogo, e não como falha.
 
@@ -120,7 +123,7 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Usuários                      | `CT-USER`    | 17    | RF-001, RF-006, RF-011      |
 | Turmas                        | `CT-CLASS`   | 12    | RF-003, RF-011              |
 | Missões                       | `CT-MISSION` | 16    | RF-004, RF-011, RF-012      |
-| Progressão de XP e nível      | `CT-XP`      | 21    | RF-005, RF-006, RF-011, RF-013 |
+| Progressão de XP e nível      | `CT-XP`      | 21    | RF-005, RF-006, RF-011, RF-013, RF-014 |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 17    | RF-008, RF-011              |
 | Ranking                       | `CT-RANK`    | 8     | RF-007, RF-011              |
 | Matriz de permissões          | `CT-PERM`    | 41    | RF-011                      |
