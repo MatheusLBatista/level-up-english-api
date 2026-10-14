@@ -298,7 +298,7 @@ describe("Rotas de autenticação", () => {
       expect(comAntiga.status).toBe(401);
     });
 
-    it("deve retornar 401 quando a senha atual estiver incorreta", async() => {
+    it("deve retornar 400 quando a senha atual estiver incorreta", async() => {
       const { accessToken } = await autenticar(teacher.email);
 
       const res = await request(app)
@@ -306,8 +306,15 @@ describe("Rotas de autenticação", () => {
         .set("Authorization", `Bearer ${accessToken}`)
         .send({ currentPassword: "senhaErrada", newPassword: "novaSenha456" });
 
-      expect(res.status).toBe(401);
+      // 400 e não 401: o usuário está autenticado, só errou um campo do formulário.
+      expect(res.status).toBe(400);
       expect(res.body.message).toBe("Senha atual incorreta.");
+      expect(res.body.errors).toEqual([
+        { path: "currentPassword", message: "Senha atual incorreta." },
+      ]);
+
+      expect((await login(teacher.email, SENHA_PADRAO)).status).toBe(200);
+      expect((await login(teacher.email, "novaSenha456")).status).toBe(401);
     });
 
     it("deve retornar 400 quando a nova senha for curta demais", async() => {

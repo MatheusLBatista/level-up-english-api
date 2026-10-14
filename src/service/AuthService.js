@@ -221,8 +221,8 @@ class AuthService {
     const senhaCorreta = await bcrypt.compare(currentPassword, user.password);
     if (!senhaCorreta) {
       throw new CustomError({
-        statusCode: HttpStatusCodes.UNAUTHORIZED.code,
-        errorType: "authenticationError",
+        statusCode: HttpStatusCodes.BAD_REQUEST.code,
+        errorType: "validationError",
         field: "currentPassword",
         details: [{ path: "currentPassword", message: "Senha atual incorreta." }],
         customMessage: "Senha atual incorreta.",

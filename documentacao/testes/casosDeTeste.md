@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.9 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.10 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -19,6 +19,7 @@ _versão 2.9 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 07/10/2026 | 2.7    | Posse da turma no cadastro e na exclusão de aluno pelo professor: casos `CT-AUTH-031` a `034` e `CT-USER-031` a `035`; `CT-AUTH-019`, `024`, `025` e `CT-USER-006`, `016` ajustados; células de professor nos `CT-PERM-002`, `010` e `013` | Matheus Lucas |
 | 09/10/2026 | 2.8    | Melhor nota gravada no progresso da missão e logout só com o refresh token: casos `CT-XP-022` a `024` e `CT-AUTH-035` a `038`; `CT-AUTH-009` e `CT-PERM-007` ajustados | Matheus Lucas |
 | 13/10/2026 | 2.9    | Nomes e buscas com caracteres especiais de regex tratados como texto literal: casos `CT-USER-036` e `037`, `CT-CLASS-025` a `028`, `CT-MISSION-023` a `025` e `CT-ATT-023` e `024` | Matheus Lucas |
+| 13/10/2026 | 2.10   | Senha atual errada no `PATCH /auth/change-password` passa de 401 para 400: `CT-AUTH-014` ajustado | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -82,7 +83,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-011  | Token malformado                       | `Authorization: Token abc`, ou Bearer sem valor                     | **498**, "Formato do token de autenticação inválido!"                                    | RF-011 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-012  | Token expirado                         | access token com `exp` no passado                                   | **498**, "O token JWT está expirado!"                                                    | RF-011 | Int   | —                                  | ⬜       |
 | CT-AUTH-013  | Troca de senha pelo próprio usuário    | `PATCH /auth/change-password` com a senha atual correta             | 200; o login passa a funcionar com a nova senha e falha com a antiga                     | RF-002 | Int   | `routes/authRoutes`                | ✅       |
-| CT-AUTH-014  | Troca de senha com senha atual errada  | `currentPassword` incorreta                                         | 401, "Senha atual incorreta."; a senha no banco não muda                                 | RF-002 | Int   | `routes/authRoutes`                | ✅       |
+| CT-AUTH-014  | Troca de senha com senha atual errada  | `currentPassword` incorreta                                         | 400 com `{ path: "currentPassword", message: "Senha atual incorreta." }` em `errors`; a senha no banco não muda. Não é 401: o usuário está autenticado, e o front trata 401 como sessão expirada | RF-002 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-015  | Recuperação de senha, e-mail existente | `POST /auth/forgot-password`                                        | 200; código de recuperação gravado com validade de 30 minutos                            | RF-002 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-016  | Recuperação com e-mail inexistente     | e-mail fora da base                                                 | 200 silencioso, sem código gravado e sem revelar que a conta não existe                  | RF-002 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-017  | Redefinição com código válido          | `POST /auth/reset-password` com o código recebido                   | 200; login com a nova senha funciona e o código é invalidado após o uso                  | RF-002 | Int   | `routes/authRoutes`                | ✅       |

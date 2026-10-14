@@ -613,13 +613,15 @@ describe("AuthService", () => {
       expect(await bcrypt.compare(NOVA_SENHA, dados.password)).toBe(true);
     });
 
-    it("deve lançar 401 quando a senha atual estiver incorreta", async() => {
+    it("deve lançar 400 quando a senha atual estiver incorreta", async() => {
       repository.findByIdWithPassword.mockResolvedValue(usuario());
 
       const erro = await capturarErro(service.changePassword(USER_ID, "senhaErrada", NOVA_SENHA));
 
       expect(erro).toBeInstanceOf(CustomError);
-      expect(erro.statusCode).toBe(401);
+      expect(erro.statusCode).toBe(400);
+      expect(erro.errorType).toBe("validationError");
+      expect(erro.details).toEqual([{ path: "currentPassword", message: "Senha atual incorreta." }]);
       expect(erro.customMessage).toBe("Senha atual incorreta.");
       expect(repository.update).not.toHaveBeenCalled();
     });
