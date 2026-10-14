@@ -31,6 +31,7 @@ class HttpStatusCodes {
   static IM_A_TEAPOT = { code: 418, message: "Eu sou um bule de chá" };
   static UNPROCESSABLE_ENTITY = { code: 422, message: "Falha na validação" };
   static LOCKED = { code: 423, message: "Recurso bloqueado" };
+  static TOO_MANY_REQUESTS = { code: 429, message: "Muitas requisições. Tente novamente mais tarde." };
   static REQUEST_HEADER_FIELDS_TOO_LARGE = { code: 431, message: "Cabeçalhos da requisição são muito grandes" };
   static UNAVAILABLE_FOR_LEGAL_REASONS = { code: 451, message: "Acesso negado por motivos legais" };
   static INVALID_TOKEN = { code: 498, message: "O token JWT está expirado!" };

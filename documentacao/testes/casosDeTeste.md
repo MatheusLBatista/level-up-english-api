@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.13 — complementa o [Plano de Teste](planoTeste.md) v3.3_
+_versão 2.14 — complementa o [Plano de Teste](planoTeste.md) v3.4_
 
 ## Histórico das alterações
 
@@ -23,6 +23,7 @@ _versão 2.13 — complementa o [Plano de Teste](planoTeste.md) v3.3_
 | 13/10/2026 | 2.11   | Login de conta que ainda não definiu a senha responde 401, e não 500: caso `CT-AUTH-039` | Matheus Lucas |
 | 13/10/2026 | 2.12   | Perguntas de checagem em vocabulário e áudio e correção pelo servidor nos três tipos: casos `CT-MISSION-026` a `033` e `CT-XP-025` a `028`; `CT-XP-008` ajustado (o score do corpo deixou de ser obrigatório) | Matheus Lucas |
 | 14/10/2026 | 2.13   | Histórico de XP do aluno (`GET /users/{id}/xp-history`, RF-014): casos `CT-XP-029` a `039` e `CT-PERM-042` | Matheus Lucas |
+| 14/10/2026 | 2.14   | Rate limit no login, no `forgot-password` e no `reset-password` (RNF-007): casos `CT-AUTH-040` a `050`; o `CT-RATE-001` deixa de estar bloqueado e é substituído por eles | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -112,7 +113,20 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-037  | Logout com refresh token que não é o salvo | refresh token válido, mas já substituído no banco, ou de usuário sem sessão; repetir o logout | 200; os tokens salvos não mudam e o logout repetido também responde 200 (idempotente) | RF-010 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-038  | Logout sem corpo                       | `POST /auth/logout` sem `refreshToken`                              | 400; só corpo malformado é recusado                                                      | RF-010 | Int   | `routes/authRoutes`, `controllers/AuthController` | ✅ |
 | CT-AUTH-039  | Login de conta sem senha definida      | usuário criado por `register-student` ou `register-teacher` que ainda não usou o link de definição de senha | 401 com a **mesma** mensagem do CT-AUTH-002, e não 500; nenhum token é gravado — não revela que a conta existe e aguarda a senha | RF-002 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-AUTH-040  | Login bloqueado após falhas | 3 senhas erradas para `aluno@escola.com` e depois a senha certa, do mesmo IP (limite reduzido a 3 no teste; 10 em produção) | a 4ª tentativa responde 429 mesmo com a senha certa, com `{ message: "Muitas tentativas de login. Tente de novo em 15 minutos.", data: null, errors: [] }` | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-041  | Cabeçalhos do 429 | a 4ª tentativa do CT-AUTH-040 | `Retry-After` com os segundos até liberar e `RateLimit` (draft-7); sem os cabeçalhos legados `X-RateLimit-*` | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-042  | Login certo não conta | 5 logins certos, 2 errados e mais um certo | todos os certos respondem 200 — só a falha consome o limite | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-043  | Outro e-mail do mesmo IP | `aluno@escola.com` bloqueado; `colega@escola.com` tenta do mesmo IP | 200 para o colega — o caso do laboratório, em que a turma sai pelo mesmo IP público | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-044  | E-mail normalizado na chave | 2 falhas com `aluno@escola.com` e 1 com `  ALUNO@escola.com ` | a próxima tentativa de `aluno@escola.com` responde 429 — maiúsculas e espaços não abrem um contador novo | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-045  | Barreira por IP | falhas com e-mails diferentes, do mesmo IP, até o limite do IP (5 no teste; 100 em produção) | a tentativa seguinte responde 429 com a mensagem do login, mesmo para e-mail sem falha | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-046  | Bloqueio do e-mail não gasta a cota do IP | `aluno@escola.com` bloqueado insiste 5 vezes | as 5 respondem 429 e o colega, do mesmo IP, ainda entra — o limite por e-mail barra antes de o do IP contar | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-047  | IPs contados separadamente | `aluno@escola.com` bloqueado num IP tenta de outro | 200 no outro IP | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-048  | Pedidos demais no `forgot-password` | 4 pedidos para o mesmo e-mail e IP (limite 3 no teste; 5 por hora em produção) | o 4º responde 429, "Muitos pedidos de recuperação. Tente de novo em 1 hora.", com `Retry-After`, e nenhum e-mail a mais é enviado; outro e-mail do mesmo IP continua sendo atendido | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-049  | Códigos errados demais no `reset-password` | 3 códigos inválidos e um 4º (limite 3 no teste; 10 em produção) | os 3 respondem 400 e o 4º 429, "Muitas tentativas. Tente de novo em 15 minutos." — vale também para o primeiro acesso, que define a senha por esta rota | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
+| CT-AUTH-050  | Refresh nunca é limitado | login estourado e 10 `refresh` com token inválido do mesmo IP | todos os `refresh` respondem 401, nenhum 429, e o refresh com o token válido responde 200 — bloquear o refresh derrubaria sessões válidas | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
 **Pendência do módulo.** O `CT-AUTH-012` é o único caso de autenticação sem teste. Ele é o caminho que passa pelo `else if (err.name === "TokenExpiredError")` do `AuthMiddleware`, e forçá-lo exige assinar um access token com `expiresIn` negativo — não dá para esperar o token vencer dentro da suíte. A classe `TokenExpiredError` já tem teste próprio em `utils/errors/TokenExpiredError`, mas o caminho da rota, do token vencido até o corpo da resposta, não é exercido por ninguém.
+
+**Rate limit (`CT-AUTH-040` a `050`).** Os limites de produção são altos demais para a suíte exercitar, e a suíte faz muitos logins seguidos que não podem esbarrar neles. Por isso o `RateLimitMiddleware` expõe fábricas que recebem `{ limit, windowMs }`: em `NODE_ENV=test` as instâncias da rota sobem com limite 10000 — o `authRoutes` confere que o login continua passando pelo middleware —, e o `routes/rateLimitRoutes` troca essas instâncias, por `jest.mock`, por outras de limite baixo montadas pelas mesmas fábricas. Cada teste sai por um IP próprio via `X-Forwarded-For`, porque os contadores ficam na memória do limitador e não são zerados entre os testes. O `trust proxy` do `app.js` não é exercido, pelo mesmo motivo que deixa o `app.js` sem cobertura (seção 6 do plano); o teste monta o próprio Express com a mesma configuração.
 
 ---
 
@@ -435,17 +449,18 @@ Nenhum dos quatro está automatizado. A suíte atual cobre cada endpoint isolada
 | CT-BADGE-001 | Badge concedida no primeiro login   | Nenhuma regra concede badge hoje; o campo existe apenas no model        | RF-009 | ⛔       |
 | CT-BADGE-002 | Badge concedida ao atingir 100 XP   | Mesma pendência do CT-BADGE-001                                        | RF-009 | ⛔       |
 | CT-STREAK-001 | Streak diária de atividade         | Falta o campo `last_activity_at` no model e a regra de atualização      | RF-009 | ⛔       |
-| CT-RATE-001  | Bloqueio por excesso de requisições | Rate limiting ainda não implementado (RNF-001)                          | RNF-001 | ⛔      |
 
 Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Eles ficam registrados para que a lacuna seja uma decisão consciente, e não um esquecimento.
 
+O `CT-RATE-001` saiu desta tabela na v2.14: o rate limit foi implementado (RNF-007) e o caso foi substituído pelos `CT-AUTH-040` a `050`.
+
 ## 11 - Resumo
 
-Situação em 14/10/2026, com a suíte em **52 arquivos de teste e 1223 testes**, executando em cerca de 7 segundos.
+Situação em 14/10/2026, com a suíte em **53 arquivos de teste e 1236 testes**, executando em cerca de 7 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
-| Autenticação e sessão         | `CT-AUTH`    | 39    | 38               | 1            |
+| Autenticação e sessão         | `CT-AUTH`    | 50    | 49               | 1            |
 | Usuários                      | `CT-USER`    | 37    | 37               | 0            |
 | Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
 | Missões                       | `CT-MISSION` | 33    | 33               | 0            |
@@ -454,9 +469,9 @@ Situação em 14/10/2026, com a suíte em **52 arquivos de teste e 1223 testes**
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 42    | 41               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **254** | **248 (97,6%)** | **6**        |
+| **Total**                     | -            | **265** | **259 (97,7%)** | **6**        |
 
-Os 4 casos bloqueados da seção 10 não entram nesta contagem.
+Os 3 casos bloqueados da seção 10 não entram nesta contagem.
 
 ### As seis pendências, em ordem de risco
 
