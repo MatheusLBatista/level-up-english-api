@@ -108,7 +108,10 @@ class MissionService {
       });
     }
 
-    const contentIssues = getMissionContentIssues(mission.type, parsedData, { partial: true });
+    const contentIssues = getMissionContentIssues(mission.type, parsedData, {
+      partial: true,
+      hasSavedQuestions: (mission.questions?.length ?? 0) > 0,
+    });
 
     if (contentIssues.length > 0) {
       throw new CustomError({
@@ -219,22 +222,14 @@ class MissionService {
     };
   }
 
-  resolveScore(mission, { score, answers }) {
-    if (mission.type !== "quiz") {
-      if (score === undefined) {
-        throw new CustomError({
-          statusCode: HttpStatusCodes.BAD_REQUEST.code,
-          errorType: "validationError",
-          field: "score",
-          details: [],
-          customMessage: "O score é obrigatório para missões que não são do tipo quiz.",
-        });
-      }
-
-      return { score, correct_answers: null, total_questions: null };
-    }
-
+  /** O score vem sempre do servidor; o enviado no corpo é ignorado em todos os tipos. */
+  resolveScore(mission, { answers, done }) {
     const questions = mission.questions ?? [];
+
+    if (questions.length === 0 && mission.type !== "quiz") {
+      // Vocabulário ou áudio antigo, cadastrado antes das perguntas de checagem.
+      return { score: done ? 100 : 0, correct_answers: null, total_questions: null };
+    }
 
     if (questions.length === 0) {
       throw new CustomError({

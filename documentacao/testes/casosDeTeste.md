@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.11 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.13 — complementa o [Plano de Teste](planoTeste.md) v3.3_
 
 ## Histórico das alterações
 
@@ -21,6 +21,8 @@ _versão 2.11 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 13/10/2026 | 2.9    | Nomes e buscas com caracteres especiais de regex tratados como texto literal: casos `CT-USER-036` e `037`, `CT-CLASS-025` a `028`, `CT-MISSION-023` a `025` e `CT-ATT-023` e `024` | Matheus Lucas |
 | 13/10/2026 | 2.10   | Senha atual errada no `PATCH /auth/change-password` passa de 401 para 400: `CT-AUTH-014` ajustado | Matheus Lucas |
 | 13/10/2026 | 2.11   | Login de conta que ainda não definiu a senha responde 401, e não 500: caso `CT-AUTH-039` | Matheus Lucas |
+| 13/10/2026 | 2.12   | Perguntas de checagem em vocabulário e áudio e correção pelo servidor nos três tipos: casos `CT-MISSION-026` a `033` e `CT-XP-025` a `028`; `CT-XP-008` ajustado (o score do corpo deixou de ser obrigatório) | Matheus Lucas |
+| 14/10/2026 | 2.13   | Histórico de XP do aluno (`GET /users/{id}/xp-history`, RF-014): casos `CT-XP-029` a `039` e `CT-PERM-042` | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -222,6 +224,14 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-MISSION-023  | Título de missão com parêntese           | `POST /missions` com `title: "Animais (parte 1"`                          | 201 com o título gravado como enviado, e não 500 por regex inválida                        | RF-004 | Int   | `routes/missionRoutes`, `repository/MissionRepository` | ✅ |
 | CT-MISSION-024  | Ponto no título não gera duplicado falso | `Unidade1` cadastrada; `POST /missions` com `title: "Unidade."`             | 201 — a checagem de duplicado compara o texto literal                                      | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
 | CT-MISSION-025  | Título duplicado com outra caixa         | `Animais` cadastrada; `POST /missions` com `title: "animais"`              | 400, "Título já cadastrado." — a comparação é insensível a maiúsculas                   | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-026  | Vocabulário ou áudio sem perguntas de checagem | `POST /missions` com `type: "vocabulary"` (ou `"audio"`) sem `questions` | 400 em `questions`, "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." (no áudio, "Missões de áudio…"); nada é gravado | RF-004 | Int | `routes/missionRoutes`, `controllers/MissionController`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-027  | Mais de três perguntas de checagem       | `POST /missions` com `type: "audio"` e 4 perguntas                         | 400 em `questions`, "Missões de áudio precisam de 1 a 3 perguntas de checagem."            | RF-004 | Int   | `routes/missionRoutes`, `controllers/MissionController` | ✅ |
+| CT-MISSION-028  | Limites de 1 e 3 perguntas aceitos       | vocabulário com 1 pergunta e áudio com 3                                    | 201 nos dois, com as perguntas gravadas                                                      | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-029  | Missão antiga editada sem perguntas      | vocabulário salvo sem `questions`; `PATCH` com `{ title }`                  | 400 em `questions` com a mensagem do CT-MISSION-026; o título salvo não muda. Vale para `title`, `description`, `content`, `content_url`, `xp_reward` e `questions` | RF-004 | Int | `routes/missionRoutes`, `services/MissionService`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-030  | Missão antiga editada com perguntas      | mesmo vocabulário; `PATCH` com `{ title, questions }` e 2 perguntas         | 200; a missão passa a ter as 2 perguntas e sai da condição de antiga                         | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-031  | Missão antiga só ativada ou desativada   | mesmo vocabulário; `PATCH` com `{ active: false }` (ou só `class_id`)       | 200 sem exigir perguntas — não é edição de conteúdo                                          | RF-004 | Int   | `routes/missionRoutes`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-032  | Edição parcial de vocabulário com perguntas | vocabulário salvo com perguntas; `PATCH` só com `title`                  | 200; as perguntas salvas continuam valendo, como no quiz (CT-MISSION-020)                    | RF-004 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-MISSION-033  | Aluno não recebe gabarito de vocabulário e áudio | `GET /missions` e `GET /missions/{id}` como `alunoA`, em vocabulário e áudio com perguntas | 200 com `question` e `options`, sem `correct_answer` — a mesma regra do quiz (CT-MISSION-008 e 010) | RF-012 | Int | `routes/missionRoutes` | ✅ |
 
 ---
 
@@ -236,7 +246,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-XP-005  | Resubmissão com melhora                | primeira submissão 60%, segunda 100%                                                  | a segunda credita apenas a diferença (40), e `credited_so_far` fecha em 100                  | RF-006 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-XP-006  | Missão inativa                         | submeter progresso em missão com `active: false`                                      | 400, "Esta missão está inativa."                                                             | RF-005 | Int   | `routes/missionRoutes`                   | ✅       |
 | CT-XP-007  | Quantidade de respostas divergente     | 3 respostas para um quiz de 5 questões                                                | 400, "Envie exatamente 5 respostas, na ordem das questões."                                  | RF-005 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
-| CT-XP-008  | Missão sem quiz exige score            | `type: "vocabulary"` sem `score` no corpo                                             | 400, "O score é obrigatório para missões que não são do tipo quiz."                          | RF-005 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-XP-008  | Missão antiga sem perguntas vale 100   | vocabulário ou áudio salvo sem `questions`, `done: true` e `score: 30` (ou sem `score`) no corpo | 200, `score: 100` e o `xp_reward` inteiro; o `score` do corpo é ignorado. Com `done: false`, `score: 0` | RF-005 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-XP-009  | Subida de nível ao cruzar o limiar     | aluno com 0 XP recebendo 100 XP                                                       | nível passa de 1 para 2 e a resposta traz `leveled_up: true`                                 | RF-006 | Unit  | `utils/LevelHelper`, `services/ProgressionService`, `routes/missionRoutes` | ✅ |
 | CT-XP-010  | Piso do nível com XP negativo          | cálculo de nível sobre XP 0 ou negativo (dado legado, anterior ao piso em 0)         | nível não cai abaixo de 1 e o cálculo trata XP negativo como 0                               | RF-006 | Unit  | `utils/LevelHelper`                      | ✅       |
 | CT-XP-011  | Ajuste manual que adiciona XP          | `POST /xp-adjustments` com `alunoA` e `amount: 50`                                     | 201 com `amount: 50` e `xp_applied: 50`; o XP do aluno sobe 50                               | RF-013 | Int   | `routes/xpAdjustmentRoutes`, `services/XpAdjustmentService` | ✅ |
@@ -253,8 +263,25 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-XP-022  | Resubmissão com piora mantém a melhor nota | primeira submissão 100%, segunda 60%                                               | a resposta traz `score: 60` e `correct_answers: 3` da tentativa e `best_score: 100`; `mission_progress.score` continua 100 e nenhum XP é creditado | RF-006 | Int | `routes/missionRoutes`, `services/MissionService` | ✅ |
 | CT-XP-023  | Resubmissão com melhora grava a nova nota | progresso anterior com 40%, nova submissão com 80%                                 | `mission_progress.score` passa a 80, `best_score: 80` e só a diferença (40 XP) é creditada  | RF-006 | Unit  | `services/MissionService`                | ✅       |
 | CT-XP-024  | Missão concluída não volta a pendente  | progresso com `done: true`, nova submissão com `done: false`                           | `mission_progress.done` continua `true` e nenhum XP é creditado                              | RF-005 | Unit  | `services/MissionService`                | ✅       |
+| CT-XP-025  | Vocabulário com perguntas, tudo certo  | vocabulário com 2 perguntas e `xp_reward: 60`, `answers` corretas                     | 200, `score: 100`, `correct_answers: 2`, `total_questions: 2`, `xp_earned: 60`               | RF-005 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-XP-026  | Vocabulário com metade certa           | mesmo vocabulário, 1 acerto em 2                                                      | `score: 50` e `xp_earned: 30` — proporcional, como o quiz (CT-XP-002)                        | RF-006 | Int   | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-XP-027  | Só score, sem respostas                | mesmo vocabulário com `{ score: 100 }` no corpo                                       | 400, "Envie exatamente 2 respostas, na ordem das questões."; nenhum XP é creditado — fecha a brecha de concluir sem ver o conteúdo | RF-005 | Int | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-XP-028  | Áudio com perguntas corrigido pelo gabarito | áudio com 3 perguntas e `xp_reward: 30`, 2 acertos e `score: 100` no corpo       | `score: 67`, `correct_answers: 2`, `xp_earned: 20`; o score do corpo é ignorado              | RF-005 | Int   | `routes/missionRoutes`                   | ✅       |
+| CT-XP-029  | Aluno vê o próprio histórico | `GET /users/{id do alunoA}/xp-history` como `alunoA`, com atitude +10 (01/10), missão 80 XP (02/10), atitude -5 (03/10) e ajuste -3 (04/10) | 200 com os quatro itens da mais recente para a mais antiga: `adjustment`, `attitude`, `mission`, `attitude`; cada um com `id`, `kind`, `xp`, `title`, `detail` e `date` | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-030  | Atitude negativa no histórico | log da atitude "Atraso" com `xp_applied: -5` | item `kind: "attitude"` com `xp: -5`, `title: "Atraso"` e o nome de quem aplicou em `detail` | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-031  | Ajuste que bateu no piso | ajuste com `amount: -50` e `xp_applied: -3` (o aluno tinha 3 XP) | item `kind: "adjustment"` com `xp: -3` — o aplicado de fato, e não o pedido —, `title: "Ajuste de XP"`, o motivo em `detail` e quem ajustou em `teacher` | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-032  | Missão só entra se rendeu XP | `mission_progress` com uma missão de `xp_earned: 80` e outra de `xp_earned: 0` | só a primeira aparece: `id` da missão, `xp: 80`, o título em `title`, `detail: "Melhor nota: 80%"` e `date` igual ao `completed_at` | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-033  | Origem removida ou sem motivo | atitude e missão excluídas depois de render XP; ajuste sem `reason` | os itens continuam no histórico com `title: "Atitude removida"` e `"Missão removida"`; o ajuste vem com `detail: null` | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-034  | Aluno pede o histórico de outro | `GET /users/{id do alunoB}/xp-history` como `alunoA` | 403, "Você só pode ver o seu histórico de XP."; nada é consultado | RF-011 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-035  | Professor e aluno de outra turma | `profA` pedindo o histórico de `alunoB` ou de `semTurma` | 403, "Você só pode ver o histórico de XP de alunos das suas turmas."; o de `alunoA` responde 200 | RF-011 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-036  | Admin vê qualquer aluno | `admin` pedindo o histórico de `alunoB` | 200 — o admin não passa pela checagem de turma | RF-011 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-037  | Alvo que não é aluno | id de `profA`, id inexistente ou `abc` | 404, "Aluno não encontrado." — o id malformado não chega ao banco, onde viraria 500 | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-038  | Paginação | `?page=2&limit=3` com 4 itens; sem parâmetros; `limit=500`; `page=0&limit=abc` | página 2 com 1 item, `totalPages: 2`, `prevPage: 1` e `nextPage: null`; padrão `limit: 10`; `limit` limitado a 50; valores inválidos voltam ao padrão | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
+| CT-XP-039  | Aluno sem XP | histórico de `semTurma`, que nunca ganhou XP | 200 com `docs: []`, `totalDocs: 0` e `totalPages: 1` | RF-014 | Int   | `routes/xpHistoryRoutes` | ✅ |
 
 O ajuste manual (`CT-XP-011` a `021`) e as atitudes aplicadas (`CT-ATT-018` a `022`) passam pela mesma atualização atômica com piso em 0, que grava em `xp_applied` o que foi aplicado de fato — pode ser menor que o `amount` pedido ou que o `xp_value` da atitude. Só a conclusão de missão soma pelo `$inc` direto, porque só credita XP positivo. O `CT-XP-010` continua valendo para dado legado: um aluno que já estava negativo antes do piso ainda tem o nível calculado como 1.
+
+O histórico (`CT-XP-029` a `039`) lê esses mesmos registros: `xp_applied` dos logs de atitude e dos ajustes e `xp_earned` do `mission_progress`. Por isso o XP de cada item é o que entrou de fato no saldo do aluno, e não o valor pedido. As três origens vêm de duas coleções e de um array dentro do usuário, então a junção, a ordenação e a paginação são feitas em memória, no service.
 
 A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nível 2 = 100, nível 3 = 400, nível 4 = 900), com teto no nível 50. Os casos `Unit` cobrem `LevelHelper` direto, sem HTTP — inclusive a coerência entre `xpForLevel` e `calculateLevel` ao longo de toda a curva, que é a propriedade que garante que os dois nunca discordem.
 
@@ -357,6 +384,7 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-039  | `POST /rankings/refresh`          | 403                             | 403                                  | 200   | `routes/rankingRoutes`      | ✅       |
 | CT-PERM-040  | Conta desativada em rota protegida | 403                            | 403                                  | 403   | `routes/userRoutes`         | ✅       |
 | CT-PERM-041  | `POST /xp-adjustments`            | 403                             | 201 aluno da turma dele / 403 outro  | 201   | `routes/xpAdjustmentRoutes` | ✅       |
+| CT-PERM-042  | `GET /users/{id}/xp-history`      | 200 próprio / 403 outro         | 200 aluno da turma dele / 403 outro  | 200   | `routes/xpHistoryRoutes`    | ✅       |
 
 **Pendência da matriz.** O `CT-PERM-033` é a única operação cuja célula restritiva não é exercida: `GET /attitude-logs/{id}` declara `authorize("teacher", "admin")` na rota, e a suíte cobre o caminho da professora (log populado) e o 404, mas nunca chama a rota com token de aluno. A proteção está no código; o que falta é o teste que a prova.
 
@@ -413,20 +441,20 @@ Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Ele
 
 ## 11 - Resumo
 
-Situação em 13/10/2026, com a suíte em **49 arquivos de teste e 1161 testes**, executando em cerca de 7 segundos.
+Situação em 14/10/2026, com a suíte em **52 arquivos de teste e 1223 testes**, executando em cerca de 7 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
 | Autenticação e sessão         | `CT-AUTH`    | 39    | 38               | 1            |
 | Usuários                      | `CT-USER`    | 37    | 37               | 0            |
 | Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
-| Missões                       | `CT-MISSION` | 25    | 25               | 0            |
-| Progressão de XP e nível      | `CT-XP`      | 24    | 24               | 0            |
+| Missões                       | `CT-MISSION` | 33    | 33               | 0            |
+| Progressão de XP e nível      | `CT-XP`      | 39    | 39               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
-| Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
+| Matriz de permissões          | `CT-PERM`    | 42    | 41               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **230** | **224 (97,4%)** | **6**        |
+| **Total**                     | -            | **254** | **248 (97,6%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 

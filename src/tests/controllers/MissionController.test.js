@@ -69,12 +69,19 @@ describe("MissionController", () => {
 
   describe("create", () => {
     const quiz = { title: "Quiz", type: "quiz", class_id: CLASS_ID, questions: questoes() };
-    const vocabulario = { title: "Vocabulário", type: "vocabulary", class_id: CLASS_ID, content: "texto" };
+    const vocabulario = {
+      title: "Vocabulário",
+      type: "vocabulary",
+      class_id: CLASS_ID,
+      content: "texto",
+      questions: questoes(1),
+    };
     const audio = {
       title: "Áudio",
       type: "audio",
       class_id: CLASS_ID,
       content_url: "https://exemplo.com/audio.mp3",
+      questions: questoes(1),
     };
 
     it("deve devolver 201 com a missão criada", async() => {
@@ -141,6 +148,29 @@ describe("MissionController", () => {
       const erro = await capturarErro(controller.create(req, res));
 
       expect(erro.errors[0].message).toBe("Missões do tipo vocabulário precisam de conteúdo (content).");
+    });
+
+    it("deve rejeitar vocabulário sem perguntas de checagem", async() => {
+      const { questions, ...semPerguntas } = vocabulario;
+      req.body = semPerguntas;
+
+      const erro = await capturarErro(controller.create(req, res));
+
+      expect(erro.errors).toHaveLength(1);
+      expect(erro.errors[0]).toMatchObject({
+        path: ["questions"],
+        message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem.",
+      });
+      expect(controller.service.create).not.toHaveBeenCalled();
+    });
+
+    it("deve rejeitar áudio com mais de três perguntas de checagem", async() => {
+      req.body = { ...audio, questions: questoes(4) };
+
+      const erro = await capturarErro(controller.create(req, res));
+
+      expect(erro.errors[0].message).toBe("Missões de áudio precisam de 1 a 3 perguntas de checagem.");
+      expect(controller.service.create).not.toHaveBeenCalled();
     });
 
     it("deve rejeitar vocabulário com conteúdo em branco", async() => {

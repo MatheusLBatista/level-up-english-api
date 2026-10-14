@@ -9,6 +9,7 @@ import {
   UpdateUserBodySchema,
   LevelProgressSchema,
 } from "../schemas/UserSchema.js";
+import { XpHistoryPageSchema } from "../schemas/XpHistorySchema.js";
 import {
   LoginBodySchema,
   LoginResponseSchema,
@@ -473,6 +474,41 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "get",
+  path: "/users/{id}/xp-history",
+  tags: ["Users"],
+  summary: "Histórico de XP do aluno (aluno só o próprio; professor só alunos das turmas dele)",
+  description:
+    "Linha do tempo de onde veio e para onde foi o XP do aluno, juntando três origens: "
+    + "atitudes aplicadas (kind attitude), ajustes manuais (kind adjustment) e missões que "
+    + "renderam XP (kind mission). O xp de cada item é o que entrou de fato, com sinal: em "
+    + "atitude e ajuste, o xp_applied, já com o piso em 0. Ordenado da data mais recente "
+    + "para a mais antiga e paginado com page e limit (padrão 10, máximo 50). O aluno só "
+    + "consulta o próprio id; o professor, só aluno de turma dele (aluno sem turma ou de "
+    + "outra turma devolve 403); o admin, qualquer aluno. Id que não é de aluno devolve 404.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    }),
+    query: z.object({
+      page: z.string().optional().openapi({ example: "1" }),
+      limit: z.string().optional().openapi({ example: "10", description: "Padrão 10, máximo 50." }),
+    }),
+  },
+  responses: {
+    200: commonResponse(XpHistoryPageSchema, "Histórico de XP do aluno"),
+    401: error401Token,
+    403: errorResponse(
+      "Papel sem acesso à rota, aluno pedindo o histórico de outro, ou professor pedindo "
+      + "o de aluno sem turma ou de turma de outro professor",
+      "Você só pode ver o seu histórico de XP.",
+    ),
+    404: errorResponse("Id que não existe ou não é de aluno", "Aluno não encontrado."),
+  },
+});
+
+registry.registerPath({
   method: "post",
   path: "/users",
   tags: ["Users"],
@@ -768,6 +804,11 @@ registry.registerPath({
   path: "/missions",
   tags: ["Missions"],
   summary: "Criar missão (teacher/admin; professor só nas turmas dele)",
+  description:
+    "Regras de conteúdo por type: quiz exige questions com no mínimo 5 itens; vocabulary "
+    + "exige content não vazio e questions com 1 a 3 perguntas de checagem; audio exige "
+    + "content_url http ou https e questions com 1 a 3 perguntas de checagem. As perguntas "
+    + "de checagem têm o mesmo formato das do quiz e são corrigidas pelo servidor.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -791,9 +832,11 @@ registry.registerPath({
   tags: ["Missions"],
   summary: "Registrar progresso do aluno logado em uma missão (student)",
   description:
-    "Em missões do tipo quiz o aluno envia answers e o score é apurado pelo servidor "
-    + "contra o gabarito (um score enviado no corpo é ignorado); nos tipos vocabulário "
-    + "e áudio o score é obrigatório no corpo. O XP é proporcional ao score sobre o "
+    "O score é sempre apurado pelo servidor; um score enviado no corpo é ignorado. "
+    + "Missão com perguntas (quiz, e vocabulário ou áudio com perguntas de checagem): o "
+    + "aluno envia answers, uma por pergunta e na ordem cadastrada, e o score é a "
+    + "porcentagem de acertos. Vocabulário ou áudio antigo, cadastrado sem perguntas: "
+    + "a conclusão (done true) vale score 100, e done false vale 0. O XP é proporcional ao score sobre o "
     + "xp_reward e segue o melhor desempenho: cada submissão credita apenas a diferença "
     + "em relação ao que já foi pago antes (campo credited_so_far). Repetir ou piorar "
     + "o score retorna xp_earned igual a 0. O progresso gravado guarda o melhor score "
@@ -833,12 +876,16 @@ registry.registerPath({
       "Dados inválidos. Além do formato do corpo e do título duplicado, o conteúdo "
       + "enviado é validado pelo type da missão já salva (o type não vem no corpo): "
       + "quiz exige questions com no mínimo 5 itens; vocabulary exige content não "
-      + "vazio; audio exige content_url não vazio. Só os campos enviados são "
+      + "vazio; audio exige content_url não vazio; em vocabulary e audio, questions "
+      + "precisa ter de 1 a 3 perguntas de checagem. Só os campos enviados são "
       + "validados — omitir questions, content ou content_url mantém o valor atual. "
-      + "content_url só aceita URLs http ou https. Cada erro vem em errors como "
-      + "{ path, message }.",
+      + "Exceção: vocabulary ou audio antiga, salva sem perguntas, só pode ter title, "
+      + "description, content, content_url, xp_reward ou questions alterados se o corpo "
+      + "trouxer questions com 1 a 3 perguntas; um PATCH só com active (ou class_id) "
+      + "continua permitido. content_url só aceita URLs http ou https. Cada erro vem "
+      + "em errors como { path, message }.",
       "Erro de validação. 1 campo(s) inválido(s).",
-      [{ path: "questions", message: "Missões do tipo quiz precisam de no mínimo 5 perguntas." }],
+      [{ path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." }],
     ),
     401: error401Token,
     403: errorResponse(
