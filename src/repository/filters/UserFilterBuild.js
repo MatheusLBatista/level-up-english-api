@@ -1,3 +1,5 @@
+import { escapeRegex } from "../../utils/helpers/index.js";
+
 class UserFilterBuild {
   constructor() {
     this.filters = {};
@@ -5,14 +7,14 @@ class UserFilterBuild {
 
   withName(name) {
     if (name) {
-      this.filters.name = { $regex: name, $options: "i" };
+      this.filters.name = { $regex: escapeRegex(name), $options: "i" };
     }
     return this;
   }
 
   withEmail(email) {
     if (email) {
-      this.filters.email = { $regex: email, $options: "i" };
+      this.filters.email = { $regex: escapeRegex(email), $options: "i" };
     }
     return this;
   }

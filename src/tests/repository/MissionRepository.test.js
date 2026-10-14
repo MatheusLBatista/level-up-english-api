@@ -83,6 +83,16 @@ describe("MissionRepository", () => {
       });
     });
 
+    it("deve escapar caracteres de regex do título antes de montar o filtro", async() => {
+      modelo.findOne.mockResolvedValue(null);
+
+      await repository.findByTitle("Quiz (parte 1)");
+
+      expect(modelo.findOne).toHaveBeenCalledWith({
+        title: { $regex: "^Quiz \\(parte 1\\)$", $options: "i" },
+      });
+    });
+
     it("deve excluir a própria missão da busca", async() => {
       modelo.findOne.mockResolvedValue(null);
 

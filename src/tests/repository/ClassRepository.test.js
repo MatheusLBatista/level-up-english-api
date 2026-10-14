@@ -154,6 +154,16 @@ describe("ClassRepository", () => {
       });
     });
 
+    it("deve escapar caracteres de regex do nome antes de montar o filtro", async() => {
+      modelo.findOne.mockResolvedValue(null);
+
+      await repository.findByName("Turma A (manhã");
+
+      expect(modelo.findOne).toHaveBeenCalledWith({
+        name: { $regex: "^Turma A \\(manhã$", $options: "i" },
+      });
+    });
+
     it("deve excluir a própria turma da busca", async() => {
       modelo.findOne.mockResolvedValue(null);
 
@@ -194,6 +204,16 @@ describe("ClassRepository", () => {
         name: { $regex: "turma", $options: "i" },
         teacher: TEACHER_ID,
         _id: CLASS_ID,
+      });
+    });
+
+    it("deve escapar caracteres de regex do nome no filtro da listagem", async() => {
+      modelo.paginate.mockResolvedValue(paginado);
+
+      await repository.list({ query: { name: "3º ano." } });
+
+      expect(modelo.paginate.mock.calls[0][0]).toEqual({
+        name: { $regex: "3º ano\\.", $options: "i" },
       });
     });
 

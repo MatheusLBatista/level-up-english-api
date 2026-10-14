@@ -146,6 +146,14 @@ describe("UserRepository", () => {
       expect(modelo.findOne).toHaveBeenCalledWith({ name: { $regex: "maria", $options: "i" } });
     });
 
+    it("deve escapar caracteres de regex do nome", async() => {
+      modelo.findOne.mockResolvedValue(null);
+
+      await repository.findByName("Ana.");
+
+      expect(modelo.findOne).toHaveBeenCalledWith({ name: { $regex: "Ana\\.", $options: "i" } });
+    });
+
     it("deve excluir o id informado da busca", async() => {
       modelo.findOne.mockResolvedValue(null);
 

@@ -16,6 +16,12 @@ describe("MissionFilterBuild", () => {
       });
     });
 
+    it("deve tratar o título como texto literal, escapando caracteres de regex", () => {
+      expect(builder.withTitle("C++ básico?").build()).toEqual({
+        title: { $regex: "C\\+\\+ básico\\?", $options: "i" },
+      });
+    });
+
     it("deve ignorar título vazio ou não informado", () => {
       expect(builder.withTitle("").build()).toEqual({});
       expect(new MissionFilterBuild().withTitle(undefined).build()).toEqual({});
