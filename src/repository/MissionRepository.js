@@ -23,6 +23,10 @@ class MissionRepository {
     return mission;
   }
 
+  async findTitlesByIds(ids) {
+    return await this.missionModel.find({ _id: { $in: ids } }).select("title");
+  }
+
   async findByTitle(title, excludeId = null) {
     const filter = { title: { $regex: `^${escapeRegex(title)}$`, $options: "i" } };
     if (excludeId) filter._id = { $ne: excludeId };

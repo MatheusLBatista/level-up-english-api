@@ -72,6 +72,20 @@ describe("MissionRepository", () => {
     });
   });
 
+  describe("findTitlesByIds", () => {
+    it("deve buscar só o título das missões informadas", async() => {
+      const missoes = [{ _id: MISSION_ID, title: "Explorador" }];
+      const select = jest.fn().mockResolvedValue(missoes);
+      modelo.find = jest.fn().mockReturnValue({ select });
+
+      const resultado = await repository.findTitlesByIds([MISSION_ID]);
+
+      expect(modelo.find).toHaveBeenCalledWith({ _id: { $in: [MISSION_ID] } });
+      expect(select).toHaveBeenCalledWith("title");
+      expect(resultado).toBe(missoes);
+    });
+  });
+
   describe("findByTitle", () => {
     it("deve casar o título inteiro, sem diferenciar maiúsculas", async() => {
       modelo.findOne.mockResolvedValue(null);

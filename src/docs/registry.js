@@ -9,6 +9,7 @@ import {
   UpdateUserBodySchema,
   LevelProgressSchema,
 } from "../schemas/UserSchema.js";
+import { XpHistoryPageSchema } from "../schemas/XpHistorySchema.js";
 import {
   LoginBodySchema,
   LoginResponseSchema,
@@ -469,6 +470,41 @@ registry.registerPath({
       "Students can only view their own profile.",
     ),
     404: error404User,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/users/{id}/xp-history",
+  tags: ["Users"],
+  summary: "Histórico de XP do aluno (aluno só o próprio; professor só alunos das turmas dele)",
+  description:
+    "Linha do tempo de onde veio e para onde foi o XP do aluno, juntando três origens: "
+    + "atitudes aplicadas (kind attitude), ajustes manuais (kind adjustment) e missões que "
+    + "renderam XP (kind mission). O xp de cada item é o que entrou de fato, com sinal: em "
+    + "atitude e ajuste, o xp_applied, já com o piso em 0. Ordenado da data mais recente "
+    + "para a mais antiga e paginado com page e limit (padrão 10, máximo 50). O aluno só "
+    + "consulta o próprio id; o professor, só aluno de turma dele (aluno sem turma ou de "
+    + "outra turma devolve 403); o admin, qualquer aluno. Id que não é de aluno devolve 404.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    }),
+    query: z.object({
+      page: z.string().optional().openapi({ example: "1" }),
+      limit: z.string().optional().openapi({ example: "10", description: "Padrão 10, máximo 50." }),
+    }),
+  },
+  responses: {
+    200: commonResponse(XpHistoryPageSchema, "Histórico de XP do aluno"),
+    401: error401Token,
+    403: errorResponse(
+      "Papel sem acesso à rota, aluno pedindo o histórico de outro, ou professor pedindo "
+      + "o de aluno sem turma ou de turma de outro professor",
+      "Você só pode ver o seu histórico de XP.",
+    ),
+    404: errorResponse("Id que não existe ou não é de aluno", "Aluno não encontrado."),
   },
 });
 

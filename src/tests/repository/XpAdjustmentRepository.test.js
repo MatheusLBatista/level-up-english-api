@@ -35,4 +35,18 @@ describe("XpAdjustmentRepository", () => {
       expect(padrao.xpAdjustmentModel.modelName).toBe("xpAdjustments");
     });
   });
+
+  describe("findByStudent", () => {
+    it("deve buscar os ajustes do aluno com o nome de quem ajustou", async() => {
+      const ajustes = [{ _id: AJUSTE_ID }];
+      const populate = jest.fn().mockResolvedValue(ajustes);
+      modelo.find = jest.fn().mockReturnValue({ populate });
+
+      const resultado = await repository.findByStudent(STUDENT_ID);
+
+      expect(modelo.find).toHaveBeenCalledWith({ student: STUDENT_ID });
+      expect(populate).toHaveBeenCalledWith("teacher", "name");
+      expect(resultado).toBe(ajustes);
+    });
+  });
 });
