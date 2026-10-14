@@ -581,6 +581,26 @@ describe("MissionService", () => {
       expect(repository.update).toHaveBeenCalledWith(MISSION_ID, { xp_reward: 200 });
     });
 
+    it("deve exigir perguntas ao editar o conteúdo de vocabulário salvo sem perguntas", async() => {
+      repository.findById.mockResolvedValue(missao({ type: "vocabulary", content: "cat", questions: undefined }));
+
+      const erro = await capturarErro(service.update(MISSION_ID, { xp_reward: 200 }, { user_id: PROF_A_ID }));
+
+      expect(erro.statusCode).toBe(400);
+      expect(erro.details).toEqual([
+        { path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." },
+      ]);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it("não deve exigir perguntas ao editar vocabulário que já as tem salvas", async() => {
+      repository.findById.mockResolvedValue(missao({ type: "vocabulary", content: "cat", questions: questoes(["a"]) }));
+
+      await service.update(MISSION_ID, { xp_reward: 200 }, { user_id: PROF_A_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(MISSION_ID, { xp_reward: 200 });
+    });
+
     it("deve lançar 403 quando a professora não criou a missão", async() => {
       const erro = await capturarErro(
         service.update(MISSION_ID, { xp_reward: 200 }, { user_id: PROF_B_ID }),

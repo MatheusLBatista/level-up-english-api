@@ -768,6 +768,11 @@ registry.registerPath({
   path: "/missions",
   tags: ["Missions"],
   summary: "Criar missão (teacher/admin; professor só nas turmas dele)",
+  description:
+    "Regras de conteúdo por type: quiz exige questions com no mínimo 5 itens; vocabulary "
+    + "exige content não vazio e questions com 1 a 3 perguntas de checagem; audio exige "
+    + "content_url http ou https e questions com 1 a 3 perguntas de checagem. As perguntas "
+    + "de checagem têm o mesmo formato das do quiz e são corrigidas pelo servidor.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -833,12 +838,16 @@ registry.registerPath({
       "Dados inválidos. Além do formato do corpo e do título duplicado, o conteúdo "
       + "enviado é validado pelo type da missão já salva (o type não vem no corpo): "
       + "quiz exige questions com no mínimo 5 itens; vocabulary exige content não "
-      + "vazio; audio exige content_url não vazio. Só os campos enviados são "
+      + "vazio; audio exige content_url não vazio; em vocabulary e audio, questions "
+      + "precisa ter de 1 a 3 perguntas de checagem. Só os campos enviados são "
       + "validados — omitir questions, content ou content_url mantém o valor atual. "
-      + "content_url só aceita URLs http ou https. Cada erro vem em errors como "
-      + "{ path, message }.",
+      + "Exceção: vocabulary ou audio antiga, salva sem perguntas, só pode ter title, "
+      + "description, content, content_url, xp_reward ou questions alterados se o corpo "
+      + "trouxer questions com 1 a 3 perguntas; um PATCH só com active (ou class_id) "
+      + "continua permitido. content_url só aceita URLs http ou https. Cada erro vem "
+      + "em errors como { path, message }.",
       "Erro de validação. 1 campo(s) inválido(s).",
-      [{ path: "questions", message: "Missões do tipo quiz precisam de no mínimo 5 perguntas." }],
+      [{ path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." }],
     ),
     401: error401Token,
     403: errorResponse(

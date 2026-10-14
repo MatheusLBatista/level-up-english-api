@@ -238,7 +238,13 @@ describe("Rotas de missões", () => {
   });
 
   describe("POST /missions", () => {
-    const nova = { title: "Nova Missão", type: "vocabulary", content: "texto", xp_reward: 30 };
+    const nova = {
+      title: "Nova Missão",
+      type: "vocabulary",
+      content: "texto",
+      xp_reward: 30,
+      questions: questoes(["a"]),
+    };
 
     it("deve criar a missão e anexá-la à turma", async() => {
       const res = await request(app)
@@ -343,6 +349,64 @@ describe("Rotas de missões", () => {
 
       expect(res.status).toBe(400);
       expect(res.body.errors[0].path).toBe("questions");
+    });
+
+    it("deve retornar 400 quando o vocabulário vier sem perguntas de checagem", async() => {
+      const { questions, ...semPerguntas } = nova;
+
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...semPerguntas, class_id: String(turmaA._id) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toContainEqual({
+        path: "questions",
+        message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem.",
+      });
+      expect(await Mission.findOne({ title: nova.title })).toBeNull();
+    });
+
+    it("deve retornar 400 quando o áudio vier com quatro perguntas de checagem", async() => {
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({
+          title: "Áudio Longo",
+          type: "audio",
+          content_url: "https://exemplo.com/a.mp3",
+          class_id: String(turmaA._id),
+          questions: questoes(["a", "b", "c", "d"]),
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toContainEqual({
+        path: "questions",
+        message: "Missões de áudio precisam de 1 a 3 perguntas de checagem.",
+      });
+    });
+
+    it("deve criar vocabulário com uma pergunta e áudio com três", async() => {
+      const vocab = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, class_id: String(turmaA._id) });
+
+      const audio = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({
+          title: "Áudio Curto",
+          type: "audio",
+          content_url: "https://exemplo.com/a.mp3",
+          class_id: String(turmaA._id),
+          questions: questoes(["a", "b", "c"]),
+        });
+
+      expect(vocab.status).toBe(201);
+      expect(vocab.body.data.questions).toHaveLength(1);
+      expect(audio.status).toBe(201);
+      expect(audio.body.data.questions).toHaveLength(3);
     });
 
     it("deve retornar 400 quando o content_url não for http nem https", async() => {
@@ -631,6 +695,60 @@ describe("Rotas de missões", () => {
       expect(res.status).toBe(400);
       expect(res.body.errors[0].path).toBe("content_url");
       expect((await Mission.findById(audio._id)).content_url).toBe("https://exemplo.com/musica.mp3");
+    });
+
+    describe("missão antiga de vocabulário, sem perguntas salvas", () => {
+      it("deve retornar 400 ao editar o título sem mandar as perguntas", async() => {
+        const res = await request(app)
+          .patch(`/missions/${vocabulario._id}`)
+          .set("Authorization", await como(profA))
+          .send({ title: "Animais 2" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.errors).toEqual([
+          { path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." },
+        ]);
+        expect((await Mission.findById(vocabulario._id)).title).toBe("Animais");
+      });
+
+      it("deve aceitar a edição quando as perguntas vierem junto", async() => {
+        const res = await request(app)
+          .patch(`/missions/${vocabulario._id}`)
+          .set("Authorization", await como(profA))
+          .send({ title: "Animais 2", questions: questoes(["a", "b"]) });
+
+        expect(res.status).toBe(200);
+        expect((await Mission.findById(vocabulario._id)).questions).toHaveLength(2);
+      });
+
+      it("deve permitir só desativar a missão sem perguntas", async() => {
+        const res = await request(app)
+          .patch(`/missions/${vocabulario._id}`)
+          .set("Authorization", await como(profA))
+          .send({ active: false });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.active).toBe(false);
+      });
+    });
+
+    it("não deve exigir as perguntas ao editar só o título de vocabulário que já as tem", async() => {
+      const comPerguntas = await Mission.create({
+        title: "Frutas",
+        type: "vocabulary",
+        content: "apple, banana",
+        class_id: turmaA._id,
+        createdBy: profA._id,
+        questions: questoes(["a"]),
+      });
+
+      const res = await request(app)
+        .patch(`/missions/${comPerguntas._id}`)
+        .set("Authorization", await como(profA))
+        .send({ title: "Frutas 2" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.title).toBe("Frutas 2");
     });
 
     it("não deve exigir as questões ao atualizar só o título do quiz", async() => {

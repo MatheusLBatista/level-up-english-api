@@ -108,7 +108,10 @@ class MissionService {
       });
     }
 
-    const contentIssues = getMissionContentIssues(mission.type, parsedData, { partial: true });
+    const contentIssues = getMissionContentIssues(mission.type, parsedData, {
+      partial: true,
+      hasSavedQuestions: (mission.questions?.length ?? 0) > 0,
+    });
 
     if (contentIssues.length > 0) {
       throw new CustomError({

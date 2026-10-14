@@ -57,12 +57,23 @@ const ContentUrlSchema = z
 
 const isBlank = (value) => !value || value.trim().length === 0;
 
+const CHECK_QUESTIONS_MESSAGES = {
+  vocabulary: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem.",
+  audio: "Missões de áudio precisam de 1 a 3 perguntas de checagem.",
+};
+
+// Campos que contam como edição de conteúdo: mexer em qualquer um deles numa
+// missão antiga, sem perguntas salvas, obriga a cadastrar as perguntas.
+const CONTENT_FIELDS = ["title", "description", "content", "content_url", "xp_reward", "questions"];
+
 /**
  * Regras de conteúdo por tipo, compartilhadas entre POST e PATCH. O `type` vem
  * separado porque o PATCH não o recebe no corpo: usa o da missão já salva.
- * Com `partial`, campo ausente não é validado (o PATCH não mexe nele).
+ * Com `partial`, campo ausente não é validado (o PATCH não mexe nele), exceto
+ * as perguntas de vocabulário e áudio de missão antiga (`hasSavedQuestions`
+ * false) que está tendo o conteúdo editado.
  */
-export const getMissionContentIssues = (type, data, { partial = false } = {}) => {
+export const getMissionContentIssues = (type, data, { partial = false, hasSavedQuestions = true } = {}) => {
   const issues = [];
   const shouldCheck = (field) => !partial || data[field] !== undefined;
 
@@ -81,6 +92,17 @@ export const getMissionContentIssues = (type, data, { partial = false } = {}) =>
   if (type === "audio" && shouldCheck("content_url")) {
     if (isBlank(data.content_url)) {
       issues.push({ path: "content_url", message: "Missões do tipo áudio precisam de uma URL (content_url)." });
+    }
+  }
+
+  if (CHECK_QUESTIONS_MESSAGES[type]) {
+    const editingLegacy = partial && !hasSavedQuestions && CONTENT_FIELDS.some((field) => data[field] !== undefined);
+
+    if (shouldCheck("questions") || editingLegacy) {
+      const total = data.questions?.length ?? 0;
+      if (total < 1 || total > 3) {
+        issues.push({ path: "questions", message: CHECK_QUESTIONS_MESSAGES[type] });
+      }
     }
   }
 
@@ -219,5 +241,6 @@ export const UpdateMissionBodySchema = z
     description:
       "Todos os campos são opcionais e o type não pode ser alterado. As regras de conteúdo "
       + "(questions, content, content_url) dependem do type da missão já salva e só valem "
-      + "para os campos enviados.",
+      + "para os campos enviados — exceto em vocabulary ou audio salva sem perguntas, em "
+      + "que editar o conteúdo exige mandar questions com 1 a 3 perguntas de checagem.",
   });
