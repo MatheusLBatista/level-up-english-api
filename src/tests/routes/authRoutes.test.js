@@ -113,6 +113,17 @@ describe("Rotas de autenticação", () => {
       expect(res.body.message).toBe("Credenciais inválidas. Verifique seu usuário e senha.");
     });
 
+    it("deve retornar 401 quando a conta ainda não tiver senha definida", async() => {
+      // É como register-student/teacher criam o usuário, antes do link de definição de senha.
+      const semSenha = await User.create({ name: "Sem senha", email: "semsenha@escola.com", role: "student" });
+
+      const res = await login(semSenha.email);
+
+      expect(res.status).toBe(401);
+      expect(res.body.message).toBe("Credenciais inválidas. Verifique seu usuário e senha.");
+      expect((await User.findById(semSenha._id).select("+refreshtoken")).refreshtoken).toBeFalsy();
+    });
+
     it("deve retornar 401 quando a conta estiver desativada", async() => {
       const inativo = await criarUsuario({ name: "Inativo", email: "inativo@escola.com", active: false });
 

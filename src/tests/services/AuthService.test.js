@@ -124,6 +124,17 @@ describe("AuthService", () => {
       expect(repository.storeTokens).not.toHaveBeenCalled();
     });
 
+    it("deve lançar 401 de credenciais quando a conta não tiver senha", async() => {
+      repository.findByEmail.mockResolvedValue(usuario({ password: undefined }));
+
+      const erro = await capturarErro(service.login({ email: "professora@escola.com", password: SENHA_PADRAO }));
+
+      expect(erro).toBeInstanceOf(CustomError);
+      expect(erro.statusCode).toBe(401);
+      expect(erro.customMessage).toBe("Credenciais inválidas. Verifique seu usuário e senha.");
+      expect(repository.storeTokens).not.toHaveBeenCalled();
+    });
+
     it("deve usar a mesma mensagem para senha errada e e-mail inexistente", async() => {
       repository.findByEmail.mockResolvedValue(null);
       const semConta = await capturarErro(service.login({ email: "naoexiste@escola.com", password: SENHA_PADRAO }));

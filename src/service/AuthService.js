@@ -34,7 +34,8 @@ class AuthService {
       customMessage: messages.auth.invalidCredentials,
     });
 
-    if (!user) throw credenciaisInvalidas;
+    // Conta criada por register-student/teacher só tem senha depois do link de definição.
+    if (!user || !user.password) throw credenciaisInvalidas;
 
     const senhaCorreta = await bcrypt.compare(password, user.password);
     if (!senhaCorreta) throw credenciaisInvalidas;

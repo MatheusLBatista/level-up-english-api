@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.10 — complementa o [Plano de Teste](planoTeste.md) v3.1_
+_versão 2.11 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 
 ## Histórico das alterações
 
@@ -20,6 +20,7 @@ _versão 2.10 — complementa o [Plano de Teste](planoTeste.md) v3.1_
 | 09/10/2026 | 2.8    | Melhor nota gravada no progresso da missão e logout só com o refresh token: casos `CT-XP-022` a `024` e `CT-AUTH-035` a `038`; `CT-AUTH-009` e `CT-PERM-007` ajustados | Matheus Lucas |
 | 13/10/2026 | 2.9    | Nomes e buscas com caracteres especiais de regex tratados como texto literal: casos `CT-USER-036` e `037`, `CT-CLASS-025` a `028`, `CT-MISSION-023` a `025` e `CT-ATT-023` e `024` | Matheus Lucas |
 | 13/10/2026 | 2.10   | Senha atual errada no `PATCH /auth/change-password` passa de 401 para 400: `CT-AUTH-014` ajustado | Matheus Lucas |
+| 13/10/2026 | 2.11   | Login de conta que ainda não definiu a senha responde 401, e não 500: caso `CT-AUTH-039` | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -108,6 +109,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-036  | Logout com refresh token inválido      | `refreshToken` malformado ou expirado                                | 200 com a mesma mensagem do CT-AUTH-009; os tokens salvos não mudam — não revela se a sessão existia | RF-010 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-037  | Logout com refresh token que não é o salvo | refresh token válido, mas já substituído no banco, ou de usuário sem sessão; repetir o logout | 200; os tokens salvos não mudam e o logout repetido também responde 200 (idempotente) | RF-010 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-038  | Logout sem corpo                       | `POST /auth/logout` sem `refreshToken`                              | 400; só corpo malformado é recusado                                                      | RF-010 | Int   | `routes/authRoutes`, `controllers/AuthController` | ✅ |
+| CT-AUTH-039  | Login de conta sem senha definida      | usuário criado por `register-student` ou `register-teacher` que ainda não usou o link de definição de senha | 401 com a **mesma** mensagem do CT-AUTH-002, e não 500; nenhum token é gravado — não revela que a conta existe e aguarda a senha | RF-002 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 **Pendência do módulo.** O `CT-AUTH-012` é o único caso de autenticação sem teste. Ele é o caminho que passa pelo `else if (err.name === "TokenExpiredError")` do `AuthMiddleware`, e forçá-lo exige assinar um access token com `expiresIn` negativo — não dá para esperar o token vencer dentro da suíte. A classe `TokenExpiredError` já tem teste próprio em `utils/errors/TokenExpiredError`, mas o caminho da rota, do token vencido até o corpo da resposta, não é exercido por ninguém.
 
 ---
@@ -411,11 +413,11 @@ Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Ele
 
 ## 11 - Resumo
 
-Situação em 13/10/2026, com a suíte em **49 arquivos de teste e 1159 testes**, executando em cerca de 7 segundos.
+Situação em 13/10/2026, com a suíte em **49 arquivos de teste e 1161 testes**, executando em cerca de 7 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
-| Autenticação e sessão         | `CT-AUTH`    | 38    | 37               | 1            |
+| Autenticação e sessão         | `CT-AUTH`    | 39    | 38               | 1            |
 | Usuários                      | `CT-USER`    | 37    | 37               | 0            |
 | Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
 | Missões                       | `CT-MISSION` | 25    | 25               | 0            |
@@ -424,7 +426,7 @@ Situação em 13/10/2026, com a suíte em **49 arquivos de teste e 1159 testes**
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 41    | 40               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **229** | **223 (97,4%)** | **6**        |
+| **Total**                     | -            | **230** | **224 (97,4%)** | **6**        |
 
 Os 4 casos bloqueados da seção 10 não entram nesta contagem.
 
