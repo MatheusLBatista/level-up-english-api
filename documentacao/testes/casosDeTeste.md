@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.17 — complementa o [Plano de Teste](planoTeste.md) v3.8_
+_versão 2.18 — complementa o [Plano de Teste](planoTeste.md) v3.9_
 
 ## Histórico das alterações
 
@@ -27,6 +27,7 @@ _versão 2.17 — complementa o [Plano de Teste](planoTeste.md) v3.8_
 | 14/10/2026 | 2.15   | Título da missão único por turma, e não na escola inteira: casos `CT-MISSION-034` a `042`; `CT-MISSION-007` e `025` ajustados para a nova regra e a nova mensagem | Matheus Lucas |
 | 16/10/2026 | 2.16   | RF-009 atendido no frontend: `CT-BADGE-001` e `002` saem dos casos bloqueados por estarem fora do escopo do backend; o `CT-STREAK-001` continua bloqueado | Matheus Lucas |
 | 16/10/2026 | 2.17   | Token expirado e token inválido exercitados em rota: `CT-AUTH-012` automatizado e caso `CT-AUTH-051`; o `AuthMiddleware` fica sem linha descoberta | Matheus Lucas |
+| 16/10/2026 | 2.18   | Célula restritiva do `GET /attitude-logs/{id}` exercitada: `CT-PERM-033` automatizado e a matriz de permissões fica completa | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -404,7 +405,7 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-030  | `DELETE /attitudes/{id}`          | 403                             | 403                                  | 200   | `routes/attitudeRoutes`     | ✅       |
 | CT-PERM-031  | `GET /attitude-logs`              | 403                             | 200                                  | 200   | `routes/attitudeLogRoutes`  | ✅       |
 | CT-PERM-032  | `POST /attitude-logs`             | 403                             | 201 aluno da turma dele / 403 outro  | 201   | `routes/attitudeLogRoutes`  | ✅       |
-| CT-PERM-033  | `GET /attitude-logs/{id}`         | 403                             | 200                                  | 200   | `routes/attitudeLogRoutes` (só a célula permissiva) | ⬜ |
+| CT-PERM-033  | `GET /attitude-logs/{id}`         | 403                             | 200                                  | 200   | `routes/attitudeLogRoutes`  | ✅       |
 | CT-PERM-034  | `PATCH /attitude-logs/{id}`       | 403                             | 200 se aplicou / 403 se não          | 200   | `routes/attitudeLogRoutes`  | ✅       |
 | CT-PERM-035  | `DELETE /attitude-logs/{id}`      | 403                             | 200 se aplicou / 403 se não          | 200   | `routes/attitudeLogRoutes`  | ✅       |
 | CT-PERM-036  | `GET /rankings/global`            | 200                             | 200                                  | 200   | `routes/rankingRoutes`      | ✅       |
@@ -415,7 +416,7 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-041  | `POST /xp-adjustments`            | 403                             | 201 aluno da turma dele / 403 outro  | 201   | `routes/xpAdjustmentRoutes` | ✅       |
 | CT-PERM-042  | `GET /users/{id}/xp-history`      | 200 próprio / 403 outro         | 200 aluno da turma dele / 403 outro  | 200   | `routes/xpHistoryRoutes`    | ✅       |
 
-**Pendência da matriz.** O `CT-PERM-033` é a única operação cuja célula restritiva não é exercida: `GET /attitude-logs/{id}` declara `authorize("teacher", "admin")` na rota, e a suíte cobre o caminho da professora (log populado) e o 404, mas nunca chama a rota com token de aluno. A proteção está no código; o que falta é o teste que a prova.
+**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida. A última foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
 
 ---
 
@@ -471,7 +472,7 @@ O `CT-BADGE-001` (badge no primeiro login) e o `CT-BADGE-002` (badge ao atingir 
 
 ## 11 - Resumo
 
-Situação em 16/10/2026, com a suíte em **54 arquivos de teste e 1260 testes**, executando em cerca de 8 segundos.
+Situação em 16/10/2026, com a suíte em **54 arquivos de teste e 1261 testes**, executando em cerca de 8 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
@@ -482,16 +483,15 @@ Situação em 16/10/2026, com a suíte em **54 arquivos de teste e 1260 testes**
 | Progressão de XP e nível      | `CT-XP`      | 39    | 39               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
-| Matriz de permissões          | `CT-PERM`    | 42    | 41               | 1            |
+| Matriz de permissões          | `CT-PERM`    | 42    | 42               | 0            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **275** | **270 (98,2%)** | **5**        |
+| **Total**                     | -            | **275** | **271 (98,5%)** | **4**        |
 
 O caso bloqueado da seção 10 não entra nesta contagem.
 
-### As cinco pendências, em ordem de risco
+### As quatro pendências
 
-1. **CT-PERM-033** — célula restritiva sem teste em `GET /attitude-logs/{id}`. É a única lacuna de controle de acesso, e a mais barata de fechar: uma chamada com token de aluno esperando 403.
-2. **CT-E2E-001 a 004** — os quatro fluxos ponta a ponta.
+1. **CT-E2E-001 a 004** — os quatro fluxos ponta a ponta.
 
 ### Rastreabilidade entre catálogo e suíte
 

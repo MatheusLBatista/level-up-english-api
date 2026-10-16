@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.8_
+_versão 3.9_
 
 ## Histórico das alterações
 
@@ -19,6 +19,7 @@ _versão 3.8_
 | 16/10/2026 | 3.6    | Seção 4 alinhada à seção 11 do catálogo (274 casos, 268 automatizados); RF-004 com o título de missão único por turma; métricas da seção 7 medidas de novo | Matheus Lucas |
 | 16/10/2026 | 3.7    | Seção 7 medida de novo depois do teste do `CT-AUTH-011`: a linha 32 do `AuthMiddleware` deixa de estar descoberta | Matheus Lucas |
 | 16/10/2026 | 3.8    | `CT-AUTH-012` automatizado e caso `CT-AUTH-051` (token inválido); o `AuthMiddleware` chega a 100% e o `if (!decoded)` inalcançável é removido | Matheus Lucas |
+| 16/10/2026 | 3.9    | `CT-PERM-033` automatizado: a matriz de permissões fica completa e só os fluxos ponta a ponta seguem pendentes | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -141,7 +142,7 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 
 Além destes, 1 caso fica **bloqueado** enquanto o streak não existir (seção 10 do catálogo).
 
-**Situação em 16/10/2026: 270 dos 275 casos estão automatizados (98,2%).** As cinco pendências são a célula restritiva de `GET /attitude-logs/{id}` (`CT-PERM-033`) e os quatro fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
+**Situação em 16/10/2026: 271 dos 275 casos estão automatizados (98,5%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
 
 A matriz `CT-PERM` cobre uma linha por operação da API, com o status esperado para cada um dos três papéis. Ela é a rede de segurança contra regressão de permissão: qualquer rota nova entra ali antes de ser considerada pronta.
 
@@ -273,7 +274,7 @@ Uma consequência dessa estrutura merece registro: **nenhuma suíte carrega `src
 
 ### Metas de cobertura por camada, e o que foi alcançado
 
-Medição de 16/10/2026, com 54 arquivos de teste e 1260 testes:
+Medição de 16/10/2026, com 54 arquivos de teste e 1261 testes:
 
 | Camada             | Meta  | Realizado (stmts)  | Prioridade | Justificativa                                                |
 | ------------------ | ----- | ------------------ | ---------- | ------------------------------------------------------------ |
@@ -303,7 +304,7 @@ Configurar `collectCoverageFrom` continua sendo o ajuste correto: ele faz a gara
 
 | Métrica              | Alvo                     | Medido em 16/10/2026     |
 | -------------------- | ------------------------ | ------------------------ |
-| Pass rate na `main`  | mínimo de 95%            | **100%** (1260/1260)     |
+| Pass rate na `main`  | mínimo de 95%            | **100%** (1261/1261)     |
 | Flakiness            | máximo de 5%             | Nenhum caso instável isolado; a suíte cheia tem uma falha intermitente de infraestrutura em testes de rota (~1 em 8 rodadas em 02/10/2026; 2 em 7 em 16/10/2026, com `socket hang up` do supertest) |
 | Tempo de execução    | menos de 60 s            | **~8 s**                 |
 | Cobertura de linhas  | mínimo de 70%            | **99,84%**               |
@@ -363,7 +364,7 @@ O campo **Teste de regressão** é obrigatório para severidade Blocker e Grave:
 | Planejamento     | Revisão do plano e do catálogo de casos                          | 1 dia    | ✅ concluído em 14/08/2026                      |
 | Infraestrutura   | `setupDatabase`, factories e helper de autenticação              | 2 dias   | ✅ concluído — sem factories nem helper de auth, ver seção 6 |
 | Integração       | Suíte por módulo, seguindo a ordem de criticidade                | 5 dias   | ✅ concluído — 10 suítes de rota                |
-| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 40 de 41 (falta `CT-PERM-033`)               |
+| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 42 de 42                                     |
 | Unitários        | Regras isoladas de XP, nível, correção de quiz e schemas         | 2 dias   | ✅ concluído                                    |
 | Ponta a ponta    | Fluxos `CT-E2E`                                                  | 1 dia    | ⬜ pendente                                     |
 | Fechamento       | Cobertura, ajuste das metas e revisão do plano                   | 1 dia    | ✅ concluído em 19/08/2026 — esta versão        |
