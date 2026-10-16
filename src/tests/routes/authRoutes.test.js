@@ -353,6 +353,20 @@ describe("Rotas de autenticação", () => {
 
       expect(res.status).toBe(498);
     });
+
+    // CT-AUTH-011: o cabeçalho existe, mas fora do formato "Bearer <token>".
+    it.each([
+      ["com outro esquema", "Token abc"],
+      ["com Bearer sem valor", "Bearer"],
+    ])("deve retornar 498 quando o token estiver malformado (%s)", async(_, cabecalho) => {
+      const res = await request(app)
+        .patch("/auth/change-password")
+        .set("Authorization", cabecalho)
+        .send({ currentPassword: SENHA_PADRAO, newPassword: "novaSenha456" });
+
+      expect(res.status).toBe(498);
+      expect(res.body.message).toBe("Formato do token de autenticação inválido!");
+    });
   });
 
   describe("POST /auth/forgot-password", () => {
