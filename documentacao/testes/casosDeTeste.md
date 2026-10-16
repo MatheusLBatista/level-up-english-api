@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.16 — complementa o [Plano de Teste](planoTeste.md) v3.6_
+_versão 2.16 — complementa o [Plano de Teste](planoTeste.md) v3.7_
 
 ## Histórico das alterações
 

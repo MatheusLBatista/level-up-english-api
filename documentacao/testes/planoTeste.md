@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.6_
+_versão 3.7_
 
 ## Histórico das alterações
 
@@ -17,6 +17,7 @@ _versão 3.6_
 | 14/10/2026 | 3.4    | RNF-007: rate limit no login e na recuperação de senha; RNF-001 passa a Implementado e o `CT-RATE-001` deixa de estar bloqueado | Matheus Lucas |
 | 16/10/2026 | 3.5    | RF-009 passa a Parcial: conquistas calculadas no frontend a partir do `mission_progress`; streak segue como trabalho futuro e os casos de badge saem do escopo do backend | Matheus Lucas |
 | 16/10/2026 | 3.6    | Seção 4 alinhada à seção 11 do catálogo (274 casos, 268 automatizados); RF-004 com o título de missão único por turma; métricas da seção 7 medidas de novo | Matheus Lucas |
+| 16/10/2026 | 3.7    | Seção 7 medida de novo depois do teste do `CT-AUTH-011`: a linha 32 do `AuthMiddleware` deixa de estar descoberta | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -114,7 +115,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | Parcial — limite aplicado nos 5 repositórios; o p95 ainda não foi medido |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
-| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,52% de linhas e as 42 operações exercitadas por teste de integração (ver seção 7) |
+| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,60% de linhas e as 42 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Fora do escopo desta versão     |
 | RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
 
@@ -271,23 +272,22 @@ Uma consequência dessa estrutura merece registro: **nenhuma suíte carrega `src
 
 ### Metas de cobertura por camada, e o que foi alcançado
 
-Medição de 16/10/2026, com 54 arquivos de teste e 1255 testes:
+Medição de 16/10/2026, com 54 arquivos de teste e 1257 testes:
 
 | Camada             | Meta  | Realizado (stmts)  | Prioridade | Justificativa                                                |
 | ------------------ | ----- | ------------------ | ---------- | ------------------------------------------------------------ |
 | Services           | 85%   | **99,82%**         | Alta       | Concentram regra de negócio e verificação de posse           |
-| Middlewares        | 90%   | **93,33%**         | Alta       | `authorize` é a porta de entrada de toda rota autenticada    |
+| Middlewares        | 90%   | **95%**            | Alta       | `authorize` é a porta de entrada de toda rota autenticada    |
 | Schemas/Validators | 95%   | **100%**           | Alta       | Baratos de testar e a primeira barreira contra dado inválido |
 | Repositories       | 80%   | **100%**           | Alta       | Filtros e paginação são fonte recorrente de erro sutil       |
 | Controllers        | 70%   | **100%**           | Média      | Camada fina; o essencial já passa pela integração            |
 | Utils/Helpers      | 75%   | **100%**           | Média      | `LevelHelper` é exceção: cobertura alta, é regra de XP       |
 | Routes             | —     | **100%**           | —          | Consequência das 10 suítes de rota                           |
 | Models             | —     | **100%**           | —          | Consequência dos testes que gravam de verdade                |
-| **Total**          | **~80%** | **99,54% stmts / 97,31% branches / 100% funcs / 99,52% linhas** | - | Piso contratual de 70% no RNF-005 |
+| **Total**          | **~80%** | **99,62% stmts / 97,43% branches / 100% funcs / 99,60% linhas** | - | Piso contratual de 70% no RNF-005 |
 
-Todas as metas foram atingidas. Em linhas, ficam abaixo de 100% o `UserService.js` (98,98%, linha 261) e o `AuthMiddleware.js`, com 81,81%, cujas quatro linhas descobertas são:
+Todas as metas foram atingidas. Em linhas, ficam abaixo de 100% o `UserService.js` (98,98%, linha 261) e o `AuthMiddleware.js`, com 86,36%, cujas três linhas descobertas são:
 
-- **linha 32** — o `throw` do cabeçalho fora do formato `Bearer <token>`. É o cenário do `CT-AUTH-011`, mas nenhuma suíte passa por essa linha hoje.
 - **linha 39** — o `if (!decoded)` depois de um `jwt.verify` que já lança quando o token não presta. É código inalcançável, não lacuna de teste: a forma de fechá-la é apagar o `if`, não escrever um teste para ele.
 - **linha 61** — o access token com assinatura inválida (`JsonWebTokenError`), que nenhuma suíte exercita em rota.
 - **linha 63** — o caminho do token expirado (`TokenExpiredError`). Esse é lacuna conhecida, registrada como `CT-AUTH-012` no catálogo.
@@ -306,11 +306,11 @@ Configurar `collectCoverageFrom` continua sendo o ajuste correto: ele faz a gara
 
 | Métrica              | Alvo                     | Medido em 16/10/2026     |
 | -------------------- | ------------------------ | ------------------------ |
-| Pass rate na `main`  | mínimo de 95%            | **100%** (1255/1255)     |
-| Flakiness            | máximo de 5%             | Nenhum caso instável isolado; a suíte cheia tem uma falha intermitente de infraestrutura em testes de rota (~1 em 8 rodadas, observada em 02/10/2026) |
+| Pass rate na `main`  | mínimo de 95%            | **100%** (1257/1257)     |
+| Flakiness            | máximo de 5%             | Nenhum caso instável isolado; a suíte cheia tem uma falha intermitente de infraestrutura em testes de rota (~1 em 8 rodadas em 02/10/2026; 2 em 7 em 16/10/2026, com `socket hang up` do supertest) |
 | Tempo de execução    | menos de 60 s            | **~9 s**                 |
-| Cobertura de linhas  | mínimo de 70%            | **99,52%**               |
-| Cobertura de branches | mínimo de 65%           | **97,31%**               |
+| Cobertura de linhas  | mínimo de 70%            | **99,60%**               |
+| Cobertura de branches | mínimo de 65%           | **97,43%**               |
 
 O relatório sai em `coverage/` a cada `npm run test`. A configuração do Jest, no `package.json`, exclui da contagem os arquivos sem regra própria (helpers de resposta, logger, conexão com o banco, seeds e a documentação Swagger) para que a métrica reflita código de negócio.
 
