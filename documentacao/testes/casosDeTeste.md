@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.15 — complementa o [Plano de Teste](planoTeste.md) v3.4_
+_versão 2.16 — complementa o [Plano de Teste](planoTeste.md) v3.5_
 
 ## Histórico das alterações
 
@@ -25,6 +25,7 @@ _versão 2.15 — complementa o [Plano de Teste](planoTeste.md) v3.4_
 | 14/10/2026 | 2.13   | Histórico de XP do aluno (`GET /users/{id}/xp-history`, RF-014): casos `CT-XP-029` a `039` e `CT-PERM-042` | Matheus Lucas |
 | 14/10/2026 | 2.14   | Rate limit no login, no `forgot-password` e no `reset-password` (RNF-007): casos `CT-AUTH-040` a `050`; o `CT-RATE-001` deixa de estar bloqueado e é substituído por eles | Matheus Lucas |
 | 14/10/2026 | 2.15   | Título da missão único por turma, e não na escola inteira: casos `CT-MISSION-034` a `042`; `CT-MISSION-007` e `025` ajustados para a nova regra e a nova mensagem | Matheus Lucas |
+| 16/10/2026 | 2.16   | RF-009 atendido no frontend: `CT-BADGE-001` e `002` saem dos casos bloqueados por estarem fora do escopo do backend; o `CT-STREAK-001` continua bloqueado | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -458,13 +459,13 @@ Nenhum dos quatro está automatizado. A suíte atual cobre cada endpoint isolada
 
 | ID          | Cenário                              | Depende de                                                          | RF     | Situação |
 | ----------- | ------------------------------------ | ---------------------------------------------------------------------- | ------ | -------- |
-| CT-BADGE-001 | Badge concedida no primeiro login   | Nenhuma regra concede badge hoje; o campo existe apenas no model        | RF-009 | ⛔       |
-| CT-BADGE-002 | Badge concedida ao atingir 100 XP   | Mesma pendência do CT-BADGE-001                                        | RF-009 | ⛔       |
 | CT-STREAK-001 | Streak diária de atividade         | Falta o campo `last_activity_at` no model e a regra de atualização      | RF-009 | ⛔       |
 
 Casos bloqueados não contam como falha nem entram no cálculo de cobertura. Eles ficam registrados para que a lacuna seja uma decisão consciente, e não um esquecimento.
 
 O `CT-RATE-001` saiu desta tabela na v2.14: o rate limit foi implementado (RNF-007) e o caso foi substituído pelos `CT-AUTH-040` a `050`.
+
+O `CT-BADGE-001` (badge no primeiro login) e o `CT-BADGE-002` (badge ao atingir 100 XP) saíram desta tabela na v2.16 por estarem **fora do escopo do backend**: eles testavam a concessão de badge pela API, que não vai existir. As conquistas do RF-009 são calculadas no frontend a partir do `mission_progress` do `GET /users/{id}`, sem gravar nada no campo `badges`, e por isso a regra é verificada lá, e não neste catálogo.
 
 ## 11 - Resumo
 
@@ -483,7 +484,7 @@ Situação em 14/10/2026, com a suíte em **54 arquivos de teste e 1255 testes**
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
 | **Total**                     | -            | **274** | **268 (97,8%)** | **6**        |
 
-Os 3 casos bloqueados da seção 10 não entram nesta contagem.
+O caso bloqueado da seção 10 não entra nesta contagem.
 
 ### As seis pendências, em ordem de risco
 
