@@ -35,10 +35,6 @@ class AuthMiddleware {
       // Verifica e decodifica o token
       const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET_ACCESS_TOKEN);
 
-      if (!decoded) { // Se não ocorrer a decodificação do token
-        throw new TokenExpiredError("O token JWT está expirado!");
-      }
-
       // Verifica se o refreshtoken está presente no banco de dados e se é válido
       const tokenData = await this.service.loadTokens(decoded.id);
 

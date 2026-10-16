@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
 
 // O envio de e-mail é mockado para que nenhum teste dispare SMTP de verdade.
 jest.mock("../../utils/SendMail.js", () => ({
@@ -352,6 +353,47 @@ describe("Rotas de autenticação", () => {
         .send({ currentPassword: SENHA_PADRAO, newPassword: "novaSenha456" });
 
       expect(res.status).toBe(498);
+    });
+
+    // CT-AUTH-011: o cabeçalho existe, mas fora do formato "Bearer <token>".
+    it.each([
+      ["com outro esquema", "Token abc"],
+      ["com Bearer sem valor", "Bearer"],
+    ])("deve retornar 498 quando o token estiver malformado (%s)", async(_, cabecalho) => {
+      const res = await request(app)
+        .patch("/auth/change-password")
+        .set("Authorization", cabecalho)
+        .send({ currentPassword: SENHA_PADRAO, newPassword: "novaSenha456" });
+
+      expect(res.status).toBe(498);
+      expect(res.body.message).toBe("Formato do token de autenticação inválido!");
+    });
+
+    // CT-AUTH-012: o jwt.verify recusa o token vencido antes de o banco ser consultado.
+    it("deve retornar 498 quando o token estiver expirado", async() => {
+      const expirado = jwt.sign({ id: teacher._id }, process.env.JWT_SECRET_ACCESS_TOKEN, { expiresIn: "-1s" });
+
+      const res = await request(app)
+        .patch("/auth/change-password")
+        .set("Authorization", `Bearer ${expirado}`)
+        .send({ currentPassword: SENHA_PADRAO, newPassword: "novaSenha456" });
+
+      expect(res.status).toBe(498);
+      expect(res.body.message).toBe("O token JWT está expirado!");
+    });
+
+    // CT-AUTH-051: o refresh token tem o mesmo payload, mas outro segredo, e não vale como access token.
+    it.each([
+      ["assinado com o segredo do refresh token", () => jwt.sign({ id: teacher._id }, process.env.JWT_SECRET_REFRESH_TOKEN)],
+      ["que não é um JWT", () => "abc"],
+    ])("deve retornar 498 quando o token for inválido (%s)", async(_, gerarToken) => {
+      const res = await request(app)
+        .patch("/auth/change-password")
+        .set("Authorization", `Bearer ${gerarToken()}`)
+        .send({ currentPassword: SENHA_PADRAO, newPassword: "novaSenha456" });
+
+      expect(res.status).toBe(498);
+      expect(res.body.message).toBe("Token JWT inválido!");
     });
   });
 
