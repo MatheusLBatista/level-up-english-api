@@ -4,14 +4,16 @@ export const EMAIL_DOMAIN = "levelup.edu.br";
 export const SEMESTER_START = "2026-08-03";
 export const NOW = "2026-10-16T09:00:00-03:00";
 
-const youtubeSearch = (query) => `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-
 export const admin = { name: "Renata Albuquerque", email: `renata.albuquerque@${EMAIL_DOMAIN}` };
+
+export const otherAdmins = [
+  { name: "Matheus Batista", email: "matheusifro2020@gmail.com" },
+];
 
 export const teachers = [
   { key: "carla", name: "Carla Mendes", email: `carla.mendes@${EMAIL_DOMAIN}` },
-  { key: "rafael", name: "Rafael Tavares", email: `rafael.tavares@${EMAIL_DOMAIN}` },
   { key: "juliana", name: "Juliana Prado", email: `juliana.prado@${EMAIL_DOMAIN}` },
+  { key: "matheus", name: "Matheus Lucas", email: "matheus20157813@gmail.com" },
 ];
 
 export const profiles = {
@@ -45,7 +47,7 @@ export const classes = [
   {
     key: "2B",
     name: "2º Ano B — Manhã",
-    teacher: "rafael",
+    teacher: "matheus",
     weekdays: [1, 3],
     period: "manha",
     students: [
@@ -144,7 +146,7 @@ export const missions = {
       description: "Assista ao vídeo sobre a rotina de um estudante e responda às perguntas.",
       type: "audio",
       xp_reward: 120,
-      content_url: youtubeSearch("daily routine english listening beginner"),
+      content_url: "https://www.youtube.com/watch?v=E60-Ij9ODQg",
       questions: [
         q("Which word describes an action you do every day?", "routine", "holiday", "weekend", "birthday", "a"),
         q("\"I wake up at 6 a.m.\" means...", "Eu durmo às 6h", "Eu acordo às 6h", "Eu almoço às 6h", "Eu saio às 6h", "b"),
@@ -180,7 +182,7 @@ export const missions = {
       description: "Ouça um diálogo num restaurante e responda às perguntas de checagem.",
       type: "audio",
       xp_reward: 120,
-      content_url: youtubeSearch("ordering food at a restaurant english dialogue"),
+      content_url: "https://www.youtube.com/watch?v=Y7c3c-4S-g4",
       questions: [
         q("\"Can I have the menu, please?\" is said by...", "the waiter", "the customer", "the cook", "the cashier", "b"),
         q("\"The bill\" means...", "o cardápio", "a gorjeta", "a conta", "a mesa", "c"),
@@ -232,10 +234,10 @@ export const missions = {
       description: "Assista a um vlog de viagem a Londres e responda às perguntas.",
       type: "audio",
       xp_reward: 120,
-      content_url: youtubeSearch("trip to london english listening intermediate"),
+      content_url: "https://www.youtube.com/watch?v=oIwuv7tWTCM",
       questions: [
         q("Big Ben is a famous...", "clock tower", "bridge", "museum", "palace", "a"),
-        q("The London subway is called...", "the Metro", "the Tube", "the Train", "the Line", "b"),
+        q("The London Eye is a giant...", "clock tower", "observation wheel", "bridge", "palace", "b"),
       ],
     },
     {
@@ -268,7 +270,7 @@ export const missions = {
       description: "Ouça uma simulação de entrevista de emprego e responda às perguntas.",
       type: "audio",
       xp_reward: 120,
-      content_url: youtubeSearch("job interview english listening practice"),
+      content_url: "https://www.youtube.com/watch?v=JAh5gVQfjdE",
       questions: [
         q("\"Tell me about yourself\" asks about your...", "salary", "background", "address", "schedule", "b"),
         q("A \"strength\" is...", "um ponto forte", "um defeito", "um salário", "um horário", "a"),
@@ -320,7 +322,7 @@ export const missions = {
       description: "Assista a uma palestra sobre tecnologia na educação e responda às perguntas.",
       type: "audio",
       xp_reward: 120,
-      content_url: youtubeSearch("ted talk technology in education english subtitles"),
+      content_url: "https://www.youtube.com/watch?v=9IbN1LxXevM",
       questions: [
         q("\"Screen time\" refers to...", "tempo de tela", "hora do recreio", "tempo de prova", "aula online", "a"),
         q("A \"speaker\" in a talk is the person who...", "listens", "presents", "records", "translates", "b"),
@@ -356,7 +358,7 @@ export const missions = {
       description: "Ouça uma reportagem sobre mudanças climáticas e responda às perguntas.",
       type: "audio",
       xp_reward: 120,
-      content_url: youtubeSearch("climate change news report english listening"),
+      content_url: "https://www.youtube.com/watch?v=g6xKlnT_TG8",
       questions: [
         q("\"Global warming\" is...", "aquecimento global", "aviso global", "inverno global", "mercado global", "a"),
         q("\"Greenhouse gases\" are gases that...", "cool the planet", "trap heat", "clean the air", "make rain", "b"),

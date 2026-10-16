@@ -71,6 +71,7 @@ async function seedPeople() {
 
   const staff = [
     { ...demo.admin, role: "admin" },
+    ...demo.otherAdmins.map(({ name, email }) => ({ name, email, role: "admin" })),
     ...demo.teachers.map(({ name, email }) => ({ name, email, role: "teacher" })),
   ].map((person) => ({ ...person, password, active: true, createdAt: staffCreatedAt, updatedAt: staffCreatedAt }));
 
@@ -308,7 +309,7 @@ async function printSummary() {
   }
 
   console.log(`\nLogin: qualquer e-mail @${demo.EMAIL_DOMAIN} com a senha ${demo.DEFAULT_PASSWORD}`);
-  console.log(`  admin:       ${demo.admin.email}`);
+  [demo.admin, ...demo.otherAdmins].forEach(({ name, email }) => console.log(`  admin:        ${email} (${name})`));
   demo.teachers.forEach(({ name, email }) => console.log(`  professor(a): ${email} (${name})`));
 }
 
