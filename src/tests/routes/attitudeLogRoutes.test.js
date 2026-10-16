@@ -368,6 +368,18 @@ describe("Rotas de atitudes aplicadas", () => {
       expect(res.status).toBe(404);
       expect(res.body.message).toBe("Recurso não encontrado em AttitudeLog.");
     });
+
+    // CT-PERM-033: nem o aluno que recebeu a atitude consulta o log.
+    it("deve retornar 403 quando quem consulta é o aluno do log", async() => {
+      const criado = await aplicar(profA);
+
+      const res = await request(app)
+        .get(`/attitude-logs/${criado.body.data._id}`)
+        .set("Authorization", await como(alunoA));
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Permissão insuficiente para executar a operação.");
+    });
   });
 
   describe("PATCH /attitude-logs/:id", () => {
