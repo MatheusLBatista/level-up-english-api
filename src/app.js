@@ -3,7 +3,6 @@ import DbConnect from "./config/dbConnect.js";
 import routes from "./routes/index.js";
 import CommonResponse from "./utils/helpers/CommonResponse.js";
 import express from "express";
-import expressFileUpload from "express-fileupload";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
@@ -21,7 +20,6 @@ app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(express.json());
-app.use(expressFileUpload());
 
 routes(app);
 setupDocs(app);
