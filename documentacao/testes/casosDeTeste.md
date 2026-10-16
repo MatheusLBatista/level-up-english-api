@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.16 — complementa o [Plano de Teste](planoTeste.md) v3.7_
+_versão 2.17 — complementa o [Plano de Teste](planoTeste.md) v3.8_
 
 ## Histórico das alterações
 
@@ -26,6 +26,7 @@ _versão 2.16 — complementa o [Plano de Teste](planoTeste.md) v3.7_
 | 14/10/2026 | 2.14   | Rate limit no login, no `forgot-password` e no `reset-password` (RNF-007): casos `CT-AUTH-040` a `050`; o `CT-RATE-001` deixa de estar bloqueado e é substituído por eles | Matheus Lucas |
 | 14/10/2026 | 2.15   | Título da missão único por turma, e não na escola inteira: casos `CT-MISSION-034` a `042`; `CT-MISSION-007` e `025` ajustados para a nova regra e a nova mensagem | Matheus Lucas |
 | 16/10/2026 | 2.16   | RF-009 atendido no frontend: `CT-BADGE-001` e `002` saem dos casos bloqueados por estarem fora do escopo do backend; o `CT-STREAK-001` continua bloqueado | Matheus Lucas |
+| 16/10/2026 | 2.17   | Token expirado e token inválido exercitados em rota: `CT-AUTH-012` automatizado e caso `CT-AUTH-051`; o `AuthMiddleware` fica sem linha descoberta | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -68,7 +69,7 @@ Os casos usam o mesmo elenco, montado pelas factories:
 
 ### Uma observação sobre o 498
 
-Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Invalid Token") não é do padrão HTTP — vem da convenção herdada do projeto base e está materializado em `AuthenticationError`, `TokenExpiredError` e em `HttpStatusCodes.INVALID_TOKEN`. O 401 fica reservado para o que é credencial recusada com token bem formado: login errado, refresh já rotacionado e sessão encerrada. A v1.0 deste catálogo documentava 401 nos três casos de token; a correção está nos casos `CT-AUTH-010` a `CT-AUTH-012`.
+Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O 498 ("Invalid Token") não é do padrão HTTP — vem da convenção herdada do projeto base e está materializado em `AuthenticationError`, `TokenExpiredError` e em `HttpStatusCodes.INVALID_TOKEN`. O 401 fica reservado para o que é credencial recusada com token bem formado: login errado, refresh já rotacionado e sessão encerrada. A v1.0 deste catálogo documentava 401 nos três casos de token; a correção está nos casos `CT-AUTH-010` a `CT-AUTH-012`.
 
 ---
 
@@ -87,7 +88,7 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-009  | Logout encerra a sessão                | `POST /auth/logout` com `{ refreshToken }` e depois qualquer rota autenticada | logout 200 com os tokens removidos do banco; a requisição seguinte com o mesmo access token responde 401 e o refresh token não renova mais | RF-010 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-010  | Requisição sem token                   | rota autenticada sem cabeçalho `Authorization`                      | **498**, "O token de autenticação não existe!"                                           | RF-011 | Int   | `routes/authRoutes` e as 6 demais suítes de rota | ✅ |
 | CT-AUTH-011  | Token malformado                       | `Authorization: Token abc`, ou Bearer sem valor                     | **498**, "Formato do token de autenticação inválido!"                                    | RF-011 | Int   | `routes/authRoutes`                | ✅       |
-| CT-AUTH-012  | Token expirado                         | access token com `exp` no passado                                   | **498**, "O token JWT está expirado!"                                                    | RF-011 | Int   | —                                  | ⬜       |
+| CT-AUTH-012  | Token expirado                         | access token com `exp` no passado                                   | **498**, "O token JWT está expirado!"                                                    | RF-011 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-013  | Troca de senha pelo próprio usuário    | `PATCH /auth/change-password` com a senha atual correta             | 200; o login passa a funcionar com a nova senha e falha com a antiga                     | RF-002 | Int   | `routes/authRoutes`                | ✅       |
 | CT-AUTH-014  | Troca de senha com senha atual errada  | `currentPassword` incorreta                                         | 400 com `{ path: "currentPassword", message: "Senha atual incorreta." }` em `errors`; a senha no banco não muda. Não é 401: o usuário está autenticado, e o front trata 401 como sessão expirada | RF-002 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
 | CT-AUTH-015  | Recuperação de senha, e-mail existente | `POST /auth/forgot-password`                                        | 200; código de recuperação gravado com validade de 30 minutos                            | RF-002 | Int   | `routes/authRoutes`, `services/AuthService` | ✅ |
@@ -126,7 +127,8 @@ Token ausente, malformado ou expirado responde **498**, e não 401. O 498 ("Inva
 | CT-AUTH-048  | Pedidos demais no `forgot-password` | 4 pedidos para o mesmo e-mail e IP (limite 3 no teste; 5 por hora em produção) | o 4º responde 429, "Muitos pedidos de recuperação. Tente de novo em 1 hora.", com `Retry-After`, e nenhum e-mail a mais é enviado; outro e-mail do mesmo IP continua sendo atendido | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
 | CT-AUTH-049  | Códigos errados demais no `reset-password` | 3 códigos inválidos e um 4º (limite 3 no teste; 10 em produção) | os 3 respondem 400 e o 4º 429, "Muitas tentativas. Tente de novo em 15 minutos." — vale também para o primeiro acesso, que define a senha por esta rota | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
 | CT-AUTH-050  | Refresh nunca é limitado | login estourado e 10 `refresh` com token inválido do mesmo IP | todos os `refresh` respondem 401, nenhum 429, e o refresh com o token válido responde 200 — bloquear o refresh derrubaria sessões válidas | RNF-007 | Int | `routes/rateLimitRoutes` | ✅ |
-**Pendência do módulo.** O `CT-AUTH-012` é o único caso de autenticação sem teste. Ele é o caminho que passa pelo `else if (err.name === "TokenExpiredError")` do `AuthMiddleware`, e forçá-lo exige assinar um access token com `expiresIn` negativo — não dá para esperar o token vencer dentro da suíte. A classe `TokenExpiredError` já tem teste próprio em `utils/errors/TokenExpiredError`, mas o caminho da rota, do token vencido até o corpo da resposta, não é exercido por ninguém.
+| CT-AUTH-051 | Token inválido | access token assinado com o segredo do refresh token, ou um valor que não é JWT (`Bearer abc`) | **498**, "Token JWT inválido!" — o refresh token tem o mesmo payload do access token, e só o segredo impede que um valha pelo outro | RF-011 | Int | `routes/authRoutes` | ✅ |
+**Token expirado e inválido (`CT-AUTH-012` e `CT-AUTH-051`).** Não dá para esperar o token vencer dentro da suíte, então o teste assina um access token com `expiresIn` negativo; o token inválido é assinado com o segredo do refresh token. Os dois são recusados pelo `jwt.verify` antes de o banco ser consultado, e cobrem os dois ramos do `catch` do `AuthMiddleware`, do token até o corpo da resposta.
 
 **Rate limit (`CT-AUTH-040` a `050`).** Os limites de produção são altos demais para a suíte exercitar, e a suíte faz muitos logins seguidos que não podem esbarrar neles. Por isso o `RateLimitMiddleware` expõe fábricas que recebem `{ limit, windowMs }`: em `NODE_ENV=test` as instâncias da rota sobem com limite 10000 — o `authRoutes` confere que o login continua passando pelo middleware —, e o `routes/rateLimitRoutes` troca essas instâncias, por `jest.mock`, por outras de limite baixo montadas pelas mesmas fábricas. Cada teste sai por um IP próprio via `X-Forwarded-For`, porque os contadores ficam na memória do limitador e não são zerados entre os testes. O `trust proxy` do `app.js` não é exercido, pelo mesmo motivo que deixa o `app.js` sem cobertura (seção 6 do plano); o teste monta o próprio Express com a mesma configuração.
 
@@ -469,11 +471,11 @@ O `CT-BADGE-001` (badge no primeiro login) e o `CT-BADGE-002` (badge ao atingir 
 
 ## 11 - Resumo
 
-Situação em 14/10/2026, com a suíte em **54 arquivos de teste e 1255 testes**, executando em cerca de 7 segundos.
+Situação em 16/10/2026, com a suíte em **54 arquivos de teste e 1260 testes**, executando em cerca de 8 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
-| Autenticação e sessão         | `CT-AUTH`    | 50    | 49               | 1            |
+| Autenticação e sessão         | `CT-AUTH`    | 51    | 51               | 0            |
 | Usuários                      | `CT-USER`    | 37    | 37               | 0            |
 | Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
 | Missões                       | `CT-MISSION` | 42    | 42               | 0            |
@@ -482,15 +484,14 @@ Situação em 14/10/2026, com a suíte em **54 arquivos de teste e 1255 testes**
 | Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
 | Matriz de permissões          | `CT-PERM`    | 42    | 41               | 1            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **274** | **268 (97,8%)** | **6**        |
+| **Total**                     | -            | **275** | **270 (98,2%)** | **5**        |
 
 O caso bloqueado da seção 10 não entra nesta contagem.
 
-### As seis pendências, em ordem de risco
+### As cinco pendências, em ordem de risco
 
 1. **CT-PERM-033** — célula restritiva sem teste em `GET /attitude-logs/{id}`. É a única lacuna de controle de acesso, e a mais barata de fechar: uma chamada com token de aluno esperando 403.
-2. **CT-AUTH-012** — token expirado não exercitado em rota. Junto com ele fica descoberta a linha 63 do `AuthMiddleware`, o `else next(err)`, que é o caminho do access token válido cujo usuário não tem mais refresh token no banco.
-3. **CT-E2E-001 a 004** — os quatro fluxos ponta a ponta.
+2. **CT-E2E-001 a 004** — os quatro fluxos ponta a ponta.
 
 ### Rastreabilidade entre catálogo e suíte
 

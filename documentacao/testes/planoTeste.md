@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.7_
+_versão 3.8_
 
 ## Histórico das alterações
 
@@ -18,6 +18,7 @@ _versão 3.7_
 | 16/10/2026 | 3.5    | RF-009 passa a Parcial: conquistas calculadas no frontend a partir do `mission_progress`; streak segue como trabalho futuro e os casos de badge saem do escopo do backend | Matheus Lucas |
 | 16/10/2026 | 3.6    | Seção 4 alinhada à seção 11 do catálogo (274 casos, 268 automatizados); RF-004 com o título de missão único por turma; métricas da seção 7 medidas de novo | Matheus Lucas |
 | 16/10/2026 | 3.7    | Seção 7 medida de novo depois do teste do `CT-AUTH-011`: a linha 32 do `AuthMiddleware` deixa de estar descoberta | Matheus Lucas |
+| 16/10/2026 | 3.8    | `CT-AUTH-012` automatizado e caso `CT-AUTH-051` (token inválido); o `AuthMiddleware` chega a 100% e o `if (!decoded)` inalcançável é removido | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -115,7 +116,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | Parcial — limite aplicado nos 5 repositórios; o p95 ainda não foi medido |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
-| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,60% de linhas e as 42 operações exercitadas por teste de integração (ver seção 7) |
+| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,84% de linhas e as 42 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Fora do escopo desta versão     |
 | RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
 
@@ -127,7 +128,7 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 
 | Módulo                        | Prefixo      | Casos | Requisitos cobertos         |
 | ----------------------------- | ------------ | ----- | --------------------------- |
-| Autenticação e sessão         | `CT-AUTH`    | 50    | RF-001, RF-002, RF-010, RF-011, RNF-007 |
+| Autenticação e sessão         | `CT-AUTH`    | 51    | RF-001, RF-002, RF-010, RF-011, RNF-007 |
 | Usuários                      | `CT-USER`    | 37    | RF-001, RF-006, RF-011      |
 | Turmas                        | `CT-CLASS`   | 28    | RF-003, RF-011              |
 | Missões                       | `CT-MISSION` | 42    | RF-004, RF-011, RF-012      |
@@ -136,11 +137,11 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Ranking                       | `CT-RANK`    | 8     | RF-007, RF-011              |
 | Matriz de permissões          | `CT-PERM`    | 42    | RF-011                      |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
-| **Total**                     | -            | **274** | -                         |
+| **Total**                     | -            | **275** | -                         |
 
 Além destes, 1 caso fica **bloqueado** enquanto o streak não existir (seção 10 do catálogo).
 
-**Situação em 16/10/2026: 268 dos 274 casos estão automatizados (97,8%).** As seis pendências são o token expirado em rota (`CT-AUTH-012`), a célula restritiva de `GET /attitude-logs/{id}` (`CT-PERM-033`) e os quatro fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
+**Situação em 16/10/2026: 270 dos 275 casos estão automatizados (98,2%).** As cinco pendências são a célula restritiva de `GET /attitude-logs/{id}` (`CT-PERM-033`) e os quatro fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
 
 A matriz `CT-PERM` cobre uma linha por operação da API, com o status esperado para cada um dos três papéis. Ela é a rede de segurança contra regressão de permissão: qualquer rota nova entra ali antes de ser considerada pronta.
 
@@ -272,25 +273,21 @@ Uma consequência dessa estrutura merece registro: **nenhuma suíte carrega `src
 
 ### Metas de cobertura por camada, e o que foi alcançado
 
-Medição de 16/10/2026, com 54 arquivos de teste e 1257 testes:
+Medição de 16/10/2026, com 54 arquivos de teste e 1260 testes:
 
 | Camada             | Meta  | Realizado (stmts)  | Prioridade | Justificativa                                                |
 | ------------------ | ----- | ------------------ | ---------- | ------------------------------------------------------------ |
 | Services           | 85%   | **99,82%**         | Alta       | Concentram regra de negócio e verificação de posse           |
-| Middlewares        | 90%   | **95%**            | Alta       | `authorize` é a porta de entrada de toda rota autenticada    |
+| Middlewares        | 90%   | **100%**           | Alta       | `authorize` é a porta de entrada de toda rota autenticada    |
 | Schemas/Validators | 95%   | **100%**           | Alta       | Baratos de testar e a primeira barreira contra dado inválido |
 | Repositories       | 80%   | **100%**           | Alta       | Filtros e paginação são fonte recorrente de erro sutil       |
 | Controllers        | 70%   | **100%**           | Média      | Camada fina; o essencial já passa pela integração            |
 | Utils/Helpers      | 75%   | **100%**           | Média      | `LevelHelper` é exceção: cobertura alta, é regra de XP       |
 | Routes             | —     | **100%**           | —          | Consequência das 10 suítes de rota                           |
 | Models             | —     | **100%**           | —          | Consequência dos testes que gravam de verdade                |
-| **Total**          | **~80%** | **99,62% stmts / 97,43% branches / 100% funcs / 99,60% linhas** | - | Piso contratual de 70% no RNF-005 |
+| **Total**          | **~80%** | **99,84% stmts / 97,79% branches / 100% funcs / 99,84% linhas** | - | Piso contratual de 70% no RNF-005 |
 
-Todas as metas foram atingidas. Em linhas, ficam abaixo de 100% o `UserService.js` (98,98%, linha 261) e o `AuthMiddleware.js`, com 86,36%, cujas três linhas descobertas são:
-
-- **linha 39** — o `if (!decoded)` depois de um `jwt.verify` que já lança quando o token não presta. É código inalcançável, não lacuna de teste: a forma de fechá-la é apagar o `if`, não escrever um teste para ele.
-- **linha 61** — o access token com assinatura inválida (`JsonWebTokenError`), que nenhuma suíte exercita em rota.
-- **linha 63** — o caminho do token expirado (`TokenExpiredError`). Esse é lacuna conhecida, registrada como `CT-AUTH-012` no catálogo.
+Todas as metas foram atingidas. Em linhas, só o `UserService.js` fica abaixo de 100% (98,98%, linha 261). O `AuthMiddleware.js` chegou a 100%: o token malformado, o expirado e o inválido passam por teste de rota (`CT-AUTH-011`, `012` e `051`), e o `if (!decoded)` depois do `jwt.verify`, que nunca era alcançado porque o `jwt.verify` já lança quando o token não presta, foi removido.
 
 Os 50% de branches do `RateLimitMiddleware.js` são os valores padrão das fábricas e o limite de `NODE_ENV=test`: a suíte sempre monta os limitadores com `{ limit, windowMs }` próprios, então os limites de produção não são exercidos.
 
@@ -306,11 +303,11 @@ Configurar `collectCoverageFrom` continua sendo o ajuste correto: ele faz a gara
 
 | Métrica              | Alvo                     | Medido em 16/10/2026     |
 | -------------------- | ------------------------ | ------------------------ |
-| Pass rate na `main`  | mínimo de 95%            | **100%** (1257/1257)     |
+| Pass rate na `main`  | mínimo de 95%            | **100%** (1260/1260)     |
 | Flakiness            | máximo de 5%             | Nenhum caso instável isolado; a suíte cheia tem uma falha intermitente de infraestrutura em testes de rota (~1 em 8 rodadas em 02/10/2026; 2 em 7 em 16/10/2026, com `socket hang up` do supertest) |
-| Tempo de execução    | menos de 60 s            | **~9 s**                 |
-| Cobertura de linhas  | mínimo de 70%            | **99,60%**               |
-| Cobertura de branches | mínimo de 65%           | **97,43%**               |
+| Tempo de execução    | menos de 60 s            | **~8 s**                 |
+| Cobertura de linhas  | mínimo de 70%            | **99,84%**               |
+| Cobertura de branches | mínimo de 65%           | **97,79%**               |
 
 O relatório sai em `coverage/` a cada `npm run test`. A configuração do Jest, no `package.json`, exclui da contagem os arquivos sem regra própria (helpers de resposta, logger, conexão com o banco, seeds e a documentação Swagger) para que a métrica reflita código de negócio.
 
