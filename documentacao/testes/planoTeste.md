@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.4_
+_versão 3.5_
 
 ## Histórico das alterações
 
@@ -15,6 +15,7 @@ _versão 3.4_
 | 13/10/2026 | 3.2    | RF-005: score apurado pelo servidor nos três tipos de missão, com perguntas de checagem em vocabulário e áudio | Matheus Lucas |
 | 14/10/2026 | 3.3    | Histórico de XP do aluno (RF-014, `GET /users/{id}/xp-history`): requisito, arquitetura e casos | Matheus Lucas |
 | 14/10/2026 | 3.4    | RNF-007: rate limit no login e na recuperação de senha; RNF-001 passa a Implementado e o `CT-RATE-001` deixa de estar bloqueado | Matheus Lucas |
+| 16/10/2026 | 3.5    | RF-009 passa a Parcial: conquistas calculadas no frontend a partir do `mission_progress`; streak segue como trabalho futuro e os casos de badge saem do escopo do backend | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -95,14 +96,14 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-006 | Sistema de XP e Nível          | O XP é proporcional ao score sobre o `xp_reward` e paga apenas a diferença do melhor desempenho. O nível segue curva quadrática.     | Essencial     | Implementado    |
 | RF-007 | Ranking Global e por Turma     | Ranking dos 30 melhores por XP, global e por turma, recalculado a cada mudança de XP.                                                | Essencial     | Implementado    |
 | RF-008 | Registro de Atitudes           | Professor aplica atitudes positivas e negativas a alunos das turmas dele, creditando ou descontando XP; desfazer estorna o XP.       | Essencial     | Implementado    |
-| RF-009 | Gerenciamento de Badges        | Alunos recebem badges ao atingir marcos específicos (ex.: primeiro login, 100 XP).                                                    | Não Essencial | Não implementado |
+| RF-009 | Gerenciamento de Badges        | O aluno vê conquistas por marcos de progresso — missões concluídas, missões com nota 100% e XP ganho em missões —, calculadas no frontend a partir do `mission_progress` que já vem no `GET /users/{id}`. O streak não foi implementado. | Não Essencial | Parcial         |
 | RF-010 | Autenticação por Refresh Token | Refresh token rotation para renovar a sessão sem novo login, com o token vigente conferido no banco.                                  | Essencial     | Implementado    |
 | RF-011 | Controle de Acesso             | Papel declarado na rota e posse do recurso conferida no service; conta desativada perde acesso mesmo com token válido.                | Essencial     | Implementado    |
 | RF-012 | Sigilo do Gabarito             | O aluno recebe a missão sem `questions[].correct_answer`; o gabarito fica restrito a teacher e admin.                                 | Essencial     | Implementado    |
 | RF-013 | Ajuste Manual de XP            | Professor adiciona ou remove XP de aluno das turmas dele sem atitude cadastrada; o XP nunca fica negativo e cada ajuste fica registrado. | Essencial     | Implementado    |
 | RF-014 | Histórico de XP                | O aluno vê de onde veio o próprio XP — atitudes, ajustes manuais e missões —, com o valor efetivamente aplicado, do mais recente ao mais antigo e paginado. O professor vê o dos alunos das turmas dele; o admin, o de qualquer aluno. | Essencial     | Implementado    |
 
-`RF-009` continua no plano porque os campos `badges` e `streak` já existem no model, mas nenhuma regra os alimenta. Enquanto for assim, os casos correspondentes ficam marcados como **bloqueados** no catálogo, e não como falha.
+`RF-009` é atendido no frontend, e o backend não persiste conquistas: o campo `badges` do model segue sem uso. Como as conquistas são derivadas do progresso de missão e não alteram XP nem ranking, gravá-las seria duplicar um dado que a API já entrega. Nenhuma conquista regride, e por isso não há conquista de nível — o nível pode cair com uma atitude negativa. O `streak` fica como trabalho futuro: faltam o campo `last_activity_at` no model e a regra de atualização, e o caso correspondente segue **bloqueado** no catálogo, e não como falha.
 
 ### Requisitos Não Funcionais
 
@@ -135,7 +136,7 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
 | **Total**                     | -            | **158** | -                         |
 
-Além destes, 3 casos ficam **bloqueados** enquanto badges e streak não existirem (seção 10 do catálogo).
+Além destes, 1 caso fica **bloqueado** enquanto o streak não existir (seção 10 do catálogo).
 
 **Situação em 24/09/2026: 152 dos 158 casos estão automatizados (96,2%).** As seis pendências são o token expirado em rota (`CT-AUTH-012`), a célula restritiva de `GET /attitude-logs/{id}` (`CT-PERM-033`) e os quatro fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 11 do catálogo.
 
