@@ -61,6 +61,13 @@ export const UserSchema = z
       example: [],
       description: "Campo previsto no RF-009. Nenhuma regra o alimenta hoje: é sempre uma lista vazia.",
     }),
+    avatar_url: z.string().nullable().openapi({
+      example: "/uploads/avatars/507f1f77bcf86cd799439011-1729700000000.webp",
+      description:
+        "Caminho **relativo** da foto de perfil: concatenar com a URL base da API. "
+        + "`null` quando o usuário não tem foto. A imagem é pública (sem token) e a URL "
+        + "muda a cada troca, então pode ser cacheada.",
+    }),
     active: z.boolean().openapi({ example: true }),
     createdAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
     updatedAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),

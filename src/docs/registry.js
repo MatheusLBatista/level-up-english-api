@@ -9,6 +9,8 @@ import {
   UpdateUserBodySchema,
   LevelProgressSchema,
 } from "../schemas/UserSchema.js";
+import { AVATAR_FIELD, AVATAR_MAX_BYTES } from "../middlewares/AvatarUploadMiddleware.js";
+import { AVATAR_SIZE } from "../utils/AvatarImage.js";
 import { XpHistoryPageSchema } from "../schemas/XpHistorySchema.js";
 import {
   LoginBodySchema,
@@ -622,6 +624,60 @@ registry.registerPath({
   },
 });
 
+const AVATAR_MAX_MB = AVATAR_MAX_BYTES / (1024 * 1024);
+
+registry.registerPath({
+  method: "patch",
+  path: "/users/{id}/avatar",
+  tags: ["Users"],
+  summary: "Enviar ou trocar a foto de perfil (o próprio usuário ou admin)",
+  description:
+    `Corpo multipart/form-data com a imagem no campo \`${AVATAR_FIELD}\` (JPEG, PNG ou WebP, `
+    + `até ${AVATAR_MAX_MB} MB). O servidor nunca guarda o arquivo enviado: decodifica, `
+    + "corrige a rotação de fotos de celular, recorta o centro e grava um WebP novo de "
+    + `${AVATAR_SIZE}×${AVATAR_SIZE}, sem metadados EXIF (que podem conter a localização GPS). `
+    + "A foto anterior, se houver, é apagada. A resposta traz o avatar_url novo; a imagem "
+    + "fica em GET {avatar_url}, sem autenticação.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    }),
+    body: {
+      required: true,
+      content: {
+        "multipart/form-data": {
+          schema: z.object({
+            [AVATAR_FIELD]: z.string().openapi({
+              format: "binary",
+              description: `Imagem JPEG, PNG ou WebP de até ${AVATAR_MAX_MB} MB.`,
+            }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: commonResponse(UserSchema, "Foto atualizada"),
+    400: errorResponse(
+      `Arquivo ausente ("Envie a foto no campo \\"${AVATAR_FIELD}\\"."), enviado em outro campo, `
+      + "tipo diferente de JPEG/PNG/WebP (\"A foto deve ser JPEG, PNG ou WebP.\"), ou conteúdo "
+      + "que não é uma imagem de verdade ou tem pixels demais",
+      "O arquivo enviado não é uma imagem válida ou é grande demais.",
+    ),
+    401: error401Token,
+    403: errorResponse(
+      "Tentativa de trocar a foto de outro usuário sem ser admin",
+      "You do not have permission to update another user's avatar.",
+    ),
+    404: error404User,
+    413: errorResponse(
+      `Arquivo acima de ${AVATAR_MAX_MB} MB`,
+      `A foto deve ter no máximo ${AVATAR_MAX_MB} MB.`,
+    ),
+  },
+});
+
 registry.registerPath({
   method: "delete",
   path: "/users/{id}",
@@ -629,7 +685,8 @@ registry.registerPath({
   summary: "Deletar usuário (aluno só a própria conta; professor, alunos das turmas dele e a própria conta)",
   description:
     "Professor só exclui aluno cuja turma é dele (ativa ou não); aluno sem turma ou de "
-    + "turma de outro professor devolve 403. Admin exclui qualquer conta.",
+    + "turma de outro professor devolve 403. Admin exclui qualquer conta. "
+    + "A foto de perfil, se houver, é apagada do disco.",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
