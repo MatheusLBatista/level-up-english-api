@@ -1,7 +1,10 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import express from "express";
 import request from "supertest";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
+import sharp from "sharp";
 
 import authRoutes from "../../routes/authRoutes.js";
 import userRoutes from "../../routes/userRoutes.js";
@@ -40,6 +43,7 @@ describe("Rotas de usuários", () => {
 
   afterAll(async() => {
     await disconnectTestDatabase();
+    await fs.rm(process.env.UPLOAD_DIR, { recursive: true, force: true });
   });
 
   beforeEach(async() => {
@@ -627,6 +631,82 @@ describe("Rotas de usuários", () => {
       expect(res.status).toBe(400);
       expect(res.body.errors[0].path).toBe("class");
       expect(await alunosDe(turmaB)).toEqual([]);
+    });
+  });
+
+  describe("PATCH /users/:id/avatar", () => {
+    let png;
+
+    beforeAll(async() => {
+      png = await sharp({ create: { width: 400, height: 300, channels: 3, background: "#3366ff" } }).png().toBuffer();
+    });
+
+    const enviarFoto = async(alvo, logado, buffer = png) =>
+      request(app)
+        .patch(`/users/${alvo._id}/avatar`)
+        .set("Authorization", await como(logado))
+        .attach("avatar", buffer, { filename: "eu.png", contentType: "image/png" });
+
+    const caminhoNoDisco = (avatarUrl) => path.join(process.env.UPLOAD_DIR, avatarUrl.replace("/uploads/", ""));
+
+    it("deve gravar a foto tratada e salvar a URL no usuário", async() => {
+      const res = await enviarFoto(student, student);
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toBe("Avatar updated successfully.");
+      expect(res.body.data.avatar_url).toMatch(new RegExp(`^/uploads/avatars/${student._id}-\\d+\\.webp$`));
+
+      const meta = await sharp(caminhoNoDisco(res.body.data.avatar_url)).metadata();
+      expect(meta).toMatchObject({ format: "webp", width: 256, height: 256 });
+
+      const salvo = await User.findById(student._id);
+      expect(salvo.avatar_url).toBe(res.body.data.avatar_url);
+    });
+
+    it("deve apagar a foto anterior ao trocar", async() => {
+      const primeira = await enviarFoto(student, student);
+      const segunda = await enviarFoto(student, student);
+
+      expect(segunda.body.data.avatar_url).not.toBe(primeira.body.data.avatar_url);
+      await expect(fs.access(caminhoNoDisco(primeira.body.data.avatar_url))).rejects.toThrow();
+      await expect(fs.access(caminhoNoDisco(segunda.body.data.avatar_url))).resolves.toBeUndefined();
+    });
+
+    it("deve permitir que o admin troque a foto de outro usuário", async() => {
+      const res = await enviarFoto(student, admin);
+
+      expect(res.status).toBe(200);
+    });
+
+    it("deve retornar 403 quando a professora troca a foto de um aluno", async() => {
+      const res = await enviarFoto(student, teacher);
+
+      expect(res.status).toBe(403);
+      expect((await User.findById(student._id)).avatar_url).toBeNull();
+    });
+
+    it("deve retornar 400 para arquivo rotulado como imagem que não é imagem", async() => {
+      const res = await enviarFoto(student, student, Buffer.from("png-falso"));
+
+      expect(res.status).toBe(400);
+      expect((await User.findById(student._id)).avatar_url).toBeNull();
+    });
+
+    it("deve retornar 498 sem autenticação", async() => {
+      const res = await request(app)
+        .patch(`/users/${student._id}/avatar`)
+        .attach("avatar", png, { filename: "eu.png", contentType: "image/png" });
+
+      expect(res.status).toBe(498);
+    });
+
+    it("não deve aceitar avatar_url pelo PATCH comum", async() => {
+      await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(student))
+        .send({ avatar_url: "https://site-malicioso.com/x.png" });
+
+      expect((await User.findById(student._id)).avatar_url).toBeNull();
     });
   });
 

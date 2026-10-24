@@ -4,6 +4,7 @@ import XpHistoryController from "../controllers/XpHistoryController.js";
 import { asyncWrapper } from "../utils/helpers/index.js";
 import authMiddleware from "../middlewares/AuthMiddleware.js";
 import authorize from "../middlewares/AuthPermission.js";
+import avatarUpload from "../middlewares/AvatarUploadMiddleware.js";
 
 const router = express.Router();
 
@@ -36,6 +37,13 @@ router
     authMiddleware,
     authorize("student", "teacher", "admin"),
     asyncWrapper(userController.update.bind(userController)),
+  )
+  .patch(
+    "/users/:id/avatar",
+    authMiddleware,
+    authorize("student", "teacher", "admin"),
+    avatarUpload,
+    asyncWrapper(userController.updateAvatar.bind(userController)),
   )
   .delete(
     "/users/:id",

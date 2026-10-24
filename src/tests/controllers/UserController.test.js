@@ -214,6 +214,22 @@ describe("UserController", () => {
     });
   });
 
+  describe("updateAvatar", () => {
+    it("deve repassar o buffer ao service e responder sem e-mail nem senha", async() => {
+      const foto = Buffer.from("foto");
+      controller.service.updateAvatar.mockResolvedValue(
+        documento({ _id: USER_ID, avatar_url: "/uploads/avatars/x.webp", email: "a@escola.com", password: "hash" }),
+      );
+      req.params.id = USER_ID;
+      req.file = { buffer: foto };
+
+      await controller.updateAvatar(req, res);
+
+      expect(controller.service.updateAvatar).toHaveBeenCalledWith(USER_ID, foto, req);
+      esperarResposta(200, "Avatar updated successfully.", { _id: USER_ID, avatar_url: "/uploads/avatars/x.webp" });
+    });
+  });
+
   describe("delete", () => {
     it("deve devolver 200 com o usuário removido", async() => {
       const removido = { _id: USER_ID };

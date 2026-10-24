@@ -7,11 +7,14 @@ import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import { ensureTeacherCanEnroll, ensureTeacherOwnsClass } from "../utils/ClassOwnershipHelper.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
+import LocalDiskStorage from "../utils/LocalDiskStorage.js";
+import { toAvatarWebp } from "../utils/AvatarImage.js";
 
 class UserService {
   constructor() {
     this.repository = new UserRepository();
     this.classRepository = new ClassRepository();
+    this.storage = new LocalDiskStorage();
   }
 
   /**
@@ -162,6 +165,37 @@ class UserService {
       if (target.class) await this.classRepository.removeStudent(target.class, id);
       if (parsedData.class) await this.classRepository.addStudent(parsedData.class, id);
     }
+
+    return updated;
+  }
+
+  async updateAvatar(id, buffer, req) {
+    const target = await this.ensureUserExists(id);
+    const user = await this.repository.findById(req.user_id);
+
+    if (user.role !== "admin" && String(user._id) !== String(id)) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "User",
+        details: [],
+        customMessage: "You do not have permission to update another user's avatar.",
+      });
+    }
+
+    const image = await toAvatarWebp(buffer);
+    const key = await this.storage.save(`avatars/${id}-${Date.now()}.webp`, image);
+
+    let updated;
+    try {
+      updated = await this.repository.update(id, { avatar_url: this.storage.getUrl(key) });
+    } catch (err) {
+      await this.storage.delete(key);
+      throw err;
+    }
+
+    const previousKey = this.storage.keyFromUrl(target.avatar_url);
+    if (previousKey) await this.storage.delete(previousKey);
 
     return updated;
   }
