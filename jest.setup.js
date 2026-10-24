@@ -1,8 +1,12 @@
+import os from "node:os";
+import path from "node:path";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 process.env.NODE_ENV = "test";
+// Incondicional: um UPLOAD_DIR vindo do .env faria a suíte gravar fotos no projeto.
+process.env.UPLOAD_DIR = path.join(os.tmpdir(), "levelup-test-uploads");
 process.env.DISABLED_EMAIL = "true";
 process.env.LOG_ENABLED = "false";
 process.env.JWT_SECRET_ACCESS_TOKEN = process.env.JWT_SECRET_ACCESS_TOKEN || "test-access-token-secret";

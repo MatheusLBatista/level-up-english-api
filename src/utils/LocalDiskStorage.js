@@ -35,6 +35,11 @@ class LocalDiskStorage {
   getUrl(key) {
     return `${this.publicPath}/${key}`;
   }
+
+  keyFromUrl(url) {
+    const prefix = `${this.publicPath}/`;
+    return url?.startsWith(prefix) ? url.slice(prefix.length) : null;
+  }
 }
 
 export default LocalDiskStorage;

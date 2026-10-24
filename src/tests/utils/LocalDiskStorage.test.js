@@ -62,4 +62,17 @@ describe("LocalDiskStorage", () => {
       expect(storage.getUrl("avatars/foto.webp")).toBe("/uploads/avatars/foto.webp");
     });
   });
+
+  describe("keyFromUrl", () => {
+    it("deve devolver a chave de uma URL montada pelo getUrl", () => {
+      expect(storage.keyFromUrl(storage.getUrl("avatars/foto.webp"))).toBe("avatars/foto.webp");
+    });
+
+    it.each([null, "https://outro-site.com/foto.webp", "/outra-pasta/foto.webp"])(
+      "deve devolver null para %s",
+      (url) => {
+        expect(storage.keyFromUrl(url)).toBeNull();
+      },
+    );
+  });
 });
