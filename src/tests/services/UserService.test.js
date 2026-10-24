@@ -6,6 +6,7 @@ import { CustomError } from "../../utils/helpers/index.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../../utils/LevelHelper.js";
 import LocalDiskStorage from "../../utils/LocalDiskStorage.js";
 import { toAvatarWebp } from "../../utils/AvatarImage.js";
+import logger from "../../utils/logger.js";
 
 jest.mock("../../repository/UserRepository.js");
 jest.mock("../../repository/ClassRepository.js");
@@ -589,11 +590,13 @@ describe("UserService", () => {
 
     beforeEach(() => {
       jest.spyOn(Date, "now").mockReturnValue(AGORA);
+      jest.spyOn(logger, "warn").mockImplementation(() => {});
       toAvatarWebp.mockResolvedValue(WEBP);
     });
 
     afterEach(() => {
       Date.now.mockRestore();
+      logger.warn.mockRestore();
     });
 
     it("deve tratar a imagem, gravar e salvar a URL no usuário", async() => {
@@ -664,6 +667,29 @@ describe("UserService", () => {
       expect(erro.message).toBe("banco fora");
       expect(storage.delete).toHaveBeenCalledTimes(1);
       expect(storage.delete).toHaveBeenCalledWith(NOVA_KEY);
+    });
+
+    it("deve concluir a troca mesmo se apagar a foto antiga falhar", async() => {
+      const atualizado = { _id: STUDENT_ID };
+      responderFindById(usuario(STUDENT_ID, "student", { avatar_url: "/uploads/avatars/antiga.webp" }), student());
+      repository.update.mockResolvedValue(atualizado);
+      storage.delete.mockRejectedValue(Object.assign(new Error("sem permissão"), { code: "EACCES" }));
+
+      const resultado = await service.updateAvatar(STUDENT_ID, FOTO, { user_id: STUDENT_ID });
+
+      expect(resultado).toBe(atualizado);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("avatars/antiga.webp"));
+    });
+
+    it("deve propagar o erro do banco mesmo se a compensação no disco falhar", async() => {
+      responderFindById(student(), student());
+      repository.update.mockRejectedValue(new Error("banco fora"));
+      storage.delete.mockRejectedValue(new Error("disco fora"));
+
+      const erro = await capturarErro(service.updateAvatar(STUDENT_ID, FOTO, { user_id: STUDENT_ID }));
+
+      expect(erro.message).toBe("banco fora");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(NOVA_KEY));
     });
 
     it("deve lançar 404 quando o usuário não existir", async() => {
@@ -790,6 +816,57 @@ describe("UserService", () => {
       await service.delete(STUDENT_ID, { user_id: ADMIN_ID });
 
       expect(classRepository.removeStudent).not.toHaveBeenCalled();
+    });
+
+    describe("foto de perfil", () => {
+      const comFoto = () => usuario(STUDENT_ID, "student", { avatar_url: "/uploads/avatars/aluno.webp" });
+
+      beforeEach(() => {
+        jest.spyOn(logger, "warn").mockImplementation(() => {});
+      });
+
+      afterEach(() => {
+        logger.warn.mockRestore();
+      });
+
+      it("deve apagar o arquivo só depois de excluir o usuário", async() => {
+        responderFindById(student(), comFoto());
+        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
+
+        await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
+
+        expect(storage.delete).toHaveBeenCalledWith("avatars/aluno.webp");
+        expect(repository.delete.mock.invocationCallOrder[0])
+          .toBeLessThan(storage.delete.mock.invocationCallOrder[0]);
+      });
+
+      it("não deve tocar no disco quando o usuário não tem foto", async() => {
+        responderFindById(student(), student());
+        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
+
+        await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
+
+        expect(storage.delete).not.toHaveBeenCalled();
+      });
+
+      it("deve concluir a exclusão mesmo se apagar o arquivo falhar", async() => {
+        responderFindById(student(), comFoto());
+        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
+        storage.delete.mockRejectedValue(new Error("sem permissão"));
+
+        const resultado = await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
+
+        expect(resultado).toEqual({ _id: STUDENT_ID });
+        expect(logger.warn).toHaveBeenCalled();
+      });
+
+      it("não deve apagar a foto quando a exclusão é proibida", async() => {
+        responderFindById(student(), usuario(OUTRO_ID, "student", { avatar_url: "/uploads/avatars/outro.webp" }));
+
+        await capturarErro(service.delete(OUTRO_ID, { user_id: STUDENT_ID }));
+
+        expect(storage.delete).not.toHaveBeenCalled();
+      });
     });
   });
 

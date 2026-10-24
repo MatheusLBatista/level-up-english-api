@@ -708,6 +708,17 @@ describe("Rotas de usuários", () => {
 
       expect((await User.findById(student._id)).avatar_url).toBeNull();
     });
+
+    it("deve apagar o arquivo da foto quando o usuário é excluído", async() => {
+      const upload = await enviarFoto(student, student);
+      const arquivo = caminhoNoDisco(upload.body.data.avatar_url);
+      await expect(fs.access(arquivo)).resolves.toBeUndefined();
+
+      const res = await request(app).delete(`/users/${student._id}`).set("Authorization", await como(admin));
+
+      expect(res.status).toBe(200);
+      await expect(fs.access(arquivo)).rejects.toThrow();
+    });
   });
 
   describe("DELETE /users/:id", () => {
