@@ -9,6 +9,7 @@ import { ensureTeacherCanEnroll, ensureTeacherOwnsClass } from "../utils/ClassOw
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
 import LocalDiskStorage from "../utils/LocalDiskStorage.js";
 import { toAvatarWebp } from "../utils/AvatarImage.js";
+import logger from "../utils/logger.js";
 
 class UserService {
   constructor() {
@@ -190,12 +191,11 @@ class UserService {
     try {
       updated = await this.repository.update(id, { avatar_url: this.storage.getUrl(key) });
     } catch (err) {
-      await this.storage.delete(key);
+      await this.discardAvatarFile(key);
       throw err;
     }
 
-    const previousKey = this.storage.keyFromUrl(target.avatar_url);
-    if (previousKey) await this.storage.delete(previousKey);
+    await this.discardAvatarFile(this.storage.keyFromUrl(target.avatar_url));
 
     return updated;
   }
@@ -237,6 +237,8 @@ class UserService {
     if (target.class) {
       await this.classRepository.removeStudent(target.class, id);
     }
+
+    await this.discardAvatarFile(this.storage.keyFromUrl(target.avatar_url));
 
     return deleted;
   }
@@ -302,6 +304,16 @@ class UserService {
     }
 
     return existingUser;
+  }
+
+  async discardAvatarFile(key) {
+    if (!key) return;
+
+    try {
+      await this.storage.delete(key);
+    } catch (err) {
+      logger.warn(`Falha ao apagar o arquivo de avatar ${key}: ${err.message}`);
+    }
   }
 }
 
