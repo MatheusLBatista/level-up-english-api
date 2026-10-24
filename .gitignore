@@ -40,3 +40,6 @@ Thumbs.db
 
 # Coverage de testes
 /coverage/
+
+# Uploads de usuários
+/uploads/
