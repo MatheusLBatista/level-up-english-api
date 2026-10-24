@@ -18,6 +18,9 @@ services:
     restart: on-failure
     ports:
       - 5011:5011
+    volumes:
+      - vol-uploads:/node-app/uploads
 
 volumes:
-  vol-mongodb: 
+  vol-mongodb:
+  vol-uploads:

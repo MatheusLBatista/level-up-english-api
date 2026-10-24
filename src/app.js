@@ -7,6 +7,8 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import { setupDocs } from "./docs/config/head.js";
+import uploadsStatic from "./middlewares/UploadsStaticMiddleware.js";
+import LocalDiskStorage from "./utils/LocalDiskStorage.js";
 
 const app = express();
 
@@ -20,6 +22,9 @@ app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(express.json());
+
+const storage = new LocalDiskStorage();
+app.use(storage.publicPath, uploadsStatic(storage));
 
 routes(app);
 setupDocs(app);
