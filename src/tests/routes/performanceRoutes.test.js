@@ -81,6 +81,20 @@ describe("Rota de desempenho do aluno", () => {
       ],
     });
     await Mission.deleteOne({ _id: excluida._id });
+
+    await criarUsuario({
+      name: "Colega A",
+      email: "colegaa@escola.com",
+      class: turmaA._id,
+      mission_progress: [{ mission_id: quiz1._id, done: true, score: 50 }],
+    });
+    await criarUsuario({
+      name: "Desativado A",
+      email: "desativadoa@escola.com",
+      class: turmaA._id,
+      active: false,
+      mission_progress: [{ mission_id: quiz1._id, done: true, score: 0 }],
+    });
   });
 
   const autenticar = async(email) => {
@@ -99,12 +113,20 @@ describe("Rota de desempenho do aluno", () => {
       const res = await desempenho(alunoA, alunoA._id);
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({
-        student: {
-          quiz: { score: 90, missions: 2 },
-          vocabulary: semNota,
-          audio: { score: 60, missions: 1 },
-        },
+      expect(res.body.data.student).toEqual({
+        quiz: { score: 90, missions: 2 },
+        vocabulary: semNota,
+        audio: { score: 60, missions: 1 },
+      });
+    });
+
+    it("deve trazer a média da turma só com os alunos ativos, cada um pesando igual", async() => {
+      const res = await desempenho(alunoA, alunoA._id);
+
+      expect(res.body.data.class).toEqual({
+        quiz: { score: 70, students: 2 },
+        vocabulary: { score: null, students: 0 },
+        audio: { score: 60, students: 1 },
       });
     });
 
@@ -112,7 +134,13 @@ describe("Rota de desempenho do aluno", () => {
       const res = await desempenho(alunoB, alunoB._id);
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({ student: { quiz: semNota, vocabulary: semNota, audio: semNota } });
+      expect(res.body.data.student).toEqual({ quiz: semNota, vocabulary: semNota, audio: semNota });
+    });
+
+    it("deve devolver class null para aluno sem turma", async() => {
+      const res = await desempenho(admin, semTurma._id);
+
+      expect(res.body.data.class).toBeNull();
     });
 
     it("deve retornar 403 quando o aluno pede o desempenho de outro", async() => {

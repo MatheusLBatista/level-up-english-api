@@ -176,6 +176,21 @@ describe("UserRepository", () => {
     });
   });
 
+  describe("findActiveStudentsProgressByClass", () => {
+    it("deve buscar só o progresso dos alunos ativos da turma", async() => {
+      const CLASS_ID = "507f1f77bcf86cd799439033";
+      const alunos = [{ _id: USER_ID, mission_progress: [] }];
+      const select = jest.fn().mockResolvedValue(alunos);
+      modelo.find.mockReturnValue({ select });
+
+      const resultado = await repository.findActiveStudentsProgressByClass(CLASS_ID);
+
+      expect(modelo.find).toHaveBeenCalledWith({ class: CLASS_ID, role: "student", active: true });
+      expect(select).toHaveBeenCalledWith("mission_progress");
+      expect(resultado).toBe(alunos);
+    });
+  });
+
   describe("setClass e clearClass", () => {
     const CLASS_ID = "507f1f77bcf86cd799439033";
 

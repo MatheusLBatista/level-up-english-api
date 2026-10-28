@@ -2,7 +2,7 @@ import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import MissionRepository from "../repository/MissionRepository.js";
 import { findAccessibleStudent } from "../utils/StudentAccessHelper.js";
-import { summarizeByType } from "../utils/PerformanceHelper.js";
+import { averageByType, summarizeByType } from "../utils/PerformanceHelper.js";
 
 class PerformanceService {
   constructor({
@@ -22,13 +22,24 @@ class PerformanceService {
       teacherOnly: "Você só pode ver o desempenho de alunos das suas turmas.",
     });
 
-    const progress = student.mission_progress ?? [];
-    const missions = progress.length > 0
-      ? await this.missionRepository.findTypesByIds(progress.map((entry) => entry.mission_id))
+    const classmates = student.class
+      ? await this.userRepository.findActiveStudentsProgressByClass(student.class)
       : [];
-    const typeById = new Map(missions.map((mission) => [String(mission._id), mission.type]));
+    const typeById = await this.loadMissionTypes([student, ...classmates]);
+    const summarize = (user) => summarizeByType(user.mission_progress ?? [], typeById);
 
-    return { student: summarizeByType(progress, typeById) };
+    return {
+      student: summarize(student),
+      class: student.class ? averageByType(classmates.map(summarize)) : null,
+    };
+  }
+
+  async loadMissionTypes(users) {
+    const ids = new Set(users.flatMap((user) => (user.mission_progress ?? []).map((entry) => String(entry.mission_id))));
+    if (ids.size === 0) return new Map();
+
+    const missions = await this.missionRepository.findTypesByIds([...ids]);
+    return new Map(missions.map((mission) => [String(mission._id), mission.type]));
   }
 }
 

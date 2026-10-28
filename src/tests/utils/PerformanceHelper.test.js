@@ -1,4 +1,4 @@
-import { MISSION_TYPES, summarizeByType } from "../../utils/PerformanceHelper.js";
+import { MISSION_TYPES, averageByType, summarizeByType } from "../../utils/PerformanceHelper.js";
 
 describe("PerformanceHelper", () => {
   describe("summarizeByType", () => {
@@ -71,6 +71,57 @@ describe("PerformanceHelper", () => {
 
       expect(Object.keys(resultado)).toEqual(MISSION_TYPES);
       MISSION_TYPES.forEach((tipo) => expect(resultado[tipo]).toEqual({ score: null, missions: 0 }));
+    });
+  });
+
+  describe("averageByType", () => {
+    const resumo = (quiz, vocabulary = null, audio = null) => ({
+      quiz: { score: quiz, missions: quiz === null ? 0 : 1 },
+      vocabulary: { score: vocabulary, missions: vocabulary === null ? 0 : 1 },
+      audio: { score: audio, missions: audio === null ? 0 : 1 },
+    });
+
+    it("deve tirar a média das médias dos alunos em cada tipo", () => {
+      const resultado = averageByType([resumo(90, 40, 60), resumo(70, 60, 80)]);
+
+      expect(resultado).toEqual({
+        quiz: { score: 80, students: 2 },
+        vocabulary: { score: 50, students: 2 },
+        audio: { score: 70, students: 2 },
+      });
+    });
+
+    it("deve deixar de fora o aluno sem nota no tipo, em vez de contar zero", () => {
+      const resultado = averageByType([resumo(90), resumo(null), resumo(70)]);
+
+      expect(resultado.quiz).toEqual({ score: 80, students: 2 });
+    });
+
+    it("deve dar o mesmo peso a cada aluno, não importa quantas missões ele fez", () => {
+      const muitasMissoes = { ...resumo(100), quiz: { score: 100, missions: 10 } };
+
+      const resultado = averageByType([muitasMissoes, resumo(50)]);
+
+      expect(resultado.quiz.score).toBe(75);
+    });
+
+    it("deve arredondar a média", () => {
+      const resultado = averageByType([resumo(80), resumo(85)]);
+
+      expect(resultado.quiz.score).toBe(83);
+    });
+
+    it("deve deixar score null no tipo em que nenhum aluno tem nota", () => {
+      const resultado = averageByType([resumo(90), resumo(70)]);
+
+      expect(resultado.audio).toEqual({ score: null, students: 0 });
+    });
+
+    it("deve devolver todos os tipos sem nota quando não houver alunos", () => {
+      const resultado = averageByType([]);
+
+      expect(Object.keys(resultado)).toEqual(MISSION_TYPES);
+      MISSION_TYPES.forEach((tipo) => expect(resultado[tipo]).toEqual({ score: null, students: 0 }));
     });
   });
 });

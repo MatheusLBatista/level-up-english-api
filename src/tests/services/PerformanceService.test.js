@@ -45,7 +45,11 @@ describe("PerformanceService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    userRepository = { findById: jest.fn(), findByIds: jest.fn().mockResolvedValue([aluno()]) };
+    userRepository = {
+      findById: jest.fn(),
+      findByIds: jest.fn().mockResolvedValue([aluno()]),
+      findActiveStudentsProgressByClass: jest.fn().mockResolvedValue([]),
+    };
     classRepository = { findPlainById: jest.fn().mockResolvedValue({ _id: TURMA_A_ID, teacher: PROF_A_ID }) };
     missionRepository = { findTypesByIds: jest.fn().mockResolvedValue([]) };
 
@@ -121,22 +125,20 @@ describe("PerformanceService", () => {
       const resultado = await service.getByStudent(ALUNO_A_ID, { user_id: ALUNO_A_ID });
 
       expect(missionRepository.findTypesByIds).toHaveBeenCalledWith([QUIZ_ID, AUDIO_ID]);
-      expect(resultado).toEqual({
-        student: {
-          quiz: { score: 80, missions: 1 },
-          vocabulary: semNota,
-          audio: { score: 60, missions: 1 },
-        },
+      expect(resultado.student).toEqual({
+        quiz: { score: 80, missions: 1 },
+        vocabulary: semNota,
+        audio: { score: 60, missions: 1 },
       });
     });
 
-    it("não deve buscar missões quando o aluno não tiver progresso", async() => {
+    it("não deve buscar missões quando ninguém tiver progresso", async() => {
       logado(aluno());
 
       const resultado = await service.getByStudent(ALUNO_A_ID, { user_id: ALUNO_A_ID });
 
       expect(missionRepository.findTypesByIds).not.toHaveBeenCalled();
-      expect(resultado).toEqual({ student: { quiz: semNota, vocabulary: semNota, audio: semNota } });
+      expect(resultado.student).toEqual({ quiz: semNota, vocabulary: semNota, audio: semNota });
     });
 
     it("deve tratar aluno sem o campo de progresso como sem progresso", async() => {
@@ -145,6 +147,63 @@ describe("PerformanceService", () => {
       const resultado = await service.getByStudent(ALUNO_A_ID, { user_id: ALUNO_A_ID });
 
       expect(resultado.student.quiz).toEqual(semNota);
+    });
+  });
+
+  describe("média da turma", () => {
+    const progresso = (quiz, audio) => [
+      { mission_id: QUIZ_ID, done: true, score: quiz },
+      ...(audio === undefined ? [] : [{ mission_id: AUDIO_ID, done: true, score: audio }]),
+    ];
+
+    beforeEach(() => {
+      missionRepository.findTypesByIds.mockResolvedValue([
+        { _id: QUIZ_ID, type: "quiz" },
+        { _id: AUDIO_ID, type: "audio" },
+      ]);
+    });
+
+    it("deve buscar os alunos ativos da turma do aluno e tirar a média das médias deles", async() => {
+      const alunoA = aluno({ mission_progress: progresso(100, 60) });
+      logado(alunoA);
+      userRepository.findActiveStudentsProgressByClass.mockResolvedValue([
+        alunoA,
+        { _id: ALUNO_B_ID, mission_progress: progresso(60) },
+      ]);
+
+      const resultado = await service.getByStudent(ALUNO_A_ID, { user_id: ALUNO_A_ID });
+
+      expect(userRepository.findActiveStudentsProgressByClass).toHaveBeenCalledWith(TURMA_A_ID);
+      expect(resultado.class).toEqual({
+        quiz: { score: 80, students: 2 },
+        vocabulary: { score: null, students: 0 },
+        audio: { score: 60, students: 1 },
+      });
+    });
+
+    it("deve buscar o tipo das missões de todos de uma vez, sem repetir id", async() => {
+      const alunoA = aluno({ mission_progress: progresso(100, 60) });
+      logado(alunoA);
+      userRepository.findActiveStudentsProgressByClass.mockResolvedValue([
+        alunoA,
+        { _id: ALUNO_B_ID, mission_progress: progresso(60, 40) },
+      ]);
+
+      await service.getByStudent(ALUNO_A_ID, { user_id: ALUNO_A_ID });
+
+      expect(missionRepository.findTypesByIds).toHaveBeenCalledTimes(1);
+      expect(missionRepository.findTypesByIds).toHaveBeenCalledWith([QUIZ_ID, AUDIO_ID]);
+    });
+
+    it("deve devolver class null para aluno sem turma, sem buscar colegas", async() => {
+      logado(admin);
+      userRepository.findByIds.mockResolvedValue([aluno({ class: null, mission_progress: progresso(70) })]);
+
+      const resultado = await service.getByStudent(ALUNO_A_ID, { user_id: ADMIN_ID });
+
+      expect(userRepository.findActiveStudentsProgressByClass).not.toHaveBeenCalled();
+      expect(resultado.student.quiz).toEqual({ score: 70, missions: 1 });
+      expect(resultado.class).toBeNull();
     });
   });
 });

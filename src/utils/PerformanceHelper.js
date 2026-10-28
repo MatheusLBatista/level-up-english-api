@@ -16,3 +16,11 @@ export const summarizeByType = (progress, typeById) => {
     return [type, { score: missions ? Math.round(sum / missions) : null, missions }];
   }));
 };
+
+export const averageByType = (summaries) =>
+  Object.fromEntries(MISSION_TYPES.map((type) => {
+    const scores = summaries.map((summary) => summary[type].score).filter((score) => score !== null);
+    const sum = scores.reduce((total, score) => total + score, 0);
+
+    return [type, { score: scores.length ? Math.round(sum / scores.length) : null, students: scores.length }];
+  }));

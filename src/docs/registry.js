@@ -549,7 +549,10 @@ registry.registerPath({
   description:
     "Média das melhores notas das missões concluídas, separada por tipo (quiz, vocabulary, "
     + "audio), com quantas missões entraram em cada média. Tipo sem missão concluída vem "
-    + "com score null, e não 0. Missão excluída depois de feita não entra na conta. O aluno "
+    + "com score null, e não 0. Missão excluída depois de feita não entra na conta. Em class "
+    + "vem a média da turma do aluno para comparação: a média das médias dos alunos ativos "
+    + "da turma, contando só quem tem nota no tipo, com students dizendo quantos entraram; "
+    + "class é null para aluno sem turma. O aluno "
     + "só consulta o próprio id; o professor, só aluno de turma dele (aluno sem turma ou de "
     + "outra turma devolve 403); o admin, qualquer aluno. Id que não é de aluno devolve 404.",
   security: [{ bearerAuth: [] }],

@@ -21,8 +21,29 @@ export const PerformanceByTypeSchema = z
   })
   .openapi("PerformanceByType");
 
+export const ClassTypePerformanceSchema = z
+  .object({
+    score: z.number().int().nullable().openapi({
+      example: 72,
+      description: "Média das médias dos alunos da turma que têm nota no tipo; null se nenhum tiver.",
+    }),
+    students: z.number().int().openapi({ example: 7, description: "Quantos alunos entraram na média." }),
+  })
+  .openapi("ClassTypePerformance");
+
+export const ClassPerformanceByTypeSchema = z
+  .object({
+    quiz: ClassTypePerformanceSchema,
+    vocabulary: ClassTypePerformanceSchema,
+    audio: ClassTypePerformanceSchema,
+  })
+  .openapi("ClassPerformanceByType");
+
 export const PerformanceSchema = z
   .object({
     student: PerformanceByTypeSchema,
+    class: ClassPerformanceByTypeSchema.nullable().openapi({
+      description: "Média da turma do aluno, para comparar no radar; null se o aluno não tiver turma.",
+    }),
   })
   .openapi("Performance");
