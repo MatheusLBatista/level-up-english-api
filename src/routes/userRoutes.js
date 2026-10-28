@@ -46,6 +46,12 @@ router
     asyncWrapper(userController.updateAvatar.bind(userController)),
   )
   .delete(
+    "/users/:id/avatar",
+    authMiddleware,
+    authorize("student", "teacher", "admin"),
+    asyncWrapper(userController.removeAvatar.bind(userController)),
+  )
+  .delete(
     "/users/:id",
     authMiddleware,
     authorize("student", "teacher", "admin"),
