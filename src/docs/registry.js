@@ -12,6 +12,7 @@ import {
 import { AVATAR_FIELD, AVATAR_MAX_BYTES } from "../middlewares/AvatarUploadMiddleware.js";
 import { AVATAR_SIZE } from "../utils/AvatarImage.js";
 import { XpHistoryPageSchema } from "../schemas/XpHistorySchema.js";
+import { PerformanceSchema } from "../schemas/PerformanceSchema.js";
 import {
   LoginBodySchema,
   LoginResponseSchema,
@@ -535,6 +536,35 @@ registry.registerPath({
       "Papel sem acesso à rota, aluno pedindo o histórico de outro, ou professor pedindo "
       + "o de aluno sem turma ou de turma de outro professor",
       "Você só pode ver o seu histórico de XP.",
+    ),
+    404: errorResponse("Id que não existe ou não é de aluno", "Aluno não encontrado."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/users/{id}/performance",
+  tags: ["Users"],
+  summary: "Desempenho do aluno por tipo de missão, para o radar (aluno só o próprio; professor só alunos das turmas dele)",
+  description:
+    "Média das melhores notas das missões concluídas, separada por tipo (quiz, vocabulary, "
+    + "audio), com quantas missões entraram em cada média. Tipo sem missão concluída vem "
+    + "com score null, e não 0. Missão excluída depois de feita não entra na conta. O aluno "
+    + "só consulta o próprio id; o professor, só aluno de turma dele (aluno sem turma ou de "
+    + "outra turma devolve 403); o admin, qualquer aluno. Id que não é de aluno devolve 404.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    }),
+  },
+  responses: {
+    200: commonResponse(PerformanceSchema, "Desempenho do aluno"),
+    401: error401Token,
+    403: errorResponse(
+      "Papel sem acesso à rota, aluno pedindo o desempenho de outro, ou professor pedindo "
+      + "o de aluno sem turma ou de turma de outro professor",
+      "Você só pode ver o seu desempenho.",
     ),
     404: errorResponse("Id que não existe ou não é de aluno", "Aluno não encontrado."),
   },
