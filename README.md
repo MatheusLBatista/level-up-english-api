@@ -91,6 +91,13 @@ A API sobe em `http://localhost:$APP_PORT` (padrão `5011`, definido no `.env`).
 
 > ⚠️ `npm run seed` apaga (`deleteMany`) e recria usuários, turmas, missões, atitudes e attitude-logs. Não rode em um banco com dados que você queira manter.
 
+Para apresentações, `npm run seed:demo` monta uma escola realista: um semestre simulado pelos próprios services, com turmas, missões, atitudes, ranking e uma foto de perfil ilustrada para cada pessoa (estilo [Lorelei](https://www.dicebear.com/styles/lorelei/) do DiceBear, licença CC0, gerada a partir do e-mail e tratada como um upload comum). Ele também apaga o banco e as fotos dos usuários apagados. Com `NODE_ENV=production`, ou em um banco com "prod" no nome, só roda se receber o nome exato do banco em `SEED_DEMO_CONFIRM`:
+
+```bash
+# no Docker, para as fotos irem para o volume vol-uploads
+docker-compose exec -e SEED_DEMO_CONFIRM=level-up-english api npm run seed:demo
+```
+
 ### Variáveis de ambiente
 
 Todas as variáveis, com comentários, estão em `.env.example`. As obrigatórias para subir a aplicação:

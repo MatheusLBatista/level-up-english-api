@@ -1,6 +1,8 @@
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
+import { createAvatar } from "@dicebear/core";
+import * as lorelei from "@dicebear/lorelei";
 import DbConnect from "../config/dbConnect.js";
 import User from "../models/User.js";
 import Class from "../models/Class.js";
@@ -18,6 +20,8 @@ import { CreateAttitudeBodySchema } from "../schemas/AttitudeSchema.js";
 import { CreateAttitudeLogBodySchema } from "../schemas/AttitudeLogSchema.js";
 import { CreateXpAdjustmentBodySchema } from "../schemas/XpAdjustmentSchema.js";
 import { calculateLevel, xpForLevel } from "../utils/LevelHelper.js";
+import { toAvatarWebp } from "../utils/AvatarImage.js";
+import LocalDiskStorage from "../utils/LocalDiskStorage.js";
 import * as demo from "./demo/demoData.js";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -31,6 +35,10 @@ const createRandom = (seed) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 const random = createRandom(2026);
+
+const storage = new LocalDiskStorage();
+const AVATAR_BACKGROUNDS = ["b6e3f4", "c0aede", "d1d4f9", "ffd5dc", "ffdfbf"];
+const HAPPY_MOUTHS = lorelei.schema.properties.mouth.items.enum.filter((mouth) => mouth.startsWith("happy"));
 const between = (min, max) => min + Math.floor(random() * (max - min + 1));
 const pick = (list) => list[Math.floor(random() * list.length)];
 
@@ -52,14 +60,23 @@ const answersFor = (questions, accuracy) => questions.map(({ correct_answer }) =
 async function ensureDevelopmentDatabase() {
   const { databaseName } = mongoose.connection.db;
 
-  if (process.env.NODE_ENV === "production" || databaseName.includes("prod")) {
-    throw new Error(`O seed de demonstração apaga dados e não roda em produção (banco "${databaseName}").`);
+  const isProduction = process.env.NODE_ENV === "production" || databaseName.includes("prod");
+  if (isProduction && process.env.SEED_DEMO_CONFIRM !== databaseName) {
+    throw new Error(
+      `O seed de demonstração apaga dados e não roda em produção (banco "${databaseName}"). `
+      + `Para apagar e popular este banco mesmo assim, rode com SEED_DEMO_CONFIRM=${databaseName}.`,
+    );
   }
 
   console.log(`Banco: ${databaseName}`);
 }
 
 async function clearDatabase() {
+  for (const { avatar_url } of await User.find({ avatar_url: { $ne: null } }).select("avatar_url")) {
+    const key = storage.keyFromUrl(avatar_url);
+    if (key) await storage.delete(key);
+  }
+
   for (const model of [User, Class, Mission, Attitude, AttitudeLog, XpAdjustment, Ranking]) {
     await model.deleteMany();
   }
@@ -98,11 +115,26 @@ async function seedPeople() {
   await User.collection.insertMany([...staff, ...students]);
 
   const byEmail = new Map((await User.find()).map((user) => [user.email, user]));
+  await seedAvatars([...byEmail.values()]);
+
   return {
     admin: byEmail.get(demo.admin.email),
     teachers: new Map(demo.teachers.map(({ key, email }) => [key, byEmail.get(email)])),
     students: byEmail,
   };
+}
+
+async function seedAvatars(users) {
+  for (const user of users) {
+    const svg = createAvatar(lorelei, {
+      seed: user.email,
+      backgroundColor: AVATAR_BACKGROUNDS,
+      mouth: HAPPY_MOUTHS,
+    }).toString();
+
+    const key = await storage.save(`avatars/${user._id}-${Date.now()}.webp`, await toAvatarWebp(Buffer.from(svg)));
+    await User.collection.updateOne({ _id: user._id }, { $set: { avatar_url: storage.getUrl(key) } });
+  }
 }
 
 async function seedClasses(people) {
