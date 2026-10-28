@@ -11,6 +11,7 @@ const RankingUserSchema = z
     email: z.string().openapi({ example: "maria.silva@exemplo.com" }),
     xp: z.number().openapi({ example: 1250 }),
     level: z.number().openapi({ example: 4 }),
+    avatar_url: z.string().nullable().openapi({ example: "/uploads/avatars/507f1f77bcf86cd799439011-1729700000000.webp" }),
   })
   .openapi("RankingUser");
 
