@@ -12,7 +12,7 @@ import {
 import { AVATAR_FIELD, AVATAR_MAX_BYTES } from "../middlewares/AvatarUploadMiddleware.js";
 import { AVATAR_SIZE } from "../utils/AvatarImage.js";
 import { XpHistoryPageSchema } from "../schemas/XpHistorySchema.js";
-import { PerformanceSchema } from "../schemas/PerformanceSchema.js";
+import { PerformanceQueryBaseSchema, PerformanceSchema } from "../schemas/PerformanceSchema.js";
 import {
   LoginBodySchema,
   LoginResponseSchema,
@@ -552,7 +552,10 @@ registry.registerPath({
     + "com score null, e não 0. Missão excluída depois de feita não entra na conta. Em class "
     + "vem a média da turma do aluno para comparação: a média das médias dos alunos ativos "
     + "da turma, contando só quem tem nota no tipo, com students dizendo quantos entraram; "
-    + "class é null para aluno sem turma. O aluno "
+    + "class é null para aluno sem turma. Com from e/ou to, só entram as missões concluídas "
+    + "no período, para o aluno e para a turma; a data é a da primeira conclusão que rendeu "
+    + "XP, então missão concluída sem render XP (nota 0 ou recompensa 0) não tem data e só "
+    + "aparece sem filtro de período. O aluno "
     + "só consulta o próprio id; o professor, só aluno de turma dele (aluno sem turma ou de "
     + "outra turma devolve 403); o admin, qualquer aluno. Id que não é de aluno devolve 404.",
   security: [{ bearerAuth: [] }],
@@ -560,9 +563,14 @@ registry.registerPath({
     params: z.object({
       id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
     }),
+    query: PerformanceQueryBaseSchema,
   },
   responses: {
     200: commonResponse(PerformanceSchema, "Desempenho do aluno"),
+    400: errorResponse(
+      "from ou to fora do formato ISO 8601 com fuso, ou from depois de to",
+      "Erro de validação. 1 campo(s) inválido(s).",
+    ),
     401: error401Token,
     403: errorResponse(
       "Papel sem acesso à rota, aluno pedindo o desempenho de outro, ou professor pedindo "

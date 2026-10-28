@@ -3,6 +3,21 @@ import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 
 extendZodWithOpenApi(z);
 
+const periodDate = (example, description) =>
+  z.string().datetime({ offset: true, message: "Use data e hora ISO 8601 com fuso, ex.: 2026-08-01T00:00:00-04:00." })
+    .optional()
+    .openapi({ example, description });
+
+export const PerformanceQueryBaseSchema = z.object({
+  from: periodDate("2026-08-01T00:00:00-04:00", "Início do período, inclusive, pela data de conclusão da missão."),
+  to: periodDate("2026-10-31T23:59:59-04:00", "Fim do período, inclusive."),
+});
+
+export const PerformanceQuerySchema = PerformanceQueryBaseSchema.refine(
+  ({ from, to }) => !from || !to || new Date(from) <= new Date(to),
+  { message: "O início do período deve ser anterior ao fim.", path: ["to"] },
+);
+
 export const TypePerformanceSchema = z
   .object({
     score: z.number().int().nullable().openapi({

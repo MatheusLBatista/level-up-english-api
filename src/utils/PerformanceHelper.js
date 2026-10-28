@@ -1,5 +1,16 @@
 export const MISSION_TYPES = ["quiz", "vocabulary", "audio"];
 
+export const withinPeriod = (progress, { from, to } = {}) => {
+  if (!from && !to) return progress;
+
+  return progress.filter(({ completed_at }) => {
+    if (!completed_at) return false;
+
+    const time = new Date(completed_at).getTime();
+    return (!from || time >= new Date(from).getTime()) && (!to || time <= new Date(to).getTime());
+  });
+};
+
 export const summarizeByType = (progress, typeById) => {
   const totals = Object.fromEntries(MISSION_TYPES.map((type) => [type, { sum: 0, missions: 0 }]));
 

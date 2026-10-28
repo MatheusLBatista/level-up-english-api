@@ -187,4 +187,55 @@ describe("Rota de desempenho do aluno", () => {
       expect(res.status).toBe(498);
     });
   });
+
+  describe("GET /users/:id/performance com período", () => {
+    beforeEach(async() => {
+      const [quiz1, quiz2] = await Promise.all([Mission.findOne({ title: "Quiz 1" }), Mission.findOne({ title: "Quiz 2" })]);
+
+      await User.findByIdAndUpdate(alunoA._id, {
+        mission_progress: [
+          { mission_id: quiz1._id, done: true, score: 40, completed_at: new Date("2026-09-10T15:00:00Z") },
+          { mission_id: quiz2._id, done: true, score: 100, completed_at: new Date("2026-10-10T15:00:00Z") },
+        ],
+      });
+      await User.updateOne(
+        { email: "colegaa@escola.com" },
+        { mission_progress: [{ mission_id: quiz1._id, done: true, score: 50, completed_at: new Date("2026-09-20T15:00:00Z") }] },
+      );
+    });
+
+    const desempenhoNoPeriodo = async(quem, alvo, query) =>
+      await request(app).get(`/users/${alvo}/performance`).query(query).set("Authorization", await como(quem));
+
+    it("deve considerar só as missões concluídas no período, para o aluno e para a turma", async() => {
+      const res = await desempenhoNoPeriodo(alunoA, alunoA._id, {
+        from: "2026-10-01T00:00:00-04:00",
+        to: "2026-10-31T23:59:59-04:00",
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.student.quiz).toEqual({ score: 100, missions: 1 });
+      expect(res.body.data.class.quiz).toEqual({ score: 100, students: 1 });
+    });
+
+    it("deve usar tudo quando o período não for informado", async() => {
+      const res = await desempenhoNoPeriodo(alunoA, alunoA._id, {});
+
+      expect(res.body.data.student.quiz).toEqual({ score: 70, missions: 2 });
+      expect(res.body.data.class.quiz).toEqual({ score: 60, students: 2 });
+    });
+
+    it("deve retornar 400 quando o período for inválido", async() => {
+      const semFuso = await desempenhoNoPeriodo(alunoA, alunoA._id, { from: "2026-10-01" });
+      const invertido = await desempenhoNoPeriodo(alunoA, alunoA._id, {
+        from: "2026-10-31T00:00:00Z",
+        to: "2026-10-01T00:00:00Z",
+      });
+
+      expect(semFuso.status).toBe(400);
+      expect(semFuso.body.errors[0].path).toBe("from");
+      expect(invertido.status).toBe(400);
+      expect(invertido.body.errors[0]).toEqual({ path: "to", message: "O início do período deve ser anterior ao fim." });
+    });
+  });
 });

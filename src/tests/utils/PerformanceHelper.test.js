@@ -1,6 +1,47 @@
-import { MISSION_TYPES, averageByType, summarizeByType } from "../../utils/PerformanceHelper.js";
+import { MISSION_TYPES, averageByType, summarizeByType, withinPeriod } from "../../utils/PerformanceHelper.js";
 
 describe("PerformanceHelper", () => {
+  describe("withinPeriod", () => {
+    const setembro = { mission_id: "m1", completed_at: new Date("2026-09-15T12:00:00Z") };
+    const outubro = { mission_id: "m2", completed_at: new Date("2026-10-15T12:00:00Z") };
+    const semData = { mission_id: "m3", completed_at: null };
+    const progresso = [setembro, outubro, semData];
+
+    it("deve devolver o progresso inteiro, inclusive sem data, quando não houver período", () => {
+      expect(withinPeriod(progresso, {})).toBe(progresso);
+      expect(withinPeriod(progresso)).toBe(progresso);
+    });
+
+    it("deve manter só o que foi concluído entre from e to", () => {
+      const resultado = withinPeriod(progresso, { from: "2026-10-01T00:00:00Z", to: "2026-10-31T23:59:59Z" });
+
+      expect(resultado).toEqual([outubro]);
+    });
+
+    it("deve aceitar só o início ou só o fim", () => {
+      expect(withinPeriod(progresso, { from: "2026-10-01T00:00:00Z" })).toEqual([outubro]);
+      expect(withinPeriod(progresso, { to: "2026-09-30T23:59:59Z" })).toEqual([setembro]);
+    });
+
+    it("deve incluir as duas pontas do período", () => {
+      const resultado = withinPeriod(progresso, { from: "2026-09-15T12:00:00Z", to: "2026-10-15T12:00:00Z" });
+
+      expect(resultado).toEqual([setembro, outubro]);
+    });
+
+    it("deve comparar o instante, respeitando o fuso informado", () => {
+      const resultado = withinPeriod(progresso, { from: "2026-10-15T09:00:00-03:00" });
+
+      expect(resultado).toEqual([outubro]);
+    });
+
+    it("deve deixar de fora o progresso sem data quando houver período", () => {
+      const resultado = withinPeriod(progresso, { from: "2000-01-01T00:00:00Z" });
+
+      expect(resultado).not.toContain(semData);
+    });
+  });
+
   describe("summarizeByType", () => {
     const tipos = new Map([
       ["quiz1", "quiz"],

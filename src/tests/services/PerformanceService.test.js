@@ -195,6 +195,33 @@ describe("PerformanceService", () => {
       expect(missionRepository.findTypesByIds).toHaveBeenCalledWith([QUIZ_ID, AUDIO_ID]);
     });
 
+    it("deve aplicar o período ao aluno e aos colegas, sem buscar o tipo de missão fora dele", async() => {
+      const OUTUBRO = new Date("2026-10-10T12:00:00Z");
+      const SETEMBRO = new Date("2026-09-10T12:00:00Z");
+      const alunoA = aluno({
+        mission_progress: [
+          { mission_id: QUIZ_ID, done: true, score: 100, completed_at: OUTUBRO },
+          { mission_id: AUDIO_ID, done: true, score: 20, completed_at: SETEMBRO },
+        ],
+      });
+      logado(alunoA);
+      userRepository.findActiveStudentsProgressByClass.mockResolvedValue([
+        alunoA,
+        { _id: ALUNO_B_ID, mission_progress: [{ mission_id: QUIZ_ID, done: true, score: 40, completed_at: SETEMBRO }] },
+      ]);
+
+      const resultado = await service.getByStudent(
+        ALUNO_A_ID,
+        { user_id: ALUNO_A_ID },
+        { from: "2026-10-01T00:00:00Z", to: "2026-10-31T23:59:59Z" },
+      );
+
+      expect(missionRepository.findTypesByIds).toHaveBeenCalledWith([QUIZ_ID]);
+      expect(resultado.student.quiz).toEqual({ score: 100, missions: 1 });
+      expect(resultado.student.audio).toEqual({ score: null, missions: 0 });
+      expect(resultado.class.quiz).toEqual({ score: 100, students: 1 });
+    });
+
     it("deve devolver class null para aluno sem turma, sem buscar colegas", async() => {
       logado(admin);
       userRepository.findByIds.mockResolvedValue([aluno({ class: null, mission_progress: progresso(70) })]);

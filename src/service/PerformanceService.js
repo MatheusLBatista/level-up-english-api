@@ -2,7 +2,7 @@ import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import MissionRepository from "../repository/MissionRepository.js";
 import { findAccessibleStudent } from "../utils/StudentAccessHelper.js";
-import { averageByType, summarizeByType } from "../utils/PerformanceHelper.js";
+import { averageByType, summarizeByType, withinPeriod } from "../utils/PerformanceHelper.js";
 
 class PerformanceService {
   constructor({
@@ -15,7 +15,7 @@ class PerformanceService {
     this.missionRepository = missionRepository;
   }
 
-  async getByStudent(studentId, req) {
+  async getByStudent(studentId, req, period = {}) {
     const loggedUser = await this.userRepository.findById(req.user_id);
     const student = await findAccessibleStudent(this, studentId, loggedUser, {
       ownOnly: "Você só pode ver o seu desempenho.",
@@ -25,8 +25,9 @@ class PerformanceService {
     const classmates = student.class
       ? await this.userRepository.findActiveStudentsProgressByClass(student.class)
       : [];
-    const typeById = await this.loadMissionTypes([student, ...classmates]);
-    const summarize = (user) => summarizeByType(user.mission_progress ?? [], typeById);
+    const progressOf = (user) => withinPeriod(user.mission_progress ?? [], period);
+    const typeById = await this.loadMissionTypes([student, ...classmates].map(progressOf));
+    const summarize = (user) => summarizeByType(progressOf(user), typeById);
 
     return {
       student: summarize(student),
@@ -34,8 +35,8 @@ class PerformanceService {
     };
   }
 
-  async loadMissionTypes(users) {
-    const ids = new Set(users.flatMap((user) => (user.mission_progress ?? []).map((entry) => String(entry.mission_id))));
+  async loadMissionTypes(progressLists) {
+    const ids = new Set(progressLists.flatMap((progress) => progress.map((entry) => String(entry.mission_id))));
     if (ids.size === 0) return new Map();
 
     const missions = await this.missionRepository.findTypesByIds([...ids]);
