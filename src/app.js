@@ -7,12 +7,15 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import { setupDocs } from "./docs/config/head.js";
+import uploadsStatic from "./middlewares/UploadsStaticMiddleware.js";
+import LocalDiskStorage from "./utils/LocalDiskStorage.js";
+import { trustProxyFromEnv } from "./config/trustProxy.js";
 
 const app = express();
 
-// No Render a API fica atrás de proxy: sem isto o req.ip seria o do proxy, e o
-// rate limit do login valeria para todo mundo junto.
-app.set("trust proxy", 1);
+// Atrás de proxy reverso, sem isto o req.ip seria o do proxy e o rate limit do
+// login valeria para todo mundo junto. Sem proxy fica desligado (TRUST_PROXY).
+app.set("trust proxy", trustProxyFromEnv());
 
 await DbConnect.conectar();
 
@@ -20,6 +23,9 @@ app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(express.json());
+
+const storage = new LocalDiskStorage();
+app.use(storage.publicPath, uploadsStatic(storage));
 
 routes(app);
 setupDocs(app);
@@ -32,6 +38,7 @@ app.use((req, res, next) => {
     "resourceNotFound",
     null,
     [{ message: "Rota não encontrada." }],
+    "Rota não encontrada.",
   );
 });
 

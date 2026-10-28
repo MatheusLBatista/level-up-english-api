@@ -4,14 +4,20 @@ import UserRepository from "../../repository/UserRepository.js";
 import ClassRepository from "../../repository/ClassRepository.js";
 import { CustomError } from "../../utils/helpers/index.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../../utils/LevelHelper.js";
+import LocalDiskStorage from "../../utils/LocalDiskStorage.js";
+import { toAvatarWebp } from "../../utils/AvatarImage.js";
+import logger from "../../utils/logger.js";
 
 jest.mock("../../repository/UserRepository.js");
 jest.mock("../../repository/ClassRepository.js");
+jest.mock("../../utils/LocalDiskStorage.js");
+jest.mock("../../utils/AvatarImage.js");
 
 describe("UserService", () => {
   let service;
   let repository;
   let classRepository;
+  let storage;
 
   const ADMIN_ID = "507f1f77bcf86cd799439001";
   const TEACHER_ID = "507f1f77bcf86cd799439002";
@@ -44,8 +50,16 @@ describe("UserService", () => {
       removeStudent: jest.fn(),
     };
 
+    storage = {
+      save: jest.fn(async(key) => key),
+      delete: jest.fn(),
+      getUrl: jest.fn((key) => `/uploads/${key}`),
+      keyFromUrl: jest.fn((url) => (url ? url.replace("/uploads/", "") : null)),
+    };
+
     UserRepository.mockImplementation(() => repository);
     ClassRepository.mockImplementation(() => classRepository);
+    LocalDiskStorage.mockImplementation(() => storage);
     service = new UserService();
   });
 
@@ -568,6 +582,215 @@ describe("UserService", () => {
     });
   });
 
+  describe("updateAvatar", () => {
+    const FOTO = Buffer.from("foto-original");
+    const WEBP = Buffer.from("foto-tratada");
+    const AGORA = 1700000000000;
+    const NOVA_KEY = `avatars/${STUDENT_ID}-${AGORA}.webp`;
+
+    beforeEach(() => {
+      jest.spyOn(Date, "now").mockReturnValue(AGORA);
+      jest.spyOn(logger, "warn").mockImplementation(() => {});
+      toAvatarWebp.mockResolvedValue(WEBP);
+    });
+
+    afterEach(() => {
+      Date.now.mockRestore();
+      logger.warn.mockRestore();
+    });
+
+    it("deve tratar a imagem, gravar e salvar a URL no usuário", async() => {
+      const atualizado = { _id: STUDENT_ID };
+      responderFindById(student(), student());
+      repository.update.mockResolvedValue(atualizado);
+
+      const resultado = await service.updateAvatar(STUDENT_ID, FOTO, { user_id: STUDENT_ID });
+
+      expect(toAvatarWebp).toHaveBeenCalledWith(FOTO);
+      expect(storage.save).toHaveBeenCalledWith(NOVA_KEY, WEBP);
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { avatar_url: `/uploads/${NOVA_KEY}` });
+      expect(storage.delete).not.toHaveBeenCalled();
+      expect(resultado).toBe(atualizado);
+    });
+
+    it("deve apagar a foto antiga só depois de atualizar o banco", async() => {
+      responderFindById(usuario(STUDENT_ID, "student", { avatar_url: "/uploads/avatars/antiga.webp" }), student());
+      repository.update.mockResolvedValue({});
+
+      await service.updateAvatar(STUDENT_ID, FOTO, { user_id: STUDENT_ID });
+
+      expect(storage.delete).toHaveBeenCalledWith("avatars/antiga.webp");
+      expect(repository.update.mock.invocationCallOrder[0])
+        .toBeLessThan(storage.delete.mock.invocationCallOrder[0]);
+    });
+
+    it("deve permitir que o admin troque a foto de outro usuário", async() => {
+      responderFindById(student(), admin());
+      repository.update.mockResolvedValue({});
+
+      await service.updateAvatar(STUDENT_ID, FOTO, { user_id: ADMIN_ID });
+
+      expect(storage.save).toHaveBeenCalled();
+    });
+
+    it.each([
+      ["o aluno", () => student(), STUDENT_ID],
+      ["a professora", () => teacher(), TEACHER_ID],
+    ])("deve lançar 403 quando %s tenta trocar a foto de outro, sem tocar no disco", async(_, logado, logadoId) => {
+      responderFindById(usuario(OUTRO_ID, "student"), logado());
+
+      const erro = await capturarErro(service.updateAvatar(OUTRO_ID, FOTO, { user_id: logadoId }));
+
+      expect(erro.statusCode).toBe(403);
+      expect(erro.customMessage).toBe("You do not have permission to update another user's avatar.");
+      expect(toAvatarWebp).not.toHaveBeenCalled();
+      expect(storage.save).not.toHaveBeenCalled();
+    });
+
+    it("deve propagar o 400 da imagem inválida sem gravar nada", async() => {
+      responderFindById(student(), student());
+      toAvatarWebp.mockRejectedValue(new CustomError({ statusCode: 400, errorType: "validationError" }));
+
+      const erro = await capturarErro(service.updateAvatar(STUDENT_ID, FOTO, { user_id: STUDENT_ID }));
+
+      expect(erro.statusCode).toBe(400);
+      expect(storage.save).not.toHaveBeenCalled();
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it("deve apagar o arquivo novo e manter o antigo quando o banco falhar", async() => {
+      responderFindById(usuario(STUDENT_ID, "student", { avatar_url: "/uploads/avatars/antiga.webp" }), student());
+      repository.update.mockRejectedValue(new Error("banco fora"));
+
+      const erro = await capturarErro(service.updateAvatar(STUDENT_ID, FOTO, { user_id: STUDENT_ID }));
+
+      expect(erro.message).toBe("banco fora");
+      expect(storage.delete).toHaveBeenCalledTimes(1);
+      expect(storage.delete).toHaveBeenCalledWith(NOVA_KEY);
+    });
+
+    it("deve concluir a troca mesmo se apagar a foto antiga falhar", async() => {
+      const atualizado = { _id: STUDENT_ID };
+      responderFindById(usuario(STUDENT_ID, "student", { avatar_url: "/uploads/avatars/antiga.webp" }), student());
+      repository.update.mockResolvedValue(atualizado);
+      storage.delete.mockRejectedValue(Object.assign(new Error("sem permissão"), { code: "EACCES" }));
+
+      const resultado = await service.updateAvatar(STUDENT_ID, FOTO, { user_id: STUDENT_ID });
+
+      expect(resultado).toBe(atualizado);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("avatars/antiga.webp"));
+    });
+
+    it("deve propagar o erro do banco mesmo se a compensação no disco falhar", async() => {
+      responderFindById(student(), student());
+      repository.update.mockRejectedValue(new Error("banco fora"));
+      storage.delete.mockRejectedValue(new Error("disco fora"));
+
+      const erro = await capturarErro(service.updateAvatar(STUDENT_ID, FOTO, { user_id: STUDENT_ID }));
+
+      expect(erro.message).toBe("banco fora");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(NOVA_KEY));
+    });
+
+    it("deve lançar 404 quando o usuário não existir", async() => {
+      responderFindById(null);
+
+      const erro = await capturarErro(service.updateAvatar(OUTRO_ID, FOTO, { user_id: ADMIN_ID }));
+
+      expect(erro.statusCode).toBe(404);
+      expect(storage.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("removeAvatar", () => {
+    const comFoto = () => usuario(STUDENT_ID, "student", { avatar_url: "/uploads/avatars/antiga.webp" });
+
+    beforeEach(() => {
+      jest.spyOn(logger, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      logger.warn.mockRestore();
+    });
+
+    it("deve limpar a URL no usuário e apagar o arquivo", async() => {
+      const atualizado = { _id: STUDENT_ID, avatar_url: null };
+      responderFindById(comFoto(), student());
+      repository.update.mockResolvedValue(atualizado);
+
+      const resultado = await service.removeAvatar(STUDENT_ID, { user_id: STUDENT_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { avatar_url: null });
+      expect(storage.delete).toHaveBeenCalledWith("avatars/antiga.webp");
+      expect(resultado).toBe(atualizado);
+    });
+
+    it("deve apagar o arquivo só depois de atualizar o banco", async() => {
+      responderFindById(comFoto(), student());
+      repository.update.mockResolvedValue({});
+
+      await service.removeAvatar(STUDENT_ID, { user_id: STUDENT_ID });
+
+      expect(repository.update.mock.invocationCallOrder[0])
+        .toBeLessThan(storage.delete.mock.invocationCallOrder[0]);
+    });
+
+    it("deve permitir que o admin remova a foto de outro usuário", async() => {
+      responderFindById(comFoto(), admin());
+      repository.update.mockResolvedValue({});
+
+      await service.removeAvatar(STUDENT_ID, { user_id: ADMIN_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { avatar_url: null });
+    });
+
+    it.each([
+      ["o aluno", () => usuario(OUTRO_ID, "student"), OUTRO_ID],
+      ["a professora", () => teacher(), TEACHER_ID],
+    ])("deve lançar 403 quando %s tenta remover a foto de outro, sem tocar em nada", async(_, logado, logadoId) => {
+      responderFindById(comFoto(), logado());
+
+      const erro = await capturarErro(service.removeAvatar(STUDENT_ID, { user_id: logadoId }));
+
+      expect(erro.statusCode).toBe(403);
+      expect(erro.customMessage).toBe("You do not have permission to remove another user's avatar.");
+      expect(repository.update).not.toHaveBeenCalled();
+      expect(storage.delete).not.toHaveBeenCalled();
+    });
+
+    it("deve devolver o usuário sem gravar nada quando ele não tiver foto", async() => {
+      const semFoto = student();
+      responderFindById(semFoto, student());
+
+      const resultado = await service.removeAvatar(STUDENT_ID, { user_id: STUDENT_ID });
+
+      expect(resultado).toBe(semFoto);
+      expect(repository.update).not.toHaveBeenCalled();
+      expect(storage.delete).not.toHaveBeenCalled();
+    });
+
+    it("deve concluir a remoção mesmo se apagar o arquivo falhar", async() => {
+      const atualizado = { _id: STUDENT_ID, avatar_url: null };
+      responderFindById(comFoto(), student());
+      repository.update.mockResolvedValue(atualizado);
+      storage.delete.mockRejectedValue(new Error("sem permissão"));
+
+      const resultado = await service.removeAvatar(STUDENT_ID, { user_id: STUDENT_ID });
+
+      expect(resultado).toBe(atualizado);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("avatars/antiga.webp"));
+    });
+
+    it("deve lançar 404 quando o usuário não existir", async() => {
+      responderFindById(null);
+
+      const erro = await capturarErro(service.removeAvatar(OUTRO_ID, { user_id: ADMIN_ID }));
+
+      expect(erro.statusCode).toBe(404);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe("delete", () => {
     it("deve permitir que o aluno apague a própria conta", async() => {
       responderFindById(student(), student());
@@ -682,6 +905,57 @@ describe("UserService", () => {
       await service.delete(STUDENT_ID, { user_id: ADMIN_ID });
 
       expect(classRepository.removeStudent).not.toHaveBeenCalled();
+    });
+
+    describe("foto de perfil", () => {
+      const comFoto = () => usuario(STUDENT_ID, "student", { avatar_url: "/uploads/avatars/aluno.webp" });
+
+      beforeEach(() => {
+        jest.spyOn(logger, "warn").mockImplementation(() => {});
+      });
+
+      afterEach(() => {
+        logger.warn.mockRestore();
+      });
+
+      it("deve apagar o arquivo só depois de excluir o usuário", async() => {
+        responderFindById(student(), comFoto());
+        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
+
+        await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
+
+        expect(storage.delete).toHaveBeenCalledWith("avatars/aluno.webp");
+        expect(repository.delete.mock.invocationCallOrder[0])
+          .toBeLessThan(storage.delete.mock.invocationCallOrder[0]);
+      });
+
+      it("não deve tocar no disco quando o usuário não tem foto", async() => {
+        responderFindById(student(), student());
+        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
+
+        await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
+
+        expect(storage.delete).not.toHaveBeenCalled();
+      });
+
+      it("deve concluir a exclusão mesmo se apagar o arquivo falhar", async() => {
+        responderFindById(student(), comFoto());
+        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
+        storage.delete.mockRejectedValue(new Error("sem permissão"));
+
+        const resultado = await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
+
+        expect(resultado).toEqual({ _id: STUDENT_ID });
+        expect(logger.warn).toHaveBeenCalled();
+      });
+
+      it("não deve apagar a foto quando a exclusão é proibida", async() => {
+        responderFindById(student(), usuario(OUTRO_ID, "student", { avatar_url: "/uploads/avatars/outro.webp" }));
+
+        await capturarErro(service.delete(OUTRO_ID, { user_id: STUDENT_ID }));
+
+        expect(storage.delete).not.toHaveBeenCalled();
+      });
     });
   });
 

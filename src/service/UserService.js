@@ -7,11 +7,15 @@ import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import { ensureTeacherCanEnroll, ensureTeacherOwnsClass } from "../utils/ClassOwnershipHelper.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
+import LocalDiskStorage from "../utils/LocalDiskStorage.js";
+import { toAvatarWebp } from "../utils/AvatarImage.js";
+import logger from "../utils/logger.js";
 
 class UserService {
   constructor() {
     this.repository = new UserRepository();
     this.classRepository = new ClassRepository();
+    this.storage = new LocalDiskStorage();
   }
 
   /**
@@ -166,6 +170,59 @@ class UserService {
     return updated;
   }
 
+  async updateAvatar(id, buffer, req) {
+    const target = await this.ensureUserExists(id);
+    const user = await this.repository.findById(req.user_id);
+
+    if (user.role !== "admin" && String(user._id) !== String(id)) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "User",
+        details: [],
+        customMessage: "You do not have permission to update another user's avatar.",
+      });
+    }
+
+    const image = await toAvatarWebp(buffer);
+    const key = await this.storage.save(`avatars/${id}-${Date.now()}.webp`, image);
+
+    let updated;
+    try {
+      updated = await this.repository.update(id, { avatar_url: this.storage.getUrl(key) });
+    } catch (err) {
+      await this.discardAvatarFile(key);
+      throw err;
+    }
+
+    await this.discardAvatarFile(this.storage.keyFromUrl(target.avatar_url));
+
+    return updated;
+  }
+
+  async removeAvatar(id, req) {
+    const target = await this.ensureUserExists(id);
+    const user = await this.repository.findById(req.user_id);
+
+    if (user.role !== "admin" && String(user._id) !== String(id)) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "User",
+        details: [],
+        customMessage: "You do not have permission to remove another user's avatar.",
+      });
+    }
+
+    if (!target.avatar_url) return target;
+
+    const updated = await this.repository.update(id, { avatar_url: null });
+
+    await this.discardAvatarFile(this.storage.keyFromUrl(target.avatar_url));
+
+    return updated;
+  }
+
   async delete(id, req) {
     const loggedUser = await this.repository.findById(req.user_id);
     const target = await this.ensureUserExists(id);
@@ -203,6 +260,8 @@ class UserService {
     if (target.class) {
       await this.classRepository.removeStudent(target.class, id);
     }
+
+    await this.discardAvatarFile(this.storage.keyFromUrl(target.avatar_url));
 
     return deleted;
   }
@@ -268,6 +327,16 @@ class UserService {
     }
 
     return existingUser;
+  }
+
+  async discardAvatarFile(key) {
+    if (!key) return;
+
+    try {
+      await this.storage.delete(key);
+    } catch (err) {
+      logger.warn(`Falha ao apagar o arquivo de avatar ${key}: ${err.message}`);
+    }
   }
 }
 

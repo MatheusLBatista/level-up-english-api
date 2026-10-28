@@ -91,6 +91,13 @@ A API sobe em `http://localhost:$APP_PORT` (padrão `5011`, definido no `.env`).
 
 > ⚠️ `npm run seed` apaga (`deleteMany`) e recria usuários, turmas, missões, atitudes e attitude-logs. Não rode em um banco com dados que você queira manter.
 
+Para apresentações, `npm run seed:demo` monta uma escola realista: um semestre simulado pelos próprios services, com turmas, missões, atitudes, ranking e uma foto de perfil ilustrada para cada pessoa (estilo [Lorelei](https://www.dicebear.com/styles/lorelei/) do DiceBear, licença CC0, gerada a partir do e-mail e tratada como um upload comum). Ele também apaga o banco e as fotos dos usuários apagados. Com `NODE_ENV=production`, ou em um banco com "prod" no nome, só roda se receber o nome exato do banco em `SEED_DEMO_CONFIRM`:
+
+```bash
+# no Docker, para as fotos irem para o volume vol-uploads
+docker-compose exec -e SEED_DEMO_CONFIRM=level-up-english api npm run seed:demo
+```
+
 ### Variáveis de ambiente
 
 Todas as variáveis, com comentários, estão em `.env.example`. As obrigatórias para subir a aplicação:
@@ -104,6 +111,7 @@ Todas as variáveis, com comentários, estão em `.env.example`. As obrigatória
 Opcionais (têm valor padrão ou só fazem sentido em produção):
 
 * `SWAGGER_SERVER_URL` — URL exibida como servidor no Swagger; sem ela, usa `http://localhost:$APP_PORT`.
+* `TRUST_PROXY` — número de proxies reversos na frente da API (ex.: `1` atrás de um nginx). Ausente ou `0`, o `X-Forwarded-For` é ignorado e o rate limit usa o IP da conexão; ligar sem proxy deixaria o cliente forjar o IP.
 * `DB_URL_TEST`, `MONGO_*`, `LOG_*` — ajustes de teste, timeouts do Mongo e do logger.
 
 ## Rodando com Docker
@@ -147,9 +155,11 @@ O pipeline (`.gitlab-ci.yml`) roda em cada push: lint (`eslint .`) e testes (`np
 
 ## Deploy
 
-* **API:** [Render](https://render.com), build via Docker (usa o `Dockerfile` do repositório). O deploy é disparado a partir deste repositório no GitHub — o desenvolvimento também é espelhado num GitLab self-hosted, mas é o GitHub quem o Render enxerga.
-* **Banco:** MongoDB Atlas, com database de produção separado do de desenvolvimento (para o `npm run seed` de desenvolvimento nunca atingir produção).
-* O plano gratuito do Render hiberna após 15 minutos sem requisições — a primeira chamada depois disso pode levar dezenas de segundos.
+A API roda em Docker: o `Dockerfile` gera a imagem (Node 22, `npm ci --omit=dev`) e o `docker-compose.yml` sobe a API junto com um MongoDB 8, como em [Rodando com Docker](#rodando-com-docker).
+
+* **Volumes:** `vol-mongodb` guarda os dados do banco e `vol-uploads` guarda as fotos de perfil (`/node-app/uploads` no container). Os dois precisam entrar no backup; sem o `vol-uploads`, as fotos se perdem a cada nova imagem.
+* **Banco:** o compose força o `DB_URL` para o MongoDB do próprio compose. Para usar um banco externo (ex.: MongoDB Atlas), tire o serviço `mongodb` e o `DB_URL` do bloco `environment`, e deixe o `DB_URL` no `.env` — em um database separado do de desenvolvimento, para o `npm run seed` nunca atingir produção.
+* **Proxy reverso:** atrás de um nginx (ou outro proxy), defina `TRUST_PROXY=1` no `.env` e ajuste o limite de corpo do proxy para pelo menos 2 MB (`client_max_body_size` no nginx, que por padrão aceita 1 MB), senão o upload de foto é barrado antes de chegar à API.
 
 ### Migrações
 

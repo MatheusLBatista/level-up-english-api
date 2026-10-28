@@ -121,7 +121,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Fora do escopo desta versão     |
 | RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
 
-`RNF-007` guarda os contadores em memória: um restart ou deploy no Render os zera, e com mais de uma instância cada uma contaria separado. Para a escala do projeto, com uma instância, é aceitável; o passo seguinte seria um store compartilhado (Redis ou o próprio MongoDB).
+`RNF-007` guarda os contadores em memória: um restart ou deploy da API os zera, e com mais de uma instância cada uma contaria separado. Para a escala do projeto, com uma instância, é aceitável; o passo seguinte seria um store compartilhado (Redis ou o próprio MongoDB).
 
 ## 4 - Casos de Teste
 
