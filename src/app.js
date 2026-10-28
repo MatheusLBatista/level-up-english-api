@@ -37,6 +37,7 @@ app.use((req, res, next) => {
     "resourceNotFound",
     null,
     [{ message: "Rota não encontrada." }],
+    "Rota não encontrada.",
   );
 });
 
