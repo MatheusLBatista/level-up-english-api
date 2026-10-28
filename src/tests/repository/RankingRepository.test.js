@@ -66,7 +66,7 @@ describe("RankingRepository", () => {
 
       await repository.findGlobal();
 
-      expect(encadeavel.populate).toHaveBeenCalledWith("entries.user", "name email level xp");
+      expect(encadeavel.populate).toHaveBeenCalledWith("entries.user", "name email level xp avatar_url");
     });
 
     it("deve lançar 404 quando o ranking global ainda não existir", async() => {
@@ -97,7 +97,7 @@ describe("RankingRepository", () => {
 
       await repository.findByClass(TURMA_ID);
 
-      expect(encadeavel.populate).toHaveBeenNthCalledWith(1, "entries.user", "name email level xp");
+      expect(encadeavel.populate).toHaveBeenNthCalledWith(1, "entries.user", "name email level xp avatar_url");
       expect(encadeavel.populate).toHaveBeenNthCalledWith(2, "class", "name");
     });
 
