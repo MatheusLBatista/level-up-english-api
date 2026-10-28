@@ -67,6 +67,16 @@ class UserController {
     return CommonResponse.success(res, cleanUser, 200, "Avatar updated successfully.");
   }
 
+  async removeAvatar(req, res) {
+    const data = await this.service.removeAvatar(req.params.id, req);
+
+    const cleanUser = data.toObject();
+    delete cleanUser.email;
+    delete cleanUser.password;
+
+    return CommonResponse.success(res, cleanUser, 200, "Avatar removed successfully.");
+  }
+
   async recalculateLevels(req, res) {
     const data = await this.service.recalculateLevels();
     return CommonResponse.success(res, data, 200, "Levels recalculated successfully.");
