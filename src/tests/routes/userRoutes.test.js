@@ -634,21 +634,21 @@ describe("Rotas de usuários", () => {
     });
   });
 
+  let png;
+
+  beforeAll(async() => {
+    png = await sharp({ create: { width: 400, height: 300, channels: 3, background: "#3366ff" } }).png().toBuffer();
+  });
+
+  const enviarFoto = async(alvo, logado, buffer = png) =>
+    request(app)
+      .patch(`/users/${alvo._id}/avatar`)
+      .set("Authorization", await como(logado))
+      .attach("avatar", buffer, { filename: "eu.png", contentType: "image/png" });
+
+  const caminhoNoDisco = (avatarUrl) => path.join(process.env.UPLOAD_DIR, avatarUrl.replace("/uploads/", ""));
+
   describe("PATCH /users/:id/avatar", () => {
-    let png;
-
-    beforeAll(async() => {
-      png = await sharp({ create: { width: 400, height: 300, channels: 3, background: "#3366ff" } }).png().toBuffer();
-    });
-
-    const enviarFoto = async(alvo, logado, buffer = png) =>
-      request(app)
-        .patch(`/users/${alvo._id}/avatar`)
-        .set("Authorization", await como(logado))
-        .attach("avatar", buffer, { filename: "eu.png", contentType: "image/png" });
-
-    const caminhoNoDisco = (avatarUrl) => path.join(process.env.UPLOAD_DIR, avatarUrl.replace("/uploads/", ""));
-
     it("deve gravar a foto tratada e salvar a URL no usuário", async() => {
       const res = await enviarFoto(student, student);
 
@@ -718,6 +718,64 @@ describe("Rotas de usuários", () => {
 
       expect(res.status).toBe(200);
       await expect(fs.access(arquivo)).rejects.toThrow();
+    });
+  });
+
+  describe("DELETE /users/:id/avatar", () => {
+    const removerFoto = async(alvo, logado) =>
+      request(app).delete(`/users/${alvo._id}/avatar`).set("Authorization", await como(logado));
+
+    it("deve limpar a URL no usuário e apagar o arquivo do disco", async() => {
+      const upload = await enviarFoto(student, student);
+      const arquivo = caminhoNoDisco(upload.body.data.avatar_url);
+
+      const res = await removerFoto(student, student);
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toBe("Avatar removed successfully.");
+      expect(res.body.data.avatar_url).toBeNull();
+      expect((await User.findById(student._id)).avatar_url).toBeNull();
+      await expect(fs.access(arquivo)).rejects.toThrow();
+    });
+
+    it("deve permitir que o admin remova a foto de outro usuário", async() => {
+      await enviarFoto(student, student);
+
+      const res = await removerFoto(student, admin);
+
+      expect(res.status).toBe(200);
+      expect((await User.findById(student._id)).avatar_url).toBeNull();
+    });
+
+    it("deve retornar 403 quando a professora remove a foto de um aluno, mantendo o arquivo", async() => {
+      const upload = await enviarFoto(student, student);
+
+      const res = await removerFoto(student, teacher);
+
+      expect(res.status).toBe(403);
+      expect((await User.findById(student._id)).avatar_url).toBe(upload.body.data.avatar_url);
+      await expect(fs.access(caminhoNoDisco(upload.body.data.avatar_url))).resolves.toBeUndefined();
+    });
+
+    it("deve responder 200 quando o usuário não tiver foto", async() => {
+      const res = await removerFoto(student, student);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.avatar_url).toBeNull();
+    });
+
+    it("deve retornar 404 quando o usuário não existir", async() => {
+      const res = await request(app)
+        .delete(`/users/${ID_INEXISTENTE}/avatar`)
+        .set("Authorization", await como(admin));
+
+      expect(res.status).toBe(404);
+    });
+
+    it("deve retornar 498 sem autenticação", async() => {
+      const res = await request(app).delete(`/users/${student._id}/avatar`);
+
+      expect(res.status).toBe(498);
     });
   });
 

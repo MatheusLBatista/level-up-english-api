@@ -200,6 +200,29 @@ class UserService {
     return updated;
   }
 
+  async removeAvatar(id, req) {
+    const target = await this.ensureUserExists(id);
+    const user = await this.repository.findById(req.user_id);
+
+    if (user.role !== "admin" && String(user._id) !== String(id)) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "User",
+        details: [],
+        customMessage: "You do not have permission to remove another user's avatar.",
+      });
+    }
+
+    if (!target.avatar_url) return target;
+
+    const updated = await this.repository.update(id, { avatar_url: null });
+
+    await this.discardAvatarFile(this.storage.keyFromUrl(target.avatar_url));
+
+    return updated;
+  }
+
   async delete(id, req) {
     const loggedUser = await this.repository.findById(req.user_id);
     const target = await this.ensureUserExists(id);
