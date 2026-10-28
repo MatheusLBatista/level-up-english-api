@@ -680,6 +680,32 @@ registry.registerPath({
 
 registry.registerPath({
   method: "delete",
+  path: "/users/{id}/avatar",
+  tags: ["Users"],
+  summary: "Remover a foto de perfil (o próprio usuário ou admin)",
+  description:
+    "Limpa o avatar_url do usuário e depois apaga o arquivo do disco; se apagar o arquivo "
+    + "falhar, a remoção vale do mesmo jeito. Usuário sem foto recebe 200 com o cadastro "
+    + "como está, então repetir a chamada é seguro.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    }),
+  },
+  responses: {
+    200: commonResponse(UserSchema, "Foto removida"),
+    401: error401Token,
+    403: errorResponse(
+      "Tentativa de remover a foto de outro usuário sem ser admin",
+      "You do not have permission to remove another user's avatar.",
+    ),
+    404: error404User,
+  },
+});
+
+registry.registerPath({
+  method: "delete",
   path: "/users/{id}",
   tags: ["Users"],
   summary: "Deletar usuário (aluno só a própria conta; professor, alunos das turmas dele e a própria conta)",
