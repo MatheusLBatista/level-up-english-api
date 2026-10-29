@@ -640,7 +640,9 @@ registry.registerPath({
     "Trocar a turma (class) é só para admin; nos demais papéis o campo é ignorado. "
     + "Com um id, o alvo precisa ser aluno e a turma precisa existir: o id do aluno sai "
     + "de Class.students da turma antiga e entra no da nova. Com class: null, o aluno "
-    + "sai da turma atual e fica sem turma.",
+    + "sai da turma atual e fica sem turma. Mudar show_in_global_ranking recalcula o "
+    + "ranking geral na hora; se o recálculo falhar, a alteração é mantida e o ranking "
+    + "se acerta no próximo recálculo.",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({

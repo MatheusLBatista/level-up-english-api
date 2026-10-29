@@ -11,6 +11,7 @@ import userRoutes from "../../routes/userRoutes.js";
 import errorHandler from "../../utils/helpers/errorHandler.js";
 import User from "../../models/User.js";
 import Class from "../../models/Class.js";
+import Ranking from "../../models/Ranking.js";
 // registra o model "missions", que o ClassRepository.findById popula
 import "../../models/Mission.js";
 import {
@@ -525,6 +526,37 @@ describe("Rotas de usuários", () => {
         .send({ name: "Alterado pela professora" });
 
       expect(res.status).toBe(403);
+    });
+
+    it("deve tirar o aluno do ranking geral na hora e trazê-lo de volta ao religar", async() => {
+      const noRankingGeral = async() => {
+        const global = await Ranking.findOne({ type: "global" });
+        return global.entries.some((entrada) => String(entrada.user) === String(student._id));
+      };
+      const mudarOpcao = async(valor) => await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(student))
+        .send({ show_in_global_ranking: valor });
+
+      const saiu = await mudarOpcao(false);
+
+      expect(saiu.status).toBe(200);
+      expect(saiu.body.data.show_in_global_ranking).toBe(false);
+      expect(await noRankingGeral()).toBe(false);
+
+      await mudarOpcao(true);
+
+      expect(await noRankingGeral()).toBe(true);
+    });
+
+    it("deve retornar 400 quando a opção do ranking não for booleana", async() => {
+      const res = await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(student))
+        .send({ show_in_global_ranking: "não" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].path).toBe("show_in_global_ranking");
     });
 
     it("deve permitir que o admin altere os campos privilegiados de outro usuário", async() => {

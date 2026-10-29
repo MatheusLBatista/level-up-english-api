@@ -69,6 +69,10 @@ export const UserSchema = z
         + "muda a cada troca, então pode ser cacheada.",
     }),
     active: z.boolean().openapi({ example: true }),
+    show_in_global_ranking: z.boolean().openapi({
+      example: true,
+      description: "Se o aluno aparece no ranking geral. O ranking da turma não muda.",
+    }),
     createdAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
     updatedAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
   })
@@ -99,6 +103,11 @@ export const UpdateUserBodySchema = z
     active: z.boolean().optional().openapi({
       example: true,
       description: "Apenas admin. Ignorado nos demais papéis.",
+    }),
+    show_in_global_ranking: z.boolean().optional().openapi({
+      example: false,
+      description: "O próprio usuário ou admin. Com false, o aluno sai do ranking geral na hora; "
+        + "continua no ranking da turma.",
     }),
     class: z.string().nullable().optional().openapi({
       example: "507f1f77bcf86cd799439011",

@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import UserService from "../../service/UserService.js";
 import UserRepository from "../../repository/UserRepository.js";
 import ClassRepository from "../../repository/ClassRepository.js";
+import RankingService from "../../service/RankingService.js";
 import { CustomError } from "../../utils/helpers/index.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../../utils/LevelHelper.js";
 import LocalDiskStorage from "../../utils/LocalDiskStorage.js";
@@ -10,6 +11,7 @@ import logger from "../../utils/logger.js";
 
 jest.mock("../../repository/UserRepository.js");
 jest.mock("../../repository/ClassRepository.js");
+jest.mock("../../service/RankingService.js");
 jest.mock("../../utils/LocalDiskStorage.js");
 jest.mock("../../utils/AvatarImage.js");
 
@@ -18,6 +20,7 @@ describe("UserService", () => {
   let repository;
   let classRepository;
   let storage;
+  let rankingService;
 
   const ADMIN_ID = "507f1f77bcf86cd799439001";
   const TEACHER_ID = "507f1f77bcf86cd799439002";
@@ -57,7 +60,10 @@ describe("UserService", () => {
       keyFromUrl: jest.fn((url) => (url ? url.replace("/uploads/", "") : null)),
     };
 
+    rankingService = { refreshGlobal: jest.fn() };
+
     UserRepository.mockImplementation(() => repository);
+    RankingService.mockImplementation(() => rankingService);
     ClassRepository.mockImplementation(() => classRepository);
     LocalDiskStorage.mockImplementation(() => storage);
     service = new UserService();
@@ -481,6 +487,75 @@ describe("UserService", () => {
 
       expect(erro.statusCode).toBe(404);
       expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("update da participação no ranking geral", () => {
+    beforeEach(() => {
+      repository.update.mockResolvedValue({});
+    });
+
+    it("deve deixar o próprio aluno sair do ranking geral e recalculá-lo na hora", async() => {
+      responderFindById(student(), student());
+
+      await service.update(STUDENT_ID, { show_in_global_ranking: false }, { user_id: STUDENT_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { show_in_global_ranking: false });
+      expect(rankingService.refreshGlobal).toHaveBeenCalledTimes(1);
+    });
+
+    it("deve recalcular quando o aluno volta ao ranking geral", async() => {
+      const fora = usuario(STUDENT_ID, "student", { show_in_global_ranking: false });
+      responderFindById(fora, fora);
+
+      await service.update(STUDENT_ID, { show_in_global_ranking: true }, { user_id: STUDENT_ID });
+
+      expect(rankingService.refreshGlobal).toHaveBeenCalledTimes(1);
+    });
+
+    it("deve deixar o admin mudar a opção de um aluno", async() => {
+      responderFindById(student(), admin());
+
+      await service.update(STUDENT_ID, { show_in_global_ranking: false }, { user_id: ADMIN_ID });
+
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { show_in_global_ranking: false });
+    });
+
+    it("deve lançar 403 quando a professora tenta mudar a opção de um aluno", async() => {
+      responderFindById(student(), teacher());
+
+      const erro = await capturarErro(
+        service.update(STUDENT_ID, { show_in_global_ranking: false }, { user_id: TEACHER_ID }),
+      );
+
+      expect(erro.statusCode).toBe(403);
+      expect(rankingService.refreshGlobal).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["a opção não vem no corpo", student(), { name: "Novo nome" }],
+      ["o valor é o mesmo", usuario(STUDENT_ID, "student", { show_in_global_ranking: false }), { show_in_global_ranking: false }],
+      ["o aluno antigo, sem o campo, confirma que participa", student(), { show_in_global_ranking: true }],
+    ])("não deve recalcular o ranking quando %s", async(_, alvo, corpo) => {
+      responderFindById(alvo, alvo);
+
+      await service.update(STUDENT_ID, corpo, { user_id: STUDENT_ID });
+
+      expect(rankingService.refreshGlobal).not.toHaveBeenCalled();
+    });
+
+    it("deve manter a alteração e registrar no log quando o recálculo falhar", async() => {
+      const atualizado = { show_in_global_ranking: false };
+      responderFindById(student(), student());
+      repository.update.mockResolvedValue(atualizado);
+      rankingService.refreshGlobal.mockRejectedValue(new Error("banco fora do ar"));
+      jest.spyOn(logger, "error").mockImplementation(() => {});
+
+      const resultado = await service.update(STUDENT_ID, { show_in_global_ranking: false }, { user_id: STUDENT_ID });
+
+      expect(resultado).toBe(atualizado);
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("banco fora do ar"));
+      logger.error.mockRestore();
     });
   });
 
