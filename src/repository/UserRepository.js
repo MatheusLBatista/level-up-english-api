@@ -73,6 +73,10 @@ class UserRepository {
       .select("mission_progress");
   }
 
+  async findActiveStudentIdsByClass(classId) {
+    return await this.userModel.distinct("_id", { class: classId, role: "student", active: true });
+  }
+
   async setClass(ids, classId) {
     return await this.userModel.updateMany({ _id: { $in: ids } }, { class: classId });
   }

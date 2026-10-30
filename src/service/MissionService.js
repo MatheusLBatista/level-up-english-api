@@ -2,8 +2,10 @@ import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
 import MissionRepository from "../repository/MissionRepository.js";
 import UserRepository from "../repository/UserRepository.js";
 import ProgressionService from "./ProgressionService.js";
+import NotificationService from "./NotificationService.js";
 import Class from "../models/Class.js";
 import { getMissionContentIssues } from "../schemas/MissionSchema.js";
+import logger from "../utils/logger.js";
 
 const DUPLICATE_TITLE_MESSAGE = "Já existe uma missão com este título nesta turma.";
 
@@ -12,6 +14,7 @@ class MissionService {
     this.repository = new MissionRepository();
     this.userRepository = new UserRepository();
     this.progressionService = new ProgressionService();
+    this.notificationService = new NotificationService();
   }
 
   async list(req) {
@@ -89,6 +92,8 @@ class MissionService {
     await Class.findByIdAndUpdate(parsedData.class_id, {
       $addToSet: { missions: mission._id },
     });
+
+    await this.notifyStudents(mission, classDoc);
 
     return mission;
   }
@@ -301,6 +306,16 @@ class MissionService {
         details: [],
         customMessage: "Você só pode criar missões nas suas turmas.",
       });
+    }
+  }
+
+  async notifyStudents(mission, classDoc) {
+    try {
+      const studentIds = await this.userRepository.findActiveStudentIdsByClass(classDoc._id);
+
+      await this.notificationService.notifyNewMission(studentIds, { mission, className: classDoc.name });
+    } catch (error) {
+      logger.error(`Falha ao notificar os alunos sobre a missão ${mission._id}: ${error.message}`);
     }
   }
 

@@ -191,6 +191,18 @@ describe("UserRepository", () => {
     });
   });
 
+  describe("findActiveStudentIdsByClass", () => {
+    it("deve buscar só os ids dos alunos ativos da turma", async() => {
+      const CLASS_ID = "507f1f77bcf86cd799439033";
+      modelo.distinct = jest.fn().mockResolvedValue([USER_ID]);
+
+      const resultado = await repository.findActiveStudentIdsByClass(CLASS_ID);
+
+      expect(modelo.distinct).toHaveBeenCalledWith("_id", { class: CLASS_ID, role: "student", active: true });
+      expect(resultado).toEqual([USER_ID]);
+    });
+  });
+
   describe("setClass e clearClass", () => {
     const CLASS_ID = "507f1f77bcf86cd799439033";
 

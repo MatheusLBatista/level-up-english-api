@@ -248,6 +248,36 @@ describe("NotificationService", () => {
     });
   });
 
+  describe("notifyNewMission", () => {
+    const missao = { _id: MISSAO_ID, title: "Explorador de Palavras", xp_reward: 100 };
+
+    it("deve notificar todos os alunos com a turma, o título e o XP da missão", async() => {
+      repository.createMany.mockResolvedValue([]);
+
+      await service.notifyNewMission([ALUNO_ID, OUTRO_ALUNO_ID], { mission: missao, className: "Turma A" });
+
+      const mensagem = "Nova missão na turma Turma A: Explorador de Palavras. Vale até 100 XP.";
+      expect(repository.createMany).toHaveBeenCalledWith([
+        { user: ALUNO_ID, type: "new_mission", message: mensagem, data: { mission: MISSAO_ID } },
+        { user: OUTRO_ALUNO_ID, type: "new_mission", message: mensagem, data: { mission: MISSAO_ID } },
+      ]);
+    });
+
+    it("deve omitir o XP quando a missão não der recompensa", async() => {
+      repository.createMany.mockResolvedValue([]);
+
+      await service.notifyNewMission([ALUNO_ID], { mission: { ...missao, xp_reward: 0 }, className: "Turma A" });
+
+      expect(repository.createMany.mock.calls[0][0][0].message).toBe("Nova missão na turma Turma A: Explorador de Palavras.");
+    });
+
+    it("não deve acessar o banco quando a turma não tiver alunos ativos", async() => {
+      await service.notifyNewMission([], { mission: missao, className: "Turma A" });
+
+      expect(repository.createMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe("list", () => {
     const pagina = { docs: [], totalDocs: 0 };
 

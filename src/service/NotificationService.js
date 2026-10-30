@@ -94,6 +94,17 @@ class NotificationService {
     );
   }
 
+  async notifyNewMission(studentIds, { mission, className }) {
+    const reward = mission.xp_reward > 0 ? ` Vale até ${mission.xp_reward} XP.` : "";
+
+    return await this.notifyMany(
+      studentIds,
+      "new_mission",
+      `Nova missão na turma ${className}: ${mission.title}.${reward}`,
+      { mission: String(mission._id) },
+    );
+  }
+
   async list(req) {
     const page = positiveInt(req.query?.page, 1);
     const limit = Math.min(positiveInt(req.query?.limit, DEFAULT_LIMIT), MAX_LIMIT);

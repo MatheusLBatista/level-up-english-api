@@ -9,6 +9,7 @@ import User from "../../models/User.js";
 import Class from "../../models/Class.js";
 import Mission from "../../models/Mission.js";
 import Ranking from "../../models/Ranking.js";
+import Notification from "../../models/Notification.js";
 import MissionRepository from "../../repository/MissionRepository.js";
 import {
   connectTestDatabase,
@@ -285,6 +286,26 @@ describe("Rotas de missões", () => {
 
       const turma = await Class.findById(turmaA._id);
       expect(turma.missions.map(String)).toContain(res.body.data._id);
+    });
+
+    it("deve notificar só os alunos ativos da turma da missão", async() => {
+      const inativo = await criarUsuario({
+        name: "Inativo",
+        email: "inativo@escola.com",
+        class: turmaA._id,
+        active: false,
+      });
+
+      const res = await request(app)
+        .post("/missions")
+        .set("Authorization", await como(profA))
+        .send({ ...nova, class_id: String(turmaA._id) });
+
+      const notificacoes = await Notification.find({ type: "new_mission" }).lean();
+      expect(notificacoes.map((n) => String(n.user))).toEqual([String(alunoA._id)]);
+      expect(notificacoes[0].data).toEqual({ mission: res.body.data._id });
+      expect(notificacoes[0].message).toBe(`Nova missão na turma ${turmaA.name}: Nova Missão. Vale até 30 XP.`);
+      expect(await Notification.countDocuments({ user: inativo._id })).toBe(0);
     });
 
     it("deve retornar 403 quando a turma não for da professora", async() => {

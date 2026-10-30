@@ -1,6 +1,7 @@
 jest.mock("../../repository/MissionRepository.js");
 jest.mock("../../repository/UserRepository.js");
 jest.mock("../../service/ProgressionService.js");
+jest.mock("../../service/NotificationService.js");
 jest.mock("../../models/Class.js", () => ({
   __esModule: true,
   default: { findById: jest.fn(), findByIdAndUpdate: jest.fn() },
@@ -10,6 +11,8 @@ import MissionService from "../../service/MissionService.js";
 import MissionRepository from "../../repository/MissionRepository.js";
 import UserRepository from "../../repository/UserRepository.js";
 import ProgressionService from "../../service/ProgressionService.js";
+import NotificationService from "../../service/NotificationService.js";
+import logger from "../../utils/logger.js";
 import Class from "../../models/Class.js";
 import { CustomError } from "../../utils/helpers/index.js";
 
@@ -18,6 +21,7 @@ describe("MissionService", () => {
   let repository;
   let userRepository;
   let progressionService;
+  let notificationService;
 
   const ADMIN_ID = "507f1f77bcf86cd799439001";
   const PROF_A_ID = "507f1f77bcf86cd799439002";
@@ -85,6 +89,7 @@ describe("MissionService", () => {
       }),
       findMissionProgress: jest.fn().mockResolvedValue(null),
       upsertMissionProgress: jest.fn(),
+      findActiveStudentIdsByClass: jest.fn().mockResolvedValue([]),
     };
 
     progressionService = { applyXp: jest.fn().mockResolvedValue(PROGRESSION) };
@@ -92,6 +97,9 @@ describe("MissionService", () => {
     MissionRepository.mockImplementation(() => repository);
     UserRepository.mockImplementation(() => userRepository);
     ProgressionService.mockImplementation(() => progressionService);
+
+    notificationService = { notifyNewMission: jest.fn() };
+    NotificationService.mockImplementation(() => notificationService);
 
     Class.findById.mockResolvedValue({ _id: TURMA_A_ID, teacher: PROF_A_ID });
     Class.findByIdAndUpdate.mockResolvedValue({});
@@ -538,10 +546,38 @@ describe("MissionService", () => {
       });
     });
 
+    it("deve notificar os alunos ativos da turma sobre a missão nova", async() => {
+      const alunos = [ALUNO_A_ID, "507f1f77bcf86cd799439005"];
+      Class.findById.mockResolvedValue({ _id: TURMA_A_ID, name: "Turma A", teacher: PROF_A_ID });
+      userRepository.findActiveStudentIdsByClass.mockResolvedValue(alunos);
+
+      await service.create({ ...nova }, { user_id: PROF_A_ID });
+
+      expect(userRepository.findActiveStudentIdsByClass).toHaveBeenCalledWith(TURMA_A_ID);
+      expect(notificationService.notifyNewMission).toHaveBeenCalledWith(alunos, {
+        mission: expect.objectContaining({ _id: MISSION_ID, title: "Nova Missão" }),
+        className: "Turma A",
+      });
+    });
+
+    it("deve criar a missão mesmo quando a busca dos alunos para notificar falhar", async() => {
+      jest.spyOn(logger, "error").mockImplementation(() => {});
+      userRepository.findActiveStudentIdsByClass.mockRejectedValue(new Error("banco fora do ar"));
+
+      const resultado = await service.create({ ...nova }, { user_id: PROF_A_ID });
+
+      expect(resultado._id).toBe(MISSION_ID);
+      expect(notificationService.notifyNewMission).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("banco fora do ar"));
+      logger.error.mockRestore();
+    });
+
     it("deve lançar 404 quando a turma não existir", async() => {
       Class.findById.mockResolvedValue(null);
 
       const erro = await capturarErro(service.create({ ...nova }, { user_id: PROF_A_ID }));
+
+      expect(notificationService.notifyNewMission).not.toHaveBeenCalled();
 
       expect(erro.statusCode).toBe(404);
       expect(erro.customMessage).toBe("Turma não encontrada.");
