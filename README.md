@@ -17,12 +17,13 @@ Existem três papéis de usuário, com permissões diferentes em cada rota:
 | Domínio | O que faz |
 | :------ | :-------- |
 | **Auth** | Login, refresh/revogação de token, cadastro de aluno, recuperação e troca de senha |
-| **User** | CRUD de usuários; XP, nível e progresso são calculados a partir daqui |
+| **User** | CRUD de usuários; XP, nível e progresso são calculados a partir daqui. Também expõe o histórico de XP e o desempenho do aluno por tipo de missão (radar), com a média da turma e filtro por período |
 | **Class** | Turmas às quais os alunos pertencem |
 | **Mission** | Missões (quizzes); o aluno submete respostas e o servidor corrige contra o gabarito, creditando XP pelo melhor score |
 | **Attitude** | Catálogo de atitudes (comportamentos) que podem ser registradas |
 | **AttitudeLog** | Registro de uma atitude aplicada a um aluno |
-| **Ranking** | Ranking global, por turma e do próprio usuário |
+| **Ranking** | Ranking global, por turma e do próprio usuário; o aluno pode sair do ranking global e continua no da turma |
+| **Notification** | Avisos ao aluno: atitude aplicada, corrigida ou desfeita, ajuste manual de XP e missão nova na turma. Listagem paginada, contador de não lidas e marcação como lida; apagadas após 90 dias |
 
 ## Arquitetura
 
@@ -91,7 +92,7 @@ A API sobe em `http://localhost:$APP_PORT` (padrão `5011`, definido no `.env`).
 
 > ⚠️ `npm run seed` apaga (`deleteMany`) e recria usuários, turmas, missões, atitudes e attitude-logs. Não rode em um banco com dados que você queira manter.
 
-Para apresentações, `npm run seed:demo` monta uma escola realista: um semestre simulado pelos próprios services, com turmas, missões, atitudes, ranking e uma foto de perfil ilustrada para cada pessoa (estilo [Lorelei](https://www.dicebear.com/styles/lorelei/) do DiceBear, licença CC0, gerada a partir do e-mail e tratada como um upload comum). Ele também apaga o banco e as fotos dos usuários apagados. Com `NODE_ENV=production`, ou em um banco com "prod" no nome, só roda se receber o nome exato do banco em `SEED_DEMO_CONFIRM`:
+Para apresentações, `npm run seed:demo` monta uma escola realista: um semestre simulado pelos próprios services, com turmas, missões, atitudes, ranking, as notificações de cada aluno (com a data do evento e as da última semana como não lidas) e uma foto de perfil ilustrada para cada pessoa (estilo [Lorelei](https://www.dicebear.com/styles/lorelei/) do DiceBear, licença CC0, gerada a partir do e-mail e tratada como um upload comum). Ele também apaga o banco e as fotos dos usuários apagados. Com `NODE_ENV=production`, ou em um banco com "prod" no nome, só roda se receber o nome exato do banco em `SEED_DEMO_CONFIRM`:
 
 ```bash
 # no Docker, para as fotos irem para o volume vol-uploads
@@ -170,6 +171,13 @@ Fora do desenvolvimento o `autoIndex` do Mongoose fica desligado (`src/config/db
 ```bash
 # com o DB_URL do banco de produção no .env
 npm run migrate:mission-title-index
+```
+
+**`npm run migrate:notification-indexes`** — rodar **uma vez, logo depois do deploy** das notificações. Cria os índices da coleção `notifications`: o `{ user, read, createdAt }`, usado pela listagem e pelo contador de não lidas, e o TTL em `createdAt`, que apaga as notificações com mais de 90 dias. Sem a migração, a listagem funciona, mas sem índice, e as notificações nunca são apagadas.
+
+```bash
+# com o DB_URL do banco de produção no .env
+npm run migrate:notification-indexes
 ```
 
 **`npm run sync:class-students`** — reconstrói `Class.students` a partir de `User.class`.

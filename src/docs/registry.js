@@ -994,7 +994,9 @@ registry.registerPath({
     + "content_url http ou https e questions com 1 a 3 perguntas de checagem. As perguntas "
     + "de checagem têm o mesmo formato das do quiz e são corrigidas pelo servidor. "
     + "O título é único por turma, sem diferenciar maiúsculas: outra turma pode ter uma "
-    + "missão com o mesmo título, e uma missão desativada continua ocupando o dela.",
+    + "missão com o mesmo título, e uma missão desativada continua ocupando o dela.\n\n"
+    + "Cada aluno ativo da turma recebe uma notificação new_mission com o id da missão em "
+    + "data.mission. Uma falha ao notificar fica só no log e não impede a criação.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -1100,6 +1102,9 @@ registry.registerPath({
   path: "/missions/{id}",
   tags: ["Missions"],
   summary: "Deletar missão (teacher/admin; professor só as que criou)",
+  description:
+    "Também apaga as notificações new_mission que apontam para a missão, para o aluno não "
+    + "receber um link para uma missão que não existe mais.",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
@@ -1295,7 +1300,11 @@ registry.registerPath({
     + "`xp_applied` grava o que foi de fato descontado, que pode ser menor que o `xp_value` "
     + "da atitude (ex.: atitude de -50 num aluno com 30 XP grava `xp_applied: -30`). A mesma "
     + "regra vale ao corrigir (`PATCH`) e ao desfazer (`DELETE`) o log: o estorno usa o "
-    + "`xp_applied` gravado e também para em 0.",
+    + "`xp_applied` gravado e também para em 0.\n\n"
+    + "**Notificação.** O aluno recebe uma notificação do tipo attitude com o nome da atitude, "
+    + "o XP aplicado de fato e a mudança de nível, se houver. Quando o piso deixa o "
+    + "`xp_applied` em 0, nada é notificado. Corrigir e desfazer o log também notificam, "
+    + "com a diferença e com o estorno.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -1323,6 +1332,10 @@ registry.registerPath({
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
   summary: "Corrigir atitude aplicada (teacher/admin; professor só os logs que aplicou)",
+  description:
+    "Trocar a atitude aplica só a diferença de XP e notifica o aluno (tipo attitude) com a "
+    + "atitude nova e a diferença aplicada. Sem troca de atitude, ou com diferença 0, nada "
+    + "é notificado.",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
@@ -1351,6 +1364,9 @@ registry.registerPath({
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
   summary: "Desfazer atitude aplicada (teacher/admin; professor só os logs que aplicou)",
+  description:
+    "Estorna o XP gravado no log, com piso em 0, e notifica o aluno (tipo attitude) com o "
+    + "estorno aplicado de fato. Se o estorno for 0, nada é notificado.",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
@@ -1380,7 +1396,9 @@ registry.registerPath({
     + "uma remoção maior que o saldo para em 0, e xp_applied registra o que foi aplicado de "
     + "fato. O nível é recalculado e pode subir ou descer. O aluno alvo precisa estar em uma "
     + "turma do professor; aluno de outra turma, ou sem turma, devolve 403. O admin alcança "
-    + "qualquer aluno.",
+    + "qualquer aluno. O aluno recebe uma notificação do tipo xp_adjustment com o XP "
+    + "aplicado de fato, o motivo e a mudança de nível, se houver; se o piso deixar o "
+    + "xp_applied em 0, nada é notificado.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
