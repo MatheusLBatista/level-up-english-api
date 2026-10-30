@@ -1,6 +1,7 @@
 jest.mock("../../repository/XpAdjustmentRepository.js");
 jest.mock("../../repository/UserRepository.js");
 jest.mock("../../service/ProgressionService.js");
+jest.mock("../../service/NotificationService.js");
 jest.mock("../../models/Class.js", () => ({
   __esModule: true,
   default: { findById: jest.fn() },
@@ -10,6 +11,7 @@ import XpAdjustmentService from "../../service/XpAdjustmentService.js";
 import XpAdjustmentRepository from "../../repository/XpAdjustmentRepository.js";
 import UserRepository from "../../repository/UserRepository.js";
 import ProgressionService from "../../service/ProgressionService.js";
+import NotificationService from "../../service/NotificationService.js";
 import Class from "../../models/Class.js";
 import { CustomError } from "../../utils/helpers/index.js";
 
@@ -18,6 +20,7 @@ describe("XpAdjustmentService", () => {
   let repository;
   let userRepository;
   let progressionService;
+  let notificationService;
 
   const ADMIN_ID = "507f1f77bcf86cd799439001";
   const PROF_A_ID = "507f1f77bcf86cd799439002";
@@ -69,9 +72,12 @@ describe("XpAdjustmentService", () => {
       adjustXp: jest.fn().mockResolvedValue({ xp_applied: 50, progression: PROGRESSION }),
     };
 
+    notificationService = { notifyXpAdjustment: jest.fn() };
+
     XpAdjustmentRepository.mockImplementation(() => repository);
     UserRepository.mockImplementation(() => userRepository);
     ProgressionService.mockImplementation(() => progressionService);
+    NotificationService.mockImplementation(() => notificationService);
 
     Class.findById.mockResolvedValue({ _id: TURMA_A_ID, teacher: PROF_A_ID });
 
@@ -121,6 +127,24 @@ describe("XpAdjustmentService", () => {
 
       expect(resultado).toMatchObject({ _id: AJUSTE_ID, student: ALUNO_A_ID, progression: PROGRESSION });
       expect(resultado.toObject).toBeUndefined();
+    });
+
+    it("deve notificar o aluno com o ajuste gravado e o XP aplicado de fato", async() => {
+      progressionService.adjustXp.mockResolvedValue({ xp_applied: -30, progression: PROGRESSION });
+
+      await service.create({ student: ALUNO_A_ID, amount: -50, reason: "Correção" }, como(PROF_A_ID));
+
+      expect(notificationService.notifyXpAdjustment).toHaveBeenCalledWith(ALUNO_A_ID, {
+        adjustment: expect.objectContaining({ _id: AJUSTE_ID, reason: "Correção" }),
+        xp_applied: -30,
+        progression: PROGRESSION,
+      });
+    });
+
+    it("não deve notificar quando o ajuste for barrado", async() => {
+      await capturarErro(service.create({ student: PROF_B_ID, amount: 50 }, como(ADMIN_ID)));
+
+      expect(notificationService.notifyXpAdjustment).not.toHaveBeenCalled();
     });
 
     it("deve aplicar o XP antes de gravar o log", async() => {

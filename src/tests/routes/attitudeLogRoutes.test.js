@@ -10,6 +10,7 @@ import Class from "../../models/Class.js";
 import Attitude from "../../models/Attitude.js";
 import AttitudeLog from "../../models/AttitudeLog.js";
 import Ranking from "../../models/Ranking.js";
+import Notification from "../../models/Notification.js";
 import {
   connectTestDatabase,
   clearTestDatabase,
@@ -104,6 +105,24 @@ describe("Rotas de atitudes aplicadas", () => {
       expect(res.status).toBe(201);
       expect(res.body.data.xp_applied).toBe(10);
       expect(await xpDe(alunoA)).toBe(10);
+    });
+
+    it("deve notificar o aluno sobre a atitude aplicada", async() => {
+      const res = await aplicar(profA);
+
+      const notificacoes = await Notification.find({ user: alunoA._id }).lean();
+      expect(notificacoes).toHaveLength(1);
+      expect(notificacoes[0]).toMatchObject({
+        type: "attitude",
+        message: "Atitude registrada: Participação (+10 XP).",
+        data: { xp: 10, attitude_log: res.body.data._id, attitude: String(participacao._id) },
+      });
+    });
+
+    it("não deve notificar quem já está com 0 XP e recebe atitude negativa", async() => {
+      await aplicar(profA, { attitude: atraso });
+
+      expect(await Notification.countDocuments({ user: alunoA._id })).toBe(0);
     });
 
     it("deve descontar o XP da atitude negativa", async() => {
@@ -490,6 +509,13 @@ describe("Rotas de atitudes aplicadas", () => {
     beforeEach(async() => {
       const criado = await aplicar(profA);
       logId = criado.body.data._id;
+    });
+
+    it("deve notificar o aluno sobre o estorno ao desfazer a atitude", async() => {
+      await request(app).delete(`/attitude-logs/${logId}`).set("Authorization", await como(profA));
+
+      const estorno = await Notification.findOne({ user: alunoA._id, "data.xp": -10 }).lean();
+      expect(estorno.message).toBe("A atitude Participação registrada para você foi removida (-10 XP).");
     });
 
     it("deve estornar o XP ao desfazer a atitude", async() => {

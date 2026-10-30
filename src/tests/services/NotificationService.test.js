@@ -88,6 +88,166 @@ describe("NotificationService", () => {
     });
   });
 
+  describe("mensagens de XP", () => {
+    const LOG_ID = "507f1f77bcf86cd799439041";
+    const ATITUDE_ID = "507f1f77bcf86cd799439021";
+    const AJUSTE_ID = "507f1f77bcf86cd799439061";
+
+    const SEM_MUDANCA = { leveled_up: false, leveled_down: false, level: 3 };
+    const SUBIU = { leveled_up: true, leveled_down: false, level: 4 };
+    const DESCEU = { leveled_up: false, leveled_down: true, level: 2 };
+
+    const log = { _id: LOG_ID };
+    const participacao = { _id: ATITUDE_ID, name: "Participação" };
+
+    beforeEach(() => {
+      repository.create.mockResolvedValue({});
+    });
+
+    const notificado = () => repository.create.mock.calls[0][0];
+
+    describe("notifyAttitudeApplied", () => {
+      it("deve notificar a atitude com o XP com sinal e as referências", async() => {
+        await service.notifyAttitudeApplied(ALUNO_ID, {
+          log,
+          attitude: participacao,
+          xp_applied: 10,
+          progression: SEM_MUDANCA,
+        });
+
+        expect(notificado()).toEqual({
+          user: ALUNO_ID,
+          type: "attitude",
+          message: "Atitude registrada: Participação (+10 XP).",
+          data: { xp: 10, attitude_log: LOG_ID, attitude: ATITUDE_ID },
+        });
+      });
+
+      it("deve mostrar o XP negativo sem sinal duplicado", async() => {
+        await service.notifyAttitudeApplied(ALUNO_ID, {
+          log,
+          attitude: { _id: ATITUDE_ID, name: "Atraso" },
+          xp_applied: -5,
+          progression: SEM_MUDANCA,
+        });
+
+        expect(notificado().message).toBe("Atitude registrada: Atraso (-5 XP).");
+      });
+
+      it("deve incluir a subida de nível na mensagem", async() => {
+        await service.notifyAttitudeApplied(ALUNO_ID, { log, attitude: participacao, xp_applied: 10, progression: SUBIU });
+
+        expect(notificado().message).toBe("Atitude registrada: Participação (+10 XP). Você subiu para o nível 4!");
+      });
+
+      it("deve incluir a descida de nível na mensagem", async() => {
+        await service.notifyAttitudeApplied(ALUNO_ID, {
+          log,
+          attitude: { _id: ATITUDE_ID, name: "Atraso" },
+          xp_applied: -5,
+          progression: DESCEU,
+        });
+
+        expect(notificado().message).toBe("Atitude registrada: Atraso (-5 XP). Você voltou para o nível 2.");
+      });
+
+      it("não deve notificar quando nenhum XP foi aplicado por causa do piso", async() => {
+        const resultado = await service.notifyAttitudeApplied(ALUNO_ID, {
+          log,
+          attitude: participacao,
+          xp_applied: 0,
+          progression: SEM_MUDANCA,
+        });
+
+        expect(resultado).toBeNull();
+        expect(repository.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("notifyAttitudeChanged", () => {
+      it("deve notificar a atitude nova com a diferença de XP", async() => {
+        await service.notifyAttitudeChanged(ALUNO_ID, {
+          log,
+          attitude: { _id: ATITUDE_ID, name: "Liderança" },
+          xp_applied: 15,
+          progression: SEM_MUDANCA,
+        });
+
+        expect(notificado()).toEqual({
+          user: ALUNO_ID,
+          type: "attitude",
+          message: "Uma atitude registrada foi alterada para Liderança (+15 XP).",
+          data: { xp: 15, attitude_log: LOG_ID, attitude: ATITUDE_ID },
+        });
+      });
+
+      it("não deve notificar quando a troca não mudou o XP", async() => {
+        await service.notifyAttitudeChanged(ALUNO_ID, { log, attitude: participacao, xp_applied: 0 });
+
+        expect(repository.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("notifyAttitudeRemoved", () => {
+      it("deve notificar o estorno com o nome da atitude", async() => {
+        await service.notifyAttitudeRemoved(ALUNO_ID, { attitude: participacao, xp_applied: -10, progression: SEM_MUDANCA });
+
+        expect(notificado()).toEqual({
+          user: ALUNO_ID,
+          type: "attitude",
+          message: "A atitude Participação registrada para você foi removida (-10 XP).",
+          data: { xp: -10, attitude: ATITUDE_ID },
+        });
+      });
+
+      it("deve usar um texto genérico quando a atitude não existir mais", async() => {
+        await service.notifyAttitudeRemoved(ALUNO_ID, { attitude: null, xp_applied: 5, progression: SEM_MUDANCA });
+
+        expect(notificado().message).toBe("Uma atitude registrada para você foi removida (+5 XP).");
+        expect(notificado().data).toEqual({ xp: 5, attitude: null });
+      });
+
+      it("não deve notificar quando o estorno não mudou o XP", async() => {
+        await service.notifyAttitudeRemoved(ALUNO_ID, { attitude: participacao, xp_applied: 0 });
+
+        expect(repository.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("notifyXpAdjustment", () => {
+      it("deve notificar o ajuste com o motivo", async() => {
+        await service.notifyXpAdjustment(ALUNO_ID, {
+          adjustment: { _id: AJUSTE_ID, reason: "Feira de idiomas" },
+          xp_applied: 30,
+          progression: SUBIU,
+        });
+
+        expect(notificado()).toEqual({
+          user: ALUNO_ID,
+          type: "xp_adjustment",
+          message: "Seu XP foi ajustado (+30 XP). Motivo: Feira de idiomas. Você subiu para o nível 4!",
+          data: { xp: 30, xp_adjustment: AJUSTE_ID },
+        });
+      });
+
+      it("deve omitir o motivo quando o ajuste não tiver", async() => {
+        await service.notifyXpAdjustment(ALUNO_ID, {
+          adjustment: { _id: AJUSTE_ID },
+          xp_applied: -20,
+          progression: SEM_MUDANCA,
+        });
+
+        expect(notificado().message).toBe("Seu XP foi ajustado (-20 XP).");
+      });
+
+      it("não deve notificar quando o piso impediu o ajuste", async() => {
+        await service.notifyXpAdjustment(ALUNO_ID, { adjustment: { _id: AJUSTE_ID }, xp_applied: 0 });
+
+        expect(repository.create).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe("list", () => {
     const pagina = { docs: [], totalDocs: 0 };
 

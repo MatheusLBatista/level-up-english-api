@@ -9,6 +9,7 @@ import User from "../../models/User.js";
 import Class from "../../models/Class.js";
 import XpAdjustment from "../../models/XpAdjustment.js";
 import Ranking from "../../models/Ranking.js";
+import Notification from "../../models/Notification.js";
 import {
   connectTestDatabase,
   clearTestDatabase,
@@ -91,6 +92,19 @@ describe("Rotas de ajuste manual de XP", () => {
       expect(res.body.data.amount).toBe(50);
       expect(res.body.data.xp_applied).toBe(50);
       expect(await xpDe(alunoA)).toBe(50);
+    });
+
+    it("deve notificar o aluno com o XP aplicado e o motivo", async() => {
+      const res = await ajustar(profA, { amount: 50, reason: "Feira de idiomas" });
+
+      const notificacoes = await Notification.find({ user: alunoA._id }).lean();
+      expect(notificacoes).toHaveLength(1);
+      expect(notificacoes[0]).toMatchObject({
+        type: "xp_adjustment",
+        read: false,
+        data: { xp: 50, xp_adjustment: res.body.data._id },
+      });
+      expect(notificacoes[0].message).toContain("Motivo: Feira de idiomas.");
     });
 
     it("deve remover XP do aluno", async() => {
