@@ -11,6 +11,7 @@ import Attitude from "../models/Attitude.js";
 import AttitudeLog from "../models/AttitudeLog.js";
 import XpAdjustment from "../models/XpAdjustment.js";
 import Ranking from "../models/Ranking.js";
+import Notification, { NOTIFICATION_TTL_SECONDS } from "../models/Notification.js";
 import MissionService from "../service/MissionService.js";
 import AttitudeLogService from "../service/AttitudeLogService.js";
 import XpAdjustmentService from "../service/XpAdjustmentService.js";
@@ -77,7 +78,7 @@ async function clearDatabase() {
     if (key) await storage.delete(key);
   }
 
-  for (const model of [User, Class, Mission, Attitude, AttitudeLog, XpAdjustment, Ranking]) {
+  for (const model of [User, Class, Mission, Attitude, AttitudeLog, XpAdjustment, Ranking, Notification]) {
     await model.deleteMany();
   }
 }
@@ -175,6 +176,13 @@ async function seedMissions(people, classes) {
 
       const releasedAt = atDay(demo.missionReleaseDays[index], 7, 30);
       await Mission.collection.updateOne({ _id: mission._id }, { $set: { createdAt: releasedAt, updatedAt: releasedAt } });
+
+      const absentIds = classDef.students
+        .filter(({ joinedAt, deactivatedAt }) =>
+          (joinedAt && parseDate(joinedAt) > releasedAt) || (deactivatedAt && parseDate(deactivatedAt) <= releasedAt))
+        .map(({ name }) => people.students.get(emailFor(name))._id);
+      await Notification.collection.deleteMany({ "data.mission": String(mission._id), user: { $in: absentIds } });
+      await backdateNotifications({ "data.mission": String(mission._id) }, releasedAt);
 
       released.push({ mission, releasedAt, isLast: index === demo.missionReleaseDays.length - 1 });
     }
@@ -279,6 +287,16 @@ async function backdate(model, id, date) {
   await model.collection.updateOne({ _id: id }, { $set: { applied_at: date, createdAt: date, updatedAt: date } });
 }
 
+async function backdateNotifications(filter, date) {
+  const oldestKept = new Date(Date.now() - NOTIFICATION_TTL_SECONDS * 1000 + 7 * DAY);
+  const createdAt = date < oldestKept ? oldestKept : date;
+
+  await Notification.collection.updateMany(
+    filter,
+    { $set: { createdAt, updatedAt: createdAt, read: date < new Date(NOW.getTime() - 7 * DAY) } },
+  );
+}
+
 async function runSemester(events) {
   const missionService = new MissionService();
   const attitudeLogService = new AttitudeLogService();
@@ -286,6 +304,7 @@ async function runSemester(events) {
 
   for (const [index, event] of events.entries()) {
     const studentId = String(event.student._id);
+    const startedAt = new Date();
 
     if (event.kind === "mission") {
       const body = SubmitMissionProgressBodySchema.parse({ answers: event.answers, done: true });
@@ -303,6 +322,10 @@ async function runSemester(events) {
       const body = CreateAttitudeLogBodySchema.parse({ student: studentId, attitude: String(event.attitude._id) });
       const log = await attitudeLogService.create(body, { user_id: String(event.teacher._id) });
       await backdate(AttitudeLog, log._id, event.date);
+      await backdateNotifications(
+        { user: new mongoose.Types.ObjectId(studentId), createdAt: { $gte: startedAt } },
+        event.date,
+      );
     }
 
     if (event.kind === "adjustment") {
@@ -318,6 +341,10 @@ async function runSemester(events) {
       const body = CreateXpAdjustmentBodySchema.parse({ student: studentId, amount, reason: event.reason });
       const adjustment = await xpAdjustmentService.create(body, { user_id: String(event.teacher._id) });
       await backdate(XpAdjustment, adjustment._id, event.date);
+      await backdateNotifications(
+        { user: new mongoose.Types.ObjectId(studentId), createdAt: { $gte: startedAt } },
+        event.date,
+      );
     }
 
     if (event.kind === "deactivate") {

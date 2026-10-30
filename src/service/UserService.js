@@ -7,6 +7,7 @@ import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import { ensureTeacherCanEnroll, ensureTeacherOwnsClass } from "../utils/ClassOwnershipHelper.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
+import RankingService from "./RankingService.js";
 import LocalDiskStorage from "../utils/LocalDiskStorage.js";
 import { toAvatarWebp } from "../utils/AvatarImage.js";
 import logger from "../utils/logger.js";
@@ -16,6 +17,7 @@ class UserService {
     this.repository = new UserRepository();
     this.classRepository = new ClassRepository();
     this.storage = new LocalDiskStorage();
+    this.rankingService = new RankingService();
   }
 
   /**
@@ -167,7 +169,20 @@ class UserService {
       if (parsedData.class) await this.classRepository.addStudent(parsedData.class, id);
     }
 
+    const changingRankingVisibility = "show_in_global_ranking" in parsedData
+      && (target.show_in_global_ranking !== false) !== parsedData.show_in_global_ranking;
+
+    if (changingRankingVisibility) await this.refreshGlobalRanking(id);
+
     return updated;
+  }
+
+  async refreshGlobalRanking(id) {
+    try {
+      await this.rankingService.refreshGlobal();
+    } catch (err) {
+      logger.error(`Falha ao atualizar o ranking global após o usuário ${id} mudar a visibilidade: ${err.message}`);
+    }
   }
 
   async updateAvatar(id, buffer, req) {

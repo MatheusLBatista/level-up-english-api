@@ -2,6 +2,7 @@ jest.mock("../../repository/AttitudeLogRepository.js");
 jest.mock("../../repository/AttitudeRepository.js");
 jest.mock("../../repository/UserRepository.js");
 jest.mock("../../service/ProgressionService.js");
+jest.mock("../../service/NotificationService.js");
 jest.mock("../../models/Class.js", () => ({
   __esModule: true,
   default: { findById: jest.fn() },
@@ -12,6 +13,7 @@ import AttitudeLogRepository from "../../repository/AttitudeLogRepository.js";
 import AttitudeRepository from "../../repository/AttitudeRepository.js";
 import UserRepository from "../../repository/UserRepository.js";
 import ProgressionService from "../../service/ProgressionService.js";
+import NotificationService from "../../service/NotificationService.js";
 import Class from "../../models/Class.js";
 import { CustomError } from "../../utils/helpers/index.js";
 
@@ -21,6 +23,7 @@ describe("AttitudeLogService", () => {
   let attitudeRepository;
   let userRepository;
   let progressionService;
+  let notificationService;
 
   const ADMIN_ID = "507f1f77bcf86cd799439001";
   const PROF_A_ID = "507f1f77bcf86cd799439002";
@@ -96,10 +99,17 @@ describe("AttitudeLogService", () => {
       adjustXp: jest.fn(async(_id, amount) => ({ xp_applied: amount, progression: PROGRESSION })),
     };
 
+    notificationService = {
+      notifyAttitudeApplied: jest.fn(),
+      notifyAttitudeChanged: jest.fn(),
+      notifyAttitudeRemoved: jest.fn(),
+    };
+
     AttitudeLogRepository.mockImplementation(() => repository);
     AttitudeRepository.mockImplementation(() => attitudeRepository);
     UserRepository.mockImplementation(() => userRepository);
     ProgressionService.mockImplementation(() => progressionService);
+    NotificationService.mockImplementation(() => notificationService);
 
     Class.findById.mockResolvedValue({ _id: TURMA_A_ID, teacher: PROF_A_ID });
 
@@ -151,6 +161,25 @@ describe("AttitudeLogService", () => {
         teacher: PROF_A_ID,
         xp_applied: 10,
       });
+    });
+
+    it("deve notificar o aluno com a atitude, o log e o XP aplicado", async() => {
+      await service.create({ ...corpo }, { user_id: PROF_A_ID });
+
+      expect(notificationService.notifyAttitudeApplied).toHaveBeenCalledWith(ALUNO_A_ID, {
+        log: expect.objectContaining({ _id: LOG_ID }),
+        attitude: expect.objectContaining({ _id: ATTITUDE_ID, name: "Participação" }),
+        xp_applied: 10,
+        progression: PROGRESSION,
+      });
+    });
+
+    it("não deve notificar quando a aplicação for barrada", async() => {
+      attitudeRepository.findById.mockResolvedValue(atitude({ active: false }));
+
+      await capturarErro(service.create({ ...corpo }, { user_id: PROF_A_ID }));
+
+      expect(notificationService.notifyAttitudeApplied).not.toHaveBeenCalled();
     });
 
     it("deve creditar o XP da atitude positiva", async() => {
@@ -277,6 +306,20 @@ describe("AttitudeLogService", () => {
       expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, -10);
     });
 
+    it("deve notificar o aluno com a atitude removida e o estorno aplicado de fato", async() => {
+      const removida = { _id: ATTITUDE_ID, name: "Participação" };
+      repository.findById.mockResolvedValue(log({ xp_applied: 10, attitude: removida }));
+      progressionService.adjustXp.mockResolvedValue({ xp_applied: -4, progression: PROGRESSION });
+
+      await service.delete(LOG_ID, { user_id: PROF_A_ID });
+
+      expect(notificationService.notifyAttitudeRemoved).toHaveBeenCalledWith(ALUNO_A_ID, {
+        attitude: removida,
+        xp_applied: -4,
+        progression: PROGRESSION,
+      });
+    });
+
     it("deve devolver o XP descontado quando a atitude era negativa", async() => {
       repository.findById.mockResolvedValue(log({ xp_applied: -5 }));
 
@@ -362,6 +405,28 @@ describe("AttitudeLogService", () => {
       });
       // O aluno já tinha 10; só faltam 15 para chegar aos 25.
       expect(progressionService.adjustXp).toHaveBeenCalledWith(ALUNO_A_ID, 15);
+    });
+
+    it("deve notificar o aluno com a atitude nova e a diferença aplicada", async() => {
+      const nova = atitude({ _id: OUTRA_ATTITUDE_ID, name: "Liderança", xp_value: 25 });
+      attitudeRepository.findById.mockResolvedValue(nova);
+
+      await service.update(LOG_ID, { attitude: OUTRA_ATTITUDE_ID }, { user_id: PROF_A_ID });
+
+      expect(notificationService.notifyAttitudeChanged).toHaveBeenCalledWith(ALUNO_A_ID, {
+        log: expect.objectContaining({ _id: LOG_ID }),
+        attitude: nova,
+        xp_applied: 15,
+        progression: PROGRESSION,
+      });
+    });
+
+    it("não deve notificar quando a atitude não for trocada", async() => {
+      repository.update.mockResolvedValue(log());
+
+      await service.update(LOG_ID, {}, { user_id: PROF_A_ID });
+
+      expect(notificationService.notifyAttitudeChanged).not.toHaveBeenCalled();
     });
 
     it("deve inverter o saldo ao trocar de atitude positiva para negativa", async() => {

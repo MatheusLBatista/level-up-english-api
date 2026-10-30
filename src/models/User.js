@@ -38,6 +38,7 @@ class User {
         badges: [{ type: String }],
         avatar_url: { type: String, default: null },
         active: { type: Boolean, default: true },
+        show_in_global_ranking: { type: Boolean, default: true },
 
         uniqueToken: { type: String, select: false },
         refreshtoken: { type: String, select: false },

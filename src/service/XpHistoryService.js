@@ -1,11 +1,9 @@
-import mongoose from "mongoose";
 import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import AttitudeLogRepository from "../repository/AttitudeLogRepository.js";
 import XpAdjustmentRepository from "../repository/XpAdjustmentRepository.js";
 import MissionRepository from "../repository/MissionRepository.js";
-import { ensureTeacherOwnsClass } from "../utils/ClassOwnershipHelper.js";
-import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
+import { findAccessibleStudent } from "../utils/StudentAccessHelper.js";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
@@ -91,41 +89,10 @@ class XpHistoryService {
   }
 
   async findAccessibleStudent(studentId, loggedUser) {
-    if (loggedUser.role === "student") {
-      if (String(studentId) !== String(loggedUser._id)) {
-        throw new CustomError({
-          statusCode: HttpStatusCodes.FORBIDDEN.code,
-          errorType: "permissionError",
-          field: "student",
-          details: [],
-          customMessage: "Você só pode ver o seu histórico de XP.",
-        });
-      }
-
-      return loggedUser;
-    }
-
-    const [student] = mongoose.isValidObjectId(studentId)
-      ? await this.userRepository.findByIds([studentId])
-      : [];
-
-    if (!student || student.role !== "student") {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.NOT_FOUND.code,
-        errorType: "resourceNotFound",
-        field: "student",
-        details: [],
-        customMessage: "Aluno não encontrado.",
-      });
-    }
-
-    if (loggedUser.role === "teacher") {
-      const classDoc = student.class ? await this.classRepository.findPlainById(student.class) : null;
-
-      ensureTeacherOwnsClass(classDoc, loggedUser, "Você só pode ver o histórico de XP de alunos das suas turmas.");
-    }
-
-    return student;
+    return findAccessibleStudent(this, studentId, loggedUser, {
+      ownOnly: "Você só pode ver o seu histórico de XP.",
+      teacherOnly: "Você só pode ver o histórico de XP de alunos das suas turmas.",
+    });
   }
 
   paginate(items, query = {}) {

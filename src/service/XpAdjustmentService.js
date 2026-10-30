@@ -1,6 +1,7 @@
 import XpAdjustmentRepository from "../repository/XpAdjustmentRepository.js";
 import UserRepository from "../repository/UserRepository.js";
 import ProgressionService from "./ProgressionService.js";
+import NotificationService from "./NotificationService.js";
 import Class from "../models/Class.js";
 import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
 
@@ -9,6 +10,7 @@ class XpAdjustmentService {
     this.repository = new XpAdjustmentRepository();
     this.userRepository = new UserRepository();
     this.progressionService = new ProgressionService();
+    this.notificationService = new NotificationService();
   }
 
   async ensureOwnsStudent(student, loggedUser) {
@@ -58,6 +60,12 @@ class XpAdjustmentService {
       amount: parsedData.amount,
       xp_applied,
       reason: parsedData.reason,
+    });
+
+    await this.notificationService.notifyXpAdjustment(parsedData.student, {
+      adjustment,
+      xp_applied,
+      progression,
     });
 
     return { ...adjustment.toObject(), progression };

@@ -12,6 +12,7 @@ import {
 import { AVATAR_FIELD, AVATAR_MAX_BYTES } from "../middlewares/AvatarUploadMiddleware.js";
 import { AVATAR_SIZE } from "../utils/AvatarImage.js";
 import { XpHistoryPageSchema } from "../schemas/XpHistorySchema.js";
+import { PerformanceQueryBaseSchema, PerformanceSchema } from "../schemas/PerformanceSchema.js";
 import {
   LoginBodySchema,
   LoginResponseSchema,
@@ -64,6 +65,13 @@ import {
   RefreshRankingResponseSchema,
   RankingClassIdParamSchema,
 } from "../schemas/RankingSchema.js";
+import {
+  NotificationPageSchema,
+  NotificationSchema,
+  UnreadCountSchema,
+  MarkAllAsReadSchema,
+  NotificationIdParamSchema,
+} from "../schemas/NotificationSchema.js";
 import {
   TeacherRefSchema,
   StudentRefSchema,
@@ -187,16 +195,16 @@ const error401Credentials = errorResponse(
   "Credenciais inválidas. Verifique seu usuário e senha.",
 );
 
-const error401Token = errorResponse(
-  "Token ausente ou inválido",
-  "O token de autenticação não existe!",
-  [{ message: "O token de autenticação não existe!" }],
+const error401Session = errorResponse(
+  "Sessão encerrada: o token é válido, mas o usuário fez logout ou o refresh token foi revogado",
+  "Refresh token inválido, autentique novamente!",
 );
 
-const error401TokenExpired = errorResponse(
-  "Token expirado",
-  "O token JWT está expirado!",
-  [{ message: "O token JWT está expirado!" }],
+const error498Token = errorResponse(
+  "Token ausente, malformado, inválido ou expirado. 498 (Invalid Token) não é do padrão "
+  + "HTTP: é a convenção da API para o cliente renovar o token ou voltar ao login",
+  "O token de autenticação não existe!",
+  [{ message: "O token de autenticação não existe!" }],
 );
 
 // 403 devolvido pelo authorize(), quando a conta está desativada ou o papel do
@@ -276,7 +284,8 @@ registry.registerPath({
       "Turma não encontrada ou inativa.",
       [{ path: "class", message: "Turma não encontrada ou inativa." }],
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Conta desativada, papel sem acesso à rota, ou professor usando turma que não é "
       + "dele, inexistente ou inativa",
@@ -311,7 +320,8 @@ registry.registerPath({
       "Turma não encontrada ou inativa.",
       [{ path: "classes", message: "Turma não encontrada ou inativa." }],
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
   },
 });
@@ -401,7 +411,8 @@ registry.registerPath({
       "Senha atual incorreta.",
       [{ path: "currentPassword", message: "Senha atual incorreta." }],
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
   },
 });
 
@@ -440,7 +451,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.null(), "Sessão revogada com sucesso"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
     404: error404User,
   },
@@ -473,7 +485,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.array(UserSchema), "Lista de usuários"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, professor filtrando turma de outro professor, ou professor "
       + "usando class=none (\"Só o admin pode listar alunos sem turma.\")",
@@ -496,7 +509,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(UserSchema, "Usuário encontrado"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Aluno consultando o perfil de outro usuário",
       "Students can only view their own profile.",
@@ -530,11 +544,53 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(XpHistoryPageSchema, "Histórico de XP do aluno"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, aluno pedindo o histórico de outro, ou professor pedindo "
       + "o de aluno sem turma ou de turma de outro professor",
       "Você só pode ver o seu histórico de XP.",
+    ),
+    404: errorResponse("Id que não existe ou não é de aluno", "Aluno não encontrado."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/users/{id}/performance",
+  tags: ["Users"],
+  summary: "Desempenho do aluno por tipo de missão, para o radar (aluno só o próprio; professor só alunos das turmas dele)",
+  description:
+    "Média das melhores notas das missões concluídas, separada por tipo (quiz, vocabulary, "
+    + "audio), com quantas missões entraram em cada média. Tipo sem missão concluída vem "
+    + "com score null, e não 0. Missão excluída depois de feita não entra na conta. Em class "
+    + "vem a média da turma do aluno para comparação: a média das médias dos alunos ativos "
+    + "da turma, contando só quem tem nota no tipo, com students dizendo quantos entraram; "
+    + "class é null para aluno sem turma. Com from e/ou to, só entram as missões concluídas "
+    + "no período, para o aluno e para a turma; a data é a da primeira conclusão que rendeu "
+    + "XP, então missão concluída sem render XP (nota 0 ou recompensa 0) não tem data e só "
+    + "aparece sem filtro de período. O aluno "
+    + "só consulta o próprio id; o professor, só aluno de turma dele (aluno sem turma ou de "
+    + "outra turma devolve 403); o admin, qualquer aluno. Id que não é de aluno devolve 404.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+    }),
+    query: PerformanceQueryBaseSchema,
+  },
+  responses: {
+    200: commonResponse(PerformanceSchema, "Desempenho do aluno"),
+    400: errorResponse(
+      "from ou to fora do formato ISO 8601 com fuso, ou from depois de to",
+      "Erro de validação. 1 campo(s) inválido(s).",
+    ),
+    401: error401Session,
+    498: error498Token,
+    403: errorResponse(
+      "Papel sem acesso à rota, aluno pedindo o desempenho de outro, ou professor pedindo "
+      + "o de aluno sem turma ou de turma de outro professor",
+      "Você só pode ver o seu desempenho.",
     ),
     404: errorResponse("Id que não existe ou não é de aluno", "Aluno não encontrado."),
   },
@@ -564,7 +620,8 @@ registry.registerPath({
       "Turma não encontrada ou inativa.",
       [{ path: "class", message: "Turma não encontrada ou inativa." }],
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, professor tentando criar teacher/admin (\"Only admins "
       + "can create users with a role other than student.\"), ou professor usando turma "
@@ -585,7 +642,8 @@ registry.registerPath({
       z.object({ updated: z.number().openapi({ example: 12 }) }),
       "Níveis recalculados. updated é a quantidade de usuários que estavam desatualizados",
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
   },
 });
@@ -599,7 +657,9 @@ registry.registerPath({
     "Trocar a turma (class) é só para admin; nos demais papéis o campo é ignorado. "
     + "Com um id, o alvo precisa ser aluno e a turma precisa existir: o id do aluno sai "
     + "de Class.students da turma antiga e entra no da nova. Com class: null, o aluno "
-    + "sai da turma atual e fica sem turma.",
+    + "sai da turma atual e fica sem turma. Mudar show_in_global_ranking recalcula o "
+    + "ranking geral na hora; se o recálculo falhar, a alteração é mantida e o ranking "
+    + "se acerta no próximo recálculo.",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -615,7 +675,8 @@ registry.registerPath({
       "Turma não encontrada.",
       [{ path: "class", message: "Turma não encontrada." }],
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Tentativa de atualizar outro usuário sem ser admin",
       "You do not have permission to update another user.",
@@ -665,7 +726,8 @@ registry.registerPath({
       + "que não é uma imagem de verdade ou tem pixels demais",
       "O arquivo enviado não é uma imagem válida ou é grande demais.",
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Tentativa de trocar a foto de outro usuário sem ser admin",
       "You do not have permission to update another user's avatar.",
@@ -695,7 +757,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(UserSchema, "Foto removida"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Tentativa de remover a foto de outro usuário sem ser admin",
       "You do not have permission to remove another user's avatar.",
@@ -721,7 +784,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.null(), "Usuário deletado"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Aluno tentando deletar a conta de outro usuário, professor tentando deletar conta "
       + "de teacher/admin (\"Teachers can only delete student accounts.\"), ou professor "
@@ -754,7 +818,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.array(ClassListItemSchema), "Lista de turmas (students e missions vêm como ids)"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
   },
 });
 
@@ -769,7 +834,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(ClassSchema, "Turma encontrada"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Aluno consultando turma que não é a dele",
       "Você só pode ver a sua turma.",
@@ -797,7 +863,8 @@ registry.registerPath({
   responses: {
     201: commonResponse(ClassWriteResponseSchema, "Turma criada (relacionamentos como ids)"),
     400: error400Class,
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
   },
 });
@@ -824,7 +891,8 @@ registry.registerPath({
   responses: {
     200: commonResponse(ClassWriteResponseSchema, "Turma atualizada (relacionamentos como ids)"),
     400: error400Class,
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou turma de outro professor",
       "Você só pode editar as suas turmas.",
@@ -844,7 +912,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.null(), "Turma deletada"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
     404: error404Class,
   },
@@ -885,7 +954,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.array(MissionSchema), "Lista de missões"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
   },
 });
 
@@ -903,7 +973,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(MissionSchema, "Missão encontrada"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Missão de outra turma (aluno)",
       "Você não tem acesso a esta missão.",
@@ -923,7 +994,9 @@ registry.registerPath({
     + "content_url http ou https e questions com 1 a 3 perguntas de checagem. As perguntas "
     + "de checagem têm o mesmo formato das do quiz e são corrigidas pelo servidor. "
     + "O título é único por turma, sem diferenciar maiúsculas: outra turma pode ter uma "
-    + "missão com o mesmo título, e uma missão desativada continua ocupando o dela.",
+    + "missão com o mesmo título, e uma missão desativada continua ocupando o dela.\n\n"
+    + "Cada aluno ativo da turma recebe uma notificação new_mission com o id da missão em "
+    + "data.mission. Uma falha ao notificar fica só no log e não impede a criação.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -937,7 +1010,8 @@ registry.registerPath({
       "Título já cadastrado nesta turma.",
       [{ path: "title", message: "Já existe uma missão com este título nesta turma." }],
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou class_id de uma turma de outro professor",
       "Você só pode criar missões nas suas turmas.",
@@ -971,7 +1045,8 @@ registry.registerPath({
   responses: {
     200: commonResponse(MissionProgressSchema, "Progresso registrado"),
     400: error400,
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
     404: error404Mission,
   },
@@ -1011,7 +1086,8 @@ registry.registerPath({
       "Erro de validação. 1 campo(s) inválido(s).",
       [{ path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." }],
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, missão criada por outro professor, "
       + "ou class_id de destino de uma turma de outro professor",
@@ -1026,13 +1102,17 @@ registry.registerPath({
   path: "/missions/{id}",
   tags: ["Missions"],
   summary: "Deletar missão (teacher/admin; professor só as que criou)",
+  description:
+    "Também apaga as notificações new_mission que apontam para a missão, para o aluno não "
+    + "receber um link para uma missão que não existe mais.",
   security: [{ bearerAuth: [] }],
   request: {
     params: missionIdParam,
   },
   responses: {
     200: commonResponse(z.null(), "Missão deletada"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou missão criada por outro professor",
       "Você só pode excluir missões que criou.",
@@ -1069,7 +1149,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.array(AttitudeSchema), "Lista de atitudes"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
   },
 });
 
@@ -1084,7 +1165,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(AttitudeSchema, "Atitude encontrada"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     404: error404Attitude,
   },
 });
@@ -1103,7 +1185,8 @@ registry.registerPath({
   responses: {
     201: commonResponse(AttitudeWriteResponseSchema, "Atitude criada (createdBy como id)"),
     400: error400,
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
   },
 });
@@ -1123,7 +1206,8 @@ registry.registerPath({
   responses: {
     200: commonResponse(AttitudeWriteResponseSchema, "Atitude atualizada (createdBy como id)"),
     400: error400,
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
     404: error404Attitude,
   },
@@ -1145,7 +1229,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.null(), "Atitude deletada"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
     404: error404Attitude,
   },
@@ -1179,7 +1264,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(z.array(AttitudeLogSchema), "Lista de logs de atitudes"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
   },
 });
@@ -1195,7 +1281,8 @@ registry.registerPath({
   },
   responses: {
     200: commonResponse(AttitudeLogSchema, "Log encontrado"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
     404: error404AttitudeLog,
   },
@@ -1213,7 +1300,11 @@ registry.registerPath({
     + "`xp_applied` grava o que foi de fato descontado, que pode ser menor que o `xp_value` "
     + "da atitude (ex.: atitude de -50 num aluno com 30 XP grava `xp_applied: -30`). A mesma "
     + "regra vale ao corrigir (`PATCH`) e ao desfazer (`DELETE`) o log: o estorno usa o "
-    + "`xp_applied` gravado e também para em 0.",
+    + "`xp_applied` gravado e também para em 0.\n\n"
+    + "**Notificação.** O aluno recebe uma notificação do tipo attitude com o nome da atitude, "
+    + "o XP aplicado de fato e a mudança de nível, se houver. Quando o piso deixa o "
+    + "`xp_applied` em 0, nada é notificado. Corrigir e desfazer o log também notificam, "
+    + "com a diferença e com o estorno.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -1226,7 +1317,8 @@ registry.registerPath({
       "Log criado, XP aplicado e nível do aluno recalculado",
     ),
     400: error400,
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou aluno de uma turma de outro professor",
       "Você só pode aplicar atitudes a alunos das suas turmas.",
@@ -1240,6 +1332,10 @@ registry.registerPath({
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
   summary: "Corrigir atitude aplicada (teacher/admin; professor só os logs que aplicou)",
+  description:
+    "Trocar a atitude aplica só a diferença de XP e notifica o aluno (tipo attitude) com a "
+    + "atitude nova e a diferença aplicada. Sem troca de atitude, ou com diferença 0, nada "
+    + "é notificado.",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
@@ -1253,7 +1349,8 @@ registry.registerPath({
       "Log corrigido, XP ajustado e nível do aluno recalculado. O campo progression só é retornado quando a atitude é trocada",
     ),
     400: error400,
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou log aplicado por outro professor",
       "Teachers can only change logs they applied.",
@@ -1267,13 +1364,17 @@ registry.registerPath({
   path: "/attitude-logs/{id}",
   tags: ["AttitudeLogs"],
   summary: "Desfazer atitude aplicada (teacher/admin; professor só os logs que aplicou)",
+  description:
+    "Estorna o XP gravado no log, com piso em 0, e notifica o aluno (tipo attitude) com o "
+    + "estorno aplicado de fato. Se o estorno for 0, nada é notificado.",
   security: [{ bearerAuth: [] }],
   request: {
     params: attitudeLogIdParam,
   },
   responses: {
     200: commonResponse(z.null(), "Log deletado e XP do aluno revertido"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou log aplicado por outro professor",
       "Teachers can only change logs they applied.",
@@ -1295,7 +1396,9 @@ registry.registerPath({
     + "uma remoção maior que o saldo para em 0, e xp_applied registra o que foi aplicado de "
     + "fato. O nível é recalculado e pode subir ou descer. O aluno alvo precisa estar em uma "
     + "turma do professor; aluno de outra turma, ou sem turma, devolve 403. O admin alcança "
-    + "qualquer aluno.",
+    + "qualquer aluno. O aluno recebe uma notificação do tipo xp_adjustment com o XP "
+    + "aplicado de fato, o motivo e a mudança de nível, se houver; se o piso deixar o "
+    + "xp_applied em 0, nada é notificado.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -1312,7 +1415,8 @@ registry.registerPath({
       "Erro de validação. 1 campo(s) inválido(s).",
       [{ path: "amount", message: "A quantidade não pode ser zero." }],
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Papel sem acesso à rota, ou aluno de uma turma de outro professor",
       "Você só pode ajustar o XP de alunos das suas turmas.",
@@ -1336,7 +1440,8 @@ registry.registerPath({
   security: [{ bearerAuth: [] }],
   responses: {
     200: commonResponse(RankingSchema, "Ranking global encontrado"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     404: error404Ranking,
   },
 });
@@ -1349,7 +1454,8 @@ registry.registerPath({
   security: [{ bearerAuth: [] }],
   responses: {
     200: commonResponse(RankingSchema, "Ranking da turma encontrado"),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     404: errorResponse(
       "Usuário sem turma ou ranking inexistente",
       "Você não está matriculado em nenhuma turma.",
@@ -1369,7 +1475,8 @@ registry.registerPath({
   responses: {
     200: commonResponse(RankingSchema, "Ranking da turma encontrado"),
     400: error400,
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: errorResponse(
       "Sem permissão",
       "Você só pode ver o ranking da sua própria turma.",
@@ -1389,8 +1496,88 @@ registry.registerPath({
       RefreshRankingResponseSchema,
       "Rankings recalculados a partir do XP atual dos alunos",
     ),
-    401: error401Token,
+    401: error401Session,
+    498: error498Token,
     403: error403,
+  },
+});
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+registry.registerPath({
+  method: "get",
+  path: "/notifications",
+  tags: ["Notifications"],
+  summary: "Notificações do usuário logado",
+  description:
+    "Lista só as notificações de quem está logado, da mais recente para a mais antiga, "
+    + "paginadas com page e limit (padrão 10, máximo 50). Valores inválidos de page ou "
+    + "limit caem no padrão. Notificações com mais de 90 dias são apagadas automaticamente.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      page: z.string().optional().openapi({ example: "1" }),
+      limit: z.string().optional().openapi({ example: "10", description: "Padrão 10, máximo 50." }),
+    }),
+  },
+  responses: {
+    200: commonResponse(NotificationPageSchema, "Página de notificações"),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/notifications/unread-count",
+  tags: ["Notifications"],
+  summary: "Quantidade de notificações não lidas do usuário logado",
+  description:
+    "Rota leve para o contador do sininho: o front pode consultá-la periodicamente "
+    + "sem buscar a lista inteira.",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(UnreadCountSchema, "Quantidade de não lidas"),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/notifications/read-all",
+  tags: ["Notifications"],
+  summary: "Marcar todas as notificações do usuário logado como lidas",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(MarkAllAsReadSchema, "Notificações marcadas como lidas"),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/notifications/{id}/read",
+  tags: ["Notifications"],
+  summary: "Marcar uma notificação como lida (só as do próprio usuário)",
+  description:
+    "Notificação de outro usuário, id inexistente ou id malformado devolvem 404: a API "
+    + "não revela se a notificação existe para outra pessoa. Marcar de novo uma já lida "
+    + "devolve 200.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: NotificationIdParamSchema,
+  },
+  responses: {
+    200: commonResponse(NotificationSchema, "Notificação marcada como lida"),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+    404: errorResponse("Notificação não encontrada", "Recurso não encontrado em Notification."),
   },
 });
 

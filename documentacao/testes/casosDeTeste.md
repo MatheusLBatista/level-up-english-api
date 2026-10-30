@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.18 — complementa o [Plano de Teste](planoTeste.md) v3.9_
+_versão 2.19 — complementa o [Plano de Teste](planoTeste.md) v3.10_
 
 ## Histórico das alterações
 
@@ -28,6 +28,7 @@ _versão 2.18 — complementa o [Plano de Teste](planoTeste.md) v3.9_
 | 16/10/2026 | 2.16   | RF-009 atendido no frontend: `CT-BADGE-001` e `002` saem dos casos bloqueados por estarem fora do escopo do backend; o `CT-STREAK-001` continua bloqueado | Matheus Lucas |
 | 16/10/2026 | 2.17   | Token expirado e token inválido exercitados em rota: `CT-AUTH-012` automatizado e caso `CT-AUTH-051`; o `AuthMiddleware` fica sem linha descoberta | Matheus Lucas |
 | 16/10/2026 | 2.18   | Célula restritiva do `GET /attitude-logs/{id}` exercitada: `CT-PERM-033` automatizado e a matriz de permissões fica completa | Matheus Lucas |
+| 29/10/2026 | 2.19   | Limite de caracteres das perguntas (`CT-MISSION-043` a `047`), desempenho por tipo de missão para o radar (RF-015, `CT-XP-040` a `049`), saída do ranking global (`CT-RANK-009` a `012`) e notificações (RF-016, nova seção 8 com `CT-NOTIF-001` a `019`); `CT-PERM-043` a `047`; as seções seguintes passam a 9 a 12 | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -41,13 +42,13 @@ Cada caso tem um identificador estável (`CT-<MÓDULO>-<NNN>`), que é o que apa
 
 - ✅ — **automatizado**: coberto pela suíte, executado a cada `npm run test`.
 - ⬜ — **pendente**: cenário descrito e válido, ainda sem teste que o exercite.
-- ⛔ — **bloqueado**: depende de funcionalidade que ainda não existe (seção 10).
+- ⛔ — **bloqueado**: depende de funcionalidade que ainda não existe (seção 11).
 
 Todos os casos de nível `Int` pressupõem banco limpo, cenário montado pelas factories e token obtido pelo helper de autenticação. Onde não se diz o contrário, o corpo da resposta segue o envelope padrão `{ message, data, errors }`.
 
 ### Critério de cobertura da matriz de permissões
 
-A seção 8 tem três células por operação (student / teacher / admin). Um caso da matriz é considerado **automatizado** quando:
+A seção 9 tem três células por operação (student / teacher / admin). Um caso da matriz é considerado **automatizado** quando:
 
 1. toda célula **restritiva** (403, ou 403 condicionado à posse do recurso) tem teste; e
 2. pelo menos uma célula **permissiva** tem teste.
@@ -261,6 +262,14 @@ Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O
 | CT-MISSION-041  | Migração do índice | `npm run migrate:mission-title-index` num banco só com o índice antigo `title_1`; depois, de novo | apaga o `title_1` e cria o `class_id_1_title_1` (único, collation `pt`/strength 2); a segunda execução não muda nada; também roda num banco ainda sem a coleção | RF-004 | Int | `migrations/migrateMissionTitleIndex` | ✅ |
 | CT-MISSION-042  | Migração com título repetido na turma | `Lesson 1` e `lesson 1` na mesma turma (o `title_1` diferencia maiúsculas e deixou passar) | lista as duplicatas (turma, títulos e ids) e aborta sem mexer em nenhum índice; o mesmo título em turmas diferentes não conta como duplicata | RF-004 | Int | `migrations/migrateMissionTitleIndex` | ✅ |
 
+| CT-MISSION-043  | Enunciado no limite de caracteres | pergunta com exatamente 500 caracteres | aceito pelo schema de criação | RF-004 | Unit | `schemas/MissionSchema` | ✅ |
+| CT-MISSION-044  | Enunciado acima do limite | pergunta com 501 caracteres | 400, "A pergunta pode ter no máximo 500 caracteres." | RF-004 | Unit | `schemas/MissionSchema` | ✅ |
+| CT-MISSION-045  | Alternativa no limite de caracteres | alternativa com exatamente 200 caracteres | aceita pelo schema de criação | RF-004 | Unit | `schemas/MissionSchema` | ✅ |
+| CT-MISSION-046  | Alternativa acima do limite | alternativa com 201 caracteres | 400, "Cada alternativa pode ter no máximo 200 caracteres." | RF-004 | Unit | `schemas/MissionSchema` | ✅ |
+| CT-MISSION-047  | Limite também na edição | `PATCH /missions/{id}` com enunciado de 501 caracteres | 400 com a mesma mensagem — o limite está no schema da pergunta, usado no POST e no PATCH | RF-004 | Unit | `schemas/MissionSchema` | ✅ |
+
+**Limite de caracteres (`CT-MISSION-043` a `047`).** O front usa os mesmos limites — 500 para o enunciado e 200 para cada alternativa —, e o backend os repete para valer também para quem chama a API direto. Os testes são de valor-limite: o valor exato passa e o valor + 1 é recusado. As constantes `QUESTION_MAX_LENGTH` e `OPTION_MAX_LENGTH` são exportadas pelo schema e usadas pelos testes, então mudar o limite não exige mexer neles.
+
 **Título por turma (`CT-MISSION-007`, `025` e `034` a `042`).** O título é único dentro da turma, sem diferenciar maiúsculas, e missão desativada continua contando. A regra tem duas camadas: a checagem do `MissionService`, que dá a mensagem, e o índice único composto no banco, que fecha a corrida entre duas requisições simultâneas. Como o `autoIndex` fica desligado em produção, a troca do índice antigo pelo novo é feita pela migração do `CT-MISSION-041`, rodada uma vez depois do deploy (README, seção "Migrações").
 
 ---
@@ -308,10 +317,22 @@ Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O
 | CT-XP-037  | Alvo que não é aluno | id de `profA`, id inexistente ou `abc` | 404, "Aluno não encontrado." — o id malformado não chega ao banco, onde viraria 500 | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
 | CT-XP-038  | Paginação | `?page=2&limit=3` com 4 itens; sem parâmetros; `limit=500`; `page=0&limit=abc` | página 2 com 1 item, `totalPages: 2`, `prevPage: 1` e `nextPage: null`; padrão `limit: 10`; `limit` limitado a 50; valores inválidos voltam ao padrão | RF-014 | Int   | `routes/xpHistoryRoutes`, `services/XpHistoryService` | ✅ |
 | CT-XP-039  | Aluno sem XP | histórico de `semTurma`, que nunca ganhou XP | 200 com `docs: []`, `totalDocs: 0` e `totalPages: 1` | RF-014 | Int   | `routes/xpHistoryRoutes` | ✅ |
+| CT-XP-040  | Aluno vê o próprio desempenho | `GET /users/{id do alunoA}/performance` como `alunoA`, com dois quizzes, um áudio e uma missão já excluída | 200 com a média das melhores notas por tipo e quantas missões entraram: `quiz: { score: 90, missions: 2 }`, `audio: { score: 60, missions: 1 }`, `vocabulary` sem nota; a missão excluída não conta | RF-015 | Int | `routes/performanceRoutes`, `services/PerformanceService` | ✅ |
+| CT-XP-041  | Média da turma | mesmo cenário, com colegas ativos e um desativado na Turma A | `class` com a média das médias dos alunos **ativos** que têm nota no tipo, cada aluno pesando igual, e `students` dizendo quantos entraram | RF-015 | Int | `routes/performanceRoutes`, `services/PerformanceService` | ✅ |
+| CT-XP-042  | Aluno sem progresso | desempenho de `alunoB`, que não concluiu nada | os três tipos com `score: null` e `missions: 0` — sem nota, e não nota 0 | RF-015 | Int | `routes/performanceRoutes`, `services/PerformanceService` | ✅ |
+| CT-XP-043  | Aluno sem turma | desempenho de `semTurma` | 200 com `class: null`; os colegas nem são buscados | RF-015 | Int | `routes/performanceRoutes`, `services/PerformanceService` | ✅ |
+| CT-XP-044  | Aluno pede o desempenho de outro | `GET /users/{id do alunoB}/performance` como `alunoA` | 403, "Você só pode ver o seu desempenho." | RF-011 | Int | `routes/performanceRoutes`, `services/PerformanceService` | ✅ |
+| CT-XP-045  | Professor, admin e turma alheia | `profA` pedindo `alunoA`, `alunoB` e `semTurma`; `admin` pedindo `alunoB` | 200 no aluno da turma dele; 403, "Você só pode ver o desempenho de alunos das suas turmas.", nos outros dois; o admin vê qualquer aluno | RF-011 | Int | `routes/performanceRoutes`, `services/PerformanceService` | ✅ |
+| CT-XP-046  | Alvo que não é aluno | id de `profA`, id inexistente ou `abc` | 404, "Aluno não encontrado." | RF-015 | Int | `routes/performanceRoutes`, `services/PerformanceService` | ✅ |
+| CT-XP-047  | Filtro por período | `from=2026-10-01T00:00:00-04:00&to=2026-10-31T23:59:59-04:00`, com um quiz concluído em setembro e outro em outubro | só o de outubro entra, para o aluno e para a turma: `quiz: { score: 100, missions: 1 }` e `class.quiz: { score: 100, students: 1 }` | RF-015 | Int | `routes/performanceRoutes`, `services/PerformanceService` | ✅ |
+| CT-XP-048  | Sem período usa tudo | mesmo cenário, sem `from` nem `to` | as duas missões entram: `quiz: { score: 70, missions: 2 }` | RF-015 | Int | `routes/performanceRoutes` | ✅ |
+| CT-XP-049  | Período inválido | `from=2026-10-01` (sem hora e fuso); `from` depois de `to` | 400 com o erro em `from`; no invertido, 400 com `{ path: "to", message: "O início do período deve ser anterior ao fim." }` | RF-015 | Int | `routes/performanceRoutes` | ✅ |
 
 O ajuste manual (`CT-XP-011` a `021`) e as atitudes aplicadas (`CT-ATT-018` a `022`) passam pela mesma atualização atômica com piso em 0, que grava em `xp_applied` o que foi aplicado de fato — pode ser menor que o `amount` pedido ou que o `xp_value` da atitude. Só a conclusão de missão soma pelo `$inc` direto, porque só credita XP positivo. O `CT-XP-010` continua valendo para dado legado: um aluno que já estava negativo antes do piso ainda tem o nível calculado como 1.
 
 O histórico (`CT-XP-029` a `039`) lê esses mesmos registros: `xp_applied` dos logs de atitude e dos ajustes e `xp_earned` do `mission_progress`. Por isso o XP de cada item é o que entrou de fato no saldo do aluno, e não o valor pedido. As três origens vêm de duas coleções e de um array dentro do usuário, então a junção, a ordenação e a paginação são feitas em memória, no service.
+
+O desempenho (`CT-XP-040` a `049`) é o dado do radar: a média das **melhores** notas do `mission_progress`, por tipo de missão. O tipo vem da missão, então uma missão excluída depois de feita sai da conta. A data usada pelo período é a da primeira conclusão que rendeu XP; uma missão concluída sem render XP não tem data e só aparece sem filtro de período.
 
 A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nível 2 = 100, nível 3 = 400, nível 4 = 900), com teto no nível 50. Os casos `Unit` cobrem `LevelHelper` direto, sem HTTP — inclusive a coerência entre `xpForLevel` e `calculateLevel` ao longo de toda a curva, que é a propriedade que garante que os dois nunca discordem.
 
@@ -361,11 +382,50 @@ A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nív
 | CT-RANK-007  | Recálculo pelo admin               | `POST /rankings/refresh`                                            | 200 com o ranking global e o de cada turma ativa refeitos a partir do XP atual    | RF-007 | Int   | `routes/rankingRoutes`                       | ✅       |
 | CT-RANK-008  | Recálculo por professor            | `POST /rankings/refresh` como `profA`                               | 403                                                                               | RF-011 | Int   | `routes/rankingRoutes`                       | ✅       |
 
+| CT-RANK-009  | Aluno fora do ranking global       | `alunoA` com `show_in_global_ranking: false`, e recálculo dos rankings | `alunoA` não aparece no ranking global, mas continua no da Turma A | RF-007 | Int   | `routes/rankingRoutes`, `repository/RankingRepository` | ✅ |
+| CT-RANK-010  | Aluno antigo, sem o campo          | `alunoA` gravado sem `show_in_global_ranking`, e recálculo           | `alunoA` continua no ranking global — a ausência do campo vale como `true`        | RF-007 | Int   | `routes/rankingRoutes`                       | ✅       |
+| CT-RANK-011  | Trocar a opção atualiza na hora    | `PATCH /users/{id do alunoA}` como `alunoA` com `show_in_global_ranking: false`, depois `true` | 200; o aluno sai do ranking global sem refresh manual e volta ao religar; se o recálculo falhar, a opção fica gravada e a falha vai para o log | RF-007 | Int   | `routes/userRoutes`, `services/UserService`  | ✅       |
+| CT-RANK-012  | Quem pode trocar e valor inválido  | `profA` mudando a opção de `alunoA`; `alunoA` enviando `show_in_global_ranking: "não"` | 403 para a professora (só o próprio aluno ou o admin mudam); 400 com o erro em `show_in_global_ranking` para o valor não booleano | RF-011 | Int   | `routes/userRoutes`, `services/UserService`  | ✅       |
+
 O `CT-RANK-003` é o caso que amarra os três módulos: quem credita o XP é o `ProgressionService`, e o que a suíte prova é que ele atualiza o ranking global e o da turma **na mesma operação** que grava o XP. Há ainda dois testes de resiliência em `services/ProgressionService` sem caso próprio no catálogo: falha ao montar o ranking não invalida o XP já aplicado, nem no global nem no de turma.
 
 ---
 
-## 8 - Matriz de permissões (`CT-PERM`)
+## 8 - Notificações (`CT-NOTIF`)
+
+| ID            | Cenário                                  | Entrada / passos                                                                 | Resultado esperado                                                                                     | RF     | Nível | Suíte                                              | Situação |
+| ------------- | ---------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------ | ----- | -------------------------------------------------- | -------- |
+| CT-NOTIF-001  | Atitude aplicada notifica o aluno        | `POST /attitude-logs` com a atitude "Participação" (+10) em `alunoA`              | uma notificação `type: "attitude"` para `alunoA`, não lida, com "Atitude registrada: Participação (+10 XP)." e `data: { xp: 10, attitude_log, attitude }` | RF-016 | Int | `routes/attitudeLogRoutes`, `services/AttitudeLogService` | ✅ |
+| CT-NOTIF-002  | Mudança de nível na mensagem             | atitude ou ajuste que faz o aluno subir ou descer de nível                          | a mensagem termina com "Você subiu para o nível 4!" ou "Você voltou para o nível 2."; sem mudança, nada é acrescentado | RF-016 | Unit | `services/NotificationService` | ✅ |
+| CT-NOTIF-003  | XP 0 por causa do piso não notifica       | atitude negativa em aluno com 0 XP                                                  | nenhuma notificação — o `xp_applied` foi 0                                                              | RF-016 | Int | `routes/attitudeLogRoutes`, `services/NotificationService` | ✅ |
+| CT-NOTIF-004  | Correção de atitude                      | `PATCH /attitude-logs/{id}` trocando +10 por +25; outro PATCH sem trocar a atitude | a troca notifica "Uma atitude registrada foi alterada para ... (+15 XP)." — a diferença aplicada; sem troca, nada é notificado | RF-016 | Unit | `services/AttitudeLogService`, `services/NotificationService` | ✅ |
+| CT-NOTIF-005  | Desfazer atitude                         | `DELETE /attitude-logs/{id}` de uma "Participação" (+10)                           | "A atitude Participação registrada para você foi removida (-10 XP)."; com a atitude já apagada, "Uma atitude registrada para você foi removida" | RF-016 | Int | `routes/attitudeLogRoutes`, `services/NotificationService` | ✅ |
+| CT-NOTIF-006  | Ajuste manual de XP                      | `POST /xp-adjustments` com `amount: 50` e `reason: "Feira de idiomas"`             | uma notificação `type: "xp_adjustment"` com "Motivo: Feira de idiomas." e `data: { xp: 50, xp_adjustment }`; sem motivo, a frase do motivo some | RF-016 | Int | `routes/xpAdjustmentRoutes`, `services/NotificationService` | ✅ |
+| CT-NOTIF-007  | Operação barrada não notifica            | atitude inativa, alvo que não é aluno, aluno de outra turma                         | o erro de sempre e nenhuma notificação                                                                   | RF-016 | Unit | `services/AttitudeLogService`, `services/XpAdjustmentService` | ✅ |
+| CT-NOTIF-008  | Missão nova avisa a turma                | `POST /missions` na Turma A, que tem `alunoA` ativo e um aluno desativado           | só `alunoA` recebe `type: "new_mission"` com "Nova missão na turma Turma A: ... Vale até 30 XP." e `data: { mission }`; o desativado e `alunoB` não recebem | RF-016 | Int | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-NOTIF-009  | Falha ao notificar não derruba a operação | banco de notificações fora do ar ao criar, ou busca dos alunos falhando           | a operação principal (XP, missão) conclui normalmente e a falha vai para o log                          | RF-016 | Unit | `services/NotificationService`, `services/MissionService` | ✅ |
+| CT-NOTIF-010  | Excluir missão apaga os avisos dela      | `DELETE /missions/{id}` com avisos dessa missão e de outra                          | os avisos da missão excluída somem; os da outra continuam                                               | RF-016 | Int | `routes/missionRoutes`, `services/MissionService` | ✅ |
+| CT-NOTIF-011  | Listagem só do usuário logado            | `GET /notifications` como `alunoA`, com 3 notificações dele e 1 de `alunoB`        | 200 com as 3 de `alunoA`, da mais recente para a mais antiga                                            | RF-016 | Int | `routes/notificationRoutes` | ✅ |
+| CT-NOTIF-012  | Paginação                                | `?page=2&limit=2`; sem parâmetros; `limit=500`; `page=abc&limit=-3`                 | página 2 com 1 item e `totalPages: 2`; padrão `limit: 10`; `limit` limitado a 50; valores inválidos voltam ao padrão | RF-016 | Int | `routes/notificationRoutes`, `services/NotificationService` | ✅ |
+| CT-NOTIF-013  | Contador de não lidas                    | `GET /notifications/unread-count` com 2 não lidas e 1 lida                          | 200 com `{ unread: 2 }`                                                                                 | RF-016 | Int | `routes/notificationRoutes` | ✅ |
+| CT-NOTIF-014  | Marcar como lida                         | `PATCH /notifications/{id}/read` de uma não lida; de novo numa já lida               | 200 com `read: true`, gravado no banco; repetir também responde 200                                    | RF-016 | Int | `routes/notificationRoutes` | ✅ |
+| CT-NOTIF-015  | Notificação de outro usuário             | `alunoA` marcando uma notificação de `alunoB`                                       | 404, "Recurso não encontrado em Notification."; a notificação continua não lida                          | RF-011 | Int | `routes/notificationRoutes`, `repository/NotificationRepository` | ✅ |
+| CT-NOTIF-016  | Id inexistente ou malformado             | `PATCH /notifications/{id inexistente}/read` e `/notifications/abc/read`            | 404 nos dois — o id malformado não chega ao banco, onde viraria 500                                     | RF-016 | Int | `routes/notificationRoutes`, `services/NotificationService` | ✅ |
+| CT-NOTIF-017  | Marcar todas como lidas                  | `PATCH /notifications/read-all` como `alunoA`                                       | 200 com `{ updated: 2 }`; todas as de `alunoA` ficam lidas e as de `alunoB` não mudam                    | RF-016 | Int | `routes/notificationRoutes` | ✅ |
+| CT-NOTIF-018  | Migração dos índices                     | `npm run migrate:notification-indexes` num banco só com o `_id_`; depois, de novo  | cria `user_1_read_1_createdAt_-1` e o TTL `createdAt_1` com 90 dias; a segunda execução não muda nada   | RF-016 | Int | `migrations/migrateNotificationIndexes` | ✅ |
+| CT-NOTIF-019  | Sem autenticação                         | `GET /notifications` sem token                                                       | 498                                                                                                      | RF-011 | Int | `routes/notificationRoutes` | ✅ |
+
+**Quem recebe e quando.** As notificações avisam o aluno do que acontece com ele **sem que ele esteja olhando**: atitude aplicada, corrigida ou desfeita, ajuste manual e missão nova na turma. O XP de missão concluída não notifica, porque o próprio aluno acabou de ver o resultado na tela. O XP informado é sempre o aplicado de fato (`xp_applied`), e quando o piso o deixa em 0 nada é notificado (`CT-NOTIF-003`).
+
+**Dono pela rota, e não pelo id.** Nenhuma rota recebe o id do usuário: o dono é sempre o do token. Por isso `CT-NOTIF-015` responde 404, e não 403 — responder 403 diria que aquele id existe para outra pessoa. O filtro por `_id` **e** `user` está na própria consulta do repositório, então não há busca seguida de comparação.
+
+**Notificação nunca derruba a operação (`CT-NOTIF-009`).** A gravação da notificação é feita depois do XP ou da missão e fica dentro de um `try/catch` que só registra no log, no mesmo padrão do recálculo do ranking (`CT-RANK-003`).
+
+**Índices e TTL (`CT-NOTIF-018`).** Com o `autoIndex` desligado em produção, nem o índice da listagem nem o TTL de 90 dias existem até a migração rodar; ela vai na seção "Migrações" do README.
+
+---
+
+## 9 - Matriz de permissões (`CT-PERM`)
 
 Uma linha por operação da API. Cada célula é o status esperado para um token **ativo** daquele papel. Onde há posse, a célula traz os dois desfechos. O critério que decide entre ✅ e ⬜ está descrito em "Como ler este documento".
 
@@ -415,12 +475,17 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-040  | Conta desativada em rota protegida | 403                            | 403                                  | 403   | `routes/userRoutes`         | ✅       |
 | CT-PERM-041  | `POST /xp-adjustments`            | 403                             | 201 aluno da turma dele / 403 outro  | 201   | `routes/xpAdjustmentRoutes` | ✅       |
 | CT-PERM-042  | `GET /users/{id}/xp-history`      | 200 próprio / 403 outro         | 200 aluno da turma dele / 403 outro  | 200   | `routes/xpHistoryRoutes`    | ✅       |
+| CT-PERM-043  | `GET /users/{id}/performance`     | 200 próprio / 403 outro         | 200 aluno da turma dele / 403 outro  | 200   | `routes/performanceRoutes`  | ✅       |
+| CT-PERM-044  | `GET /notifications`              | 200 (só as próprias)            | 200 (só as próprias)                 | 200 (só as próprias) | `routes/notificationRoutes` | ✅ |
+| CT-PERM-045  | `GET /notifications/unread-count` | 200 (só as próprias)            | 200 (só as próprias)                 | 200 (só as próprias) | `routes/notificationRoutes` | ✅ |
+| CT-PERM-046  | `PATCH /notifications/read-all`   | 200 (só as próprias)            | 200 (só as próprias)                 | 200 (só as próprias) | `routes/notificationRoutes` | ✅ |
+| CT-PERM-047  | `PATCH /notifications/{id}/read`  | 200 própria / 404 de outro      | 200 própria / 404 de outro           | 200 própria / 404 de outro | `routes/notificationRoutes` | ✅ |
 
-**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida. A última foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
+**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida, e as cinco linhas novas da v2.19 entraram completas. As rotas de notificação não restringem papel — o que restringe é a posse, sempre pelo usuário do token —, e a célula restritiva do `CT-PERM-047` é o 404 do `CT-NOTIF-015`. A última célula restritiva a ser coberta antes delas foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
 
 ---
 
-## 9 - Fluxos ponta a ponta (`CT-E2E`)
+## 10 - Fluxos ponta a ponta (`CT-E2E`)
 
 Nenhum dos quatro está automatizado. A suíte atual cobre cada endpoint isoladamente, e mesmo os testes de rota que encadeiam duas ou três chamadas o fazem dentro de um só módulo. Estes casos existem para provar que os módulos se compõem — é o nível onde erro de integração entre XP, ranking e progresso apareceria.
 
@@ -458,7 +523,7 @@ Nenhum dos quatro está automatizado. A suíte atual cobre cada endpoint isolada
 
 ---
 
-## 10 - Casos bloqueados
+## 11 - Casos bloqueados
 
 | ID          | Cenário                              | Depende de                                                          | RF     | Situação |
 | ----------- | ------------------------------------ | ---------------------------------------------------------------------- | ------ | -------- |
@@ -470,24 +535,25 @@ O `CT-RATE-001` saiu desta tabela na v2.14: o rate limit foi implementado (RNF-0
 
 O `CT-BADGE-001` (badge no primeiro login) e o `CT-BADGE-002` (badge ao atingir 100 XP) saíram desta tabela na v2.16 por estarem **fora do escopo do backend**: eles testavam a concessão de badge pela API, que não vai existir. As conquistas do RF-009 são calculadas no frontend a partir do `mission_progress` do `GET /users/{id}`, sem gravar nada no campo `badges`, e por isso a regra é verificada lá, e não neste catálogo.
 
-## 11 - Resumo
+## 12 - Resumo
 
-Situação em 16/10/2026, com a suíte em **54 arquivos de teste e 1261 testes**, executando em cerca de 8 segundos.
+Situação em 29/10/2026, com a suíte em **68 arquivos de teste e 1483 testes**, executando em cerca de 8 a 12 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
 | Autenticação e sessão         | `CT-AUTH`    | 51    | 51               | 0            |
 | Usuários                      | `CT-USER`    | 37    | 37               | 0            |
 | Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
-| Missões                       | `CT-MISSION` | 42    | 42               | 0            |
-| Progressão de XP e nível      | `CT-XP`      | 39    | 39               | 0            |
+| Missões                       | `CT-MISSION` | 47    | 47               | 0            |
+| Progressão de XP e nível      | `CT-XP`      | 49    | 49               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
-| Ranking                       | `CT-RANK`    | 8     | 8                | 0            |
-| Matriz de permissões          | `CT-PERM`    | 42    | 42               | 0            |
+| Ranking                       | `CT-RANK`    | 12    | 12               | 0            |
+| Notificações                  | `CT-NOTIF`   | 19    | 19               | 0            |
+| Matriz de permissões          | `CT-PERM`    | 47    | 47               | 0            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **275** | **271 (98,5%)** | **4**        |
+| **Total**                     | -            | **318** | **314 (98,7%)** | **4**        |
 
-O caso bloqueado da seção 10 não entra nesta contagem.
+O caso bloqueado da seção 11 não entra nesta contagem.
 
 ### As quatro pendências
 

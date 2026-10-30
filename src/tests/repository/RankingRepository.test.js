@@ -112,12 +112,16 @@ describe("RankingRepository", () => {
   });
 
   describe("listRankedUsers", () => {
-    it("deve considerar apenas alunos ativos quando não houver turma", async() => {
+    it("deve considerar apenas alunos ativos que aceitam aparecer no ranking global", async() => {
       userModel.find.mockReturnValue(query([]));
 
       await repository.listRankedUsers();
 
-      expect(userModel.find).toHaveBeenCalledWith({ active: true, role: "student" });
+      expect(userModel.find).toHaveBeenCalledWith({
+        active: true,
+        role: "student",
+        show_in_global_ranking: { $ne: false },
+      });
     });
 
     it("deve restringir à turma informada", async() => {

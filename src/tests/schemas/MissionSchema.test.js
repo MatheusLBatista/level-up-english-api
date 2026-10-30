@@ -1,13 +1,73 @@
-import { getMissionContentIssues } from "../../schemas/MissionSchema.js";
+import {
+  CreateMissionBodySchema,
+  getMissionContentIssues,
+  OPTION_MAX_LENGTH,
+  QUESTION_MAX_LENGTH,
+  UpdateMissionBodySchema,
+} from "../../schemas/MissionSchema.js";
+
+const questoes = (quantidade) =>
+  Array.from({ length: quantidade }, (_, index) => ({
+    question: `Pergunta ${index + 1}`,
+    options: { a: "A", b: "B", c: "C", d: "D" },
+    correct_answer: "a",
+  }));
+
+describe("limite de caracteres das perguntas", () => {
+  const quizCom = (alteracao) => {
+    const questions = questoes(5);
+    questions[0] = { ...questions[0], ...alteracao };
+
+    return {
+      title: "Quiz",
+      type: "quiz",
+      class_id: "507f1f77bcf86cd799439011",
+      questions,
+    };
+  };
+
+  const mensagens = (resultado) => resultado.error.issues.map((issue) => issue.message);
+
+  it("deve aceitar enunciado com exatamente o limite de caracteres", () => {
+    const resultado = CreateMissionBodySchema.safeParse(quizCom({ question: "a".repeat(QUESTION_MAX_LENGTH) }));
+
+    expect(resultado.success).toBe(true);
+  });
+
+  it("deve recusar enunciado acima do limite de caracteres", () => {
+    const resultado = CreateMissionBodySchema.safeParse(quizCom({ question: "a".repeat(QUESTION_MAX_LENGTH + 1) }));
+
+    expect(resultado.success).toBe(false);
+    expect(mensagens(resultado)).toContain(`A pergunta pode ter no máximo ${QUESTION_MAX_LENGTH} caracteres.`);
+  });
+
+  it("deve aceitar alternativa com exatamente o limite de caracteres", () => {
+    const resultado = CreateMissionBodySchema.safeParse(
+      quizCom({ options: { a: "a".repeat(OPTION_MAX_LENGTH), b: "B", c: "C", d: "D" } }),
+    );
+
+    expect(resultado.success).toBe(true);
+  });
+
+  it("deve recusar alternativa acima do limite de caracteres", () => {
+    const resultado = CreateMissionBodySchema.safeParse(
+      quizCom({ options: { a: "A", b: "B", c: "C", d: "a".repeat(OPTION_MAX_LENGTH + 1) } }),
+    );
+
+    expect(resultado.success).toBe(false);
+    expect(mensagens(resultado)).toContain(`Cada alternativa pode ter no máximo ${OPTION_MAX_LENGTH} caracteres.`);
+  });
+
+  it("deve aplicar o limite também na edição", () => {
+    const { questions } = quizCom({ question: "a".repeat(QUESTION_MAX_LENGTH + 1) });
+    const resultado = UpdateMissionBodySchema.safeParse({ questions });
+
+    expect(resultado.success).toBe(false);
+    expect(mensagens(resultado)).toContain(`A pergunta pode ter no máximo ${QUESTION_MAX_LENGTH} caracteres.`);
+  });
+});
 
 describe("getMissionContentIssues", () => {
-  const questoes = (quantidade) =>
-    Array.from({ length: quantidade }, (_, index) => ({
-      question: `Pergunta ${index + 1}`,
-      options: { a: "A", b: "B", c: "C", d: "D" },
-      correct_answer: "a",
-    }));
-
   describe("com partial: false (POST)", () => {
     it("deve aceitar quiz com cinco perguntas", () => {
       expect(getMissionContentIssues("quiz", { questions: questoes(5) })).toEqual([]);

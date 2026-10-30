@@ -2,6 +2,7 @@ import AttitudeLogRepository from "../repository/AttitudeLogRepository.js";
 import AttitudeRepository from "../repository/AttitudeRepository.js";
 import UserRepository from "../repository/UserRepository.js";
 import ProgressionService from "./ProgressionService.js";
+import NotificationService from "./NotificationService.js";
 import Class from "../models/Class.js";
 import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
 
@@ -11,6 +12,7 @@ class AttitudeLogService {
     this.attitudeRepository = new AttitudeRepository();
     this.userRepository = new UserRepository();
     this.progressionService = new ProgressionService();
+    this.notificationService = new NotificationService();
   }
 
   /**
@@ -109,6 +111,13 @@ class AttitudeLogService {
       xp_applied,
     });
 
+    await this.notificationService.notifyAttitudeApplied(parsedData.student, {
+      log,
+      attitude,
+      xp_applied,
+      progression,
+    });
+
     return { ...log.toObject(), progression };
   }
 
@@ -119,10 +128,18 @@ class AttitudeLogService {
 
     await this.repository.delete(id);
 
-    await this.progressionService.adjustXp(
-      String(existingLog.student._id ?? existingLog.student),
+    const studentId = String(existingLog.student._id ?? existingLog.student);
+
+    const { xp_applied, progression } = await this.progressionService.adjustXp(
+      studentId,
       -existingLog.xp_applied,
     );
+
+    await this.notificationService.notifyAttitudeRemoved(studentId, {
+      attitude: existingLog.attitude,
+      xp_applied,
+      progression,
+    });
   }
 
   async update(id, parsedData, req) {
@@ -152,14 +169,20 @@ class AttitudeLogService {
 
     const xpDiff = newXp - existingLog.xp_applied;
 
-    const { xp_applied, progression } = await this.progressionService.adjustXp(
-      String(existingLog.student._id ?? existingLog.student),
-      xpDiff,
-    );
+    const studentId = String(existingLog.student._id ?? existingLog.student);
+
+    const { xp_applied, progression } = await this.progressionService.adjustXp(studentId, xpDiff);
 
     const log = await this.repository.update(id, {
       attitude: parsedData.attitude,
       xp_applied: existingLog.xp_applied + xp_applied,
+    });
+
+    await this.notificationService.notifyAttitudeChanged(studentId, {
+      log,
+      attitude: newAttitude,
+      xp_applied,
+      progression,
     });
 
     return { ...log.toObject(), progression };

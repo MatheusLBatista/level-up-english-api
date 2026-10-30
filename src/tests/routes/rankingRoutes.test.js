@@ -145,6 +145,26 @@ describe("Rotas de ranking", () => {
       expect(ids).not.toContain(String(alunoB._id));
     });
 
+    it("deve tirar do ranking global, mas manter no da turma, o aluno que não quer aparecer", async() => {
+      await User.findByIdAndUpdate(alunoA._id, { show_in_global_ranking: false });
+
+      await recalcular();
+
+      const global = await Ranking.findOne({ type: "global" });
+      const daTurmaA = await Ranking.findOne({ type: "class", class: turmaA._id });
+      expect(global.entries.map((entrada) => String(entrada.user))).not.toContain(String(alunoA._id));
+      expect(String(daTurmaA.entries[0].user)).toBe(String(alunoA._id));
+    });
+
+    it("deve manter no ranking global o aluno antigo, gravado antes de existir a opção", async() => {
+      await User.collection.updateOne({ _id: alunoA._id }, { $unset: { show_in_global_ranking: "" } });
+
+      await recalcular();
+
+      const global = await Ranking.findOne({ type: "global" });
+      expect(String(global.entries[0].user)).toBe(String(alunoA._id));
+    });
+
     it("deve cortar o ranking no top 30", async() => {
       const extras = Array.from({ length: 32 }, (_, index) => ({
         name: `Aluno extra ${index}`,

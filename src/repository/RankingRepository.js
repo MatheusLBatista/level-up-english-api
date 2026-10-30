@@ -54,6 +54,7 @@ class RankingRepository {
   async listRankedUsers(classId = null) {
     const filter = { active: true, role: "student" };
     if (classId) filter.class = classId;
+    else filter.show_in_global_ranking = { $ne: false };
 
     return await this.userModel
       .find(filter)

@@ -4,15 +4,27 @@ import { ClassRefSchema, UserNameRefSchema } from "./PopulatedRefSchemas.js";
 
 extendZodWithOpenApi(z);
 
+export const QUESTION_MAX_LENGTH = 500;
+export const OPTION_MAX_LENGTH = 200;
+
+const OptionSchema = z
+  .string()
+  .min(1)
+  .max(OPTION_MAX_LENGTH, `Cada alternativa pode ter no máximo ${OPTION_MAX_LENGTH} caracteres.`);
+
 const QuestionSchema = z
   .object({
-    question: z.string().min(1, "A pergunta não pode estar vazia.").openapi({ example: "What color is the sky?" }),
+    question: z
+      .string()
+      .min(1, "A pergunta não pode estar vazia.")
+      .max(QUESTION_MAX_LENGTH, `A pergunta pode ter no máximo ${QUESTION_MAX_LENGTH} caracteres.`)
+      .openapi({ example: "What color is the sky?" }),
     options: z
       .object({
-        a: z.string().min(1).openapi({ example: "Blue" }),
-        b: z.string().min(1).openapi({ example: "Red" }),
-        c: z.string().min(1).openapi({ example: "Green" }),
-        d: z.string().min(1).openapi({ example: "Yellow" }),
+        a: OptionSchema.openapi({ example: "Blue" }),
+        b: OptionSchema.openapi({ example: "Red" }),
+        c: OptionSchema.openapi({ example: "Green" }),
+        d: OptionSchema.openapi({ example: "Yellow" }),
       })
       .openapi({ example: { a: "Blue", b: "Red", c: "Green", d: "Yellow" } }),
     correct_answer: z.enum(["a", "b", "c", "d"]).openapi({ example: "a" }),
