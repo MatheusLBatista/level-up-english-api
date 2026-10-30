@@ -87,4 +87,88 @@ describe("NotificationService", () => {
       expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("banco fora do ar"));
     });
   });
+
+  describe("list", () => {
+    const pagina = { docs: [], totalDocs: 0 };
+
+    beforeEach(() => {
+      repository.listByUser.mockResolvedValue(pagina);
+    });
+
+    it("deve listar as notificações do usuário logado com a página pedida", async() => {
+      const resultado = await service.list({ user_id: ALUNO_ID, query: { page: "2", limit: "5" } });
+
+      expect(repository.listByUser).toHaveBeenCalledWith(ALUNO_ID, { page: 2, limit: 5 });
+      expect(resultado).toBe(pagina);
+    });
+
+    it("deve usar a primeira página com 10 itens quando a query não vier", async() => {
+      await service.list({ user_id: ALUNO_ID });
+
+      expect(repository.listByUser).toHaveBeenCalledWith(ALUNO_ID, { page: 1, limit: 10 });
+    });
+
+    it("deve cair no padrão quando page ou limit forem inválidos", async() => {
+      await service.list({ user_id: ALUNO_ID, query: { page: "abc", limit: "-3" } });
+
+      expect(repository.listByUser).toHaveBeenCalledWith(ALUNO_ID, { page: 1, limit: 10 });
+    });
+
+    it("deve limitar a 50 itens por página", async() => {
+      await service.list({ user_id: ALUNO_ID, query: { limit: "500" } });
+
+      expect(repository.listByUser).toHaveBeenCalledWith(ALUNO_ID, { page: 1, limit: 50 });
+    });
+  });
+
+  describe("countUnread", () => {
+    it("deve devolver a quantidade de não lidas do usuário logado", async() => {
+      repository.countUnread.mockResolvedValue(3);
+
+      const resultado = await service.countUnread({ user_id: ALUNO_ID });
+
+      expect(repository.countUnread).toHaveBeenCalledWith(ALUNO_ID);
+      expect(resultado).toEqual({ unread: 3 });
+    });
+  });
+
+  describe("markAsRead", () => {
+    const NOTIFICACAO_ID = "507f1f77bcf86cd799439051";
+
+    it("deve marcar como lida a notificação do usuário logado", async() => {
+      const atualizada = { _id: NOTIFICACAO_ID, read: true };
+      repository.markAsRead.mockResolvedValue(atualizada);
+
+      const resultado = await service.markAsRead(NOTIFICACAO_ID, { user_id: ALUNO_ID });
+
+      expect(repository.markAsRead).toHaveBeenCalledWith(NOTIFICACAO_ID, ALUNO_ID);
+      expect(resultado).toBe(atualizada);
+    });
+
+    it("deve lançar 404 quando a notificação não for do usuário ou não existir", async() => {
+      repository.markAsRead.mockResolvedValue(null);
+
+      await expect(service.markAsRead(NOTIFICACAO_ID, { user_id: OUTRO_ALUNO_ID })).rejects.toMatchObject({
+        statusCode: 404,
+        customMessage: "Recurso não encontrado em Notification.",
+      });
+    });
+
+    it("deve lançar 404 sem acessar o banco quando o id for malformado", async() => {
+      await expect(service.markAsRead("abc", { user_id: ALUNO_ID })).rejects.toMatchObject({ statusCode: 404 });
+
+      expect(repository.markAsRead).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("markAllAsRead", () => {
+    it("deve devolver quantas notificações foram marcadas", async() => {
+      repository.markAllAsRead.mockResolvedValue(4);
+
+      const resultado = await service.markAllAsRead({ user_id: ALUNO_ID });
+
+      expect(repository.markAllAsRead).toHaveBeenCalledWith(ALUNO_ID);
+      expect(resultado).toEqual({ updated: 4 });
+    });
+  });
 });

@@ -66,6 +66,13 @@ import {
   RankingClassIdParamSchema,
 } from "../schemas/RankingSchema.js";
 import {
+  NotificationPageSchema,
+  NotificationSchema,
+  UnreadCountSchema,
+  MarkAllAsReadSchema,
+  NotificationIdParamSchema,
+} from "../schemas/NotificationSchema.js";
+import {
   TeacherRefSchema,
   StudentRefSchema,
   UserContactRefSchema,
@@ -1474,6 +1481,85 @@ registry.registerPath({
     401: error401Session,
     498: error498Token,
     403: error403,
+  },
+});
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+registry.registerPath({
+  method: "get",
+  path: "/notifications",
+  tags: ["Notifications"],
+  summary: "Notificações do usuário logado",
+  description:
+    "Lista só as notificações de quem está logado, da mais recente para a mais antiga, "
+    + "paginadas com page e limit (padrão 10, máximo 50). Valores inválidos de page ou "
+    + "limit caem no padrão. Notificações com mais de 90 dias são apagadas automaticamente.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      page: z.string().optional().openapi({ example: "1" }),
+      limit: z.string().optional().openapi({ example: "10", description: "Padrão 10, máximo 50." }),
+    }),
+  },
+  responses: {
+    200: commonResponse(NotificationPageSchema, "Página de notificações"),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/notifications/unread-count",
+  tags: ["Notifications"],
+  summary: "Quantidade de notificações não lidas do usuário logado",
+  description:
+    "Rota leve para o contador do sininho: o front pode consultá-la periodicamente "
+    + "sem buscar a lista inteira.",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(UnreadCountSchema, "Quantidade de não lidas"),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/notifications/read-all",
+  tags: ["Notifications"],
+  summary: "Marcar todas as notificações do usuário logado como lidas",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: commonResponse(MarkAllAsReadSchema, "Notificações marcadas como lidas"),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/notifications/{id}/read",
+  tags: ["Notifications"],
+  summary: "Marcar uma notificação como lida (só as do próprio usuário)",
+  description:
+    "Notificação de outro usuário, id inexistente ou id malformado devolvem 404: a API "
+    + "não revela se a notificação existe para outra pessoa. Marcar de novo uma já lida "
+    + "devolve 200.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: NotificationIdParamSchema,
+  },
+  responses: {
+    200: commonResponse(NotificationSchema, "Notificação marcada como lida"),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+    404: errorResponse("Notificação não encontrada", "Recurso não encontrado em Notification."),
   },
 });
 

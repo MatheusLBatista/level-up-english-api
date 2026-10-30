@@ -13,6 +13,7 @@ import attitudeRoutes from "./attitudeRoutes.js";
 import attitudeLogRoutes from "./attitudeLogRoutes.js";
 import rankingRoutes from "./rankingRoutes.js";
 import xpAdjustmentRoutes from "./xpAdjustmentRoutes.js";
+import notificationRoutes from "./notificationRoutes.js";
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ const routes = (app) => {
   app.use(express.json(), attitudeLogRoutes);
   app.use(express.json(), rankingRoutes);
   app.use(express.json(), xpAdjustmentRoutes);
+  app.use(express.json(), notificationRoutes);
 };
 
 export default routes;

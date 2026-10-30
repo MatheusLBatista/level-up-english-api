@@ -12,6 +12,7 @@
     "seed": "node src/seeds/seeds.js",
     "seed:demo": "node src/seeds/demo_seeds.js",
     "migrate:mission-title-index": "node src/migrations/migrate_mission_title_index.js",
+    "migrate:notification-indexes": "node src/migrations/migrate_notification_indexes.js",
     "sync:class-students": "node src/migrations/sync_class_students.js",
     "start": "node server.js",
     "test": "jest --coverage --detectOpenHandles"
