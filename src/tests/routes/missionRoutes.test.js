@@ -998,6 +998,22 @@ describe("Rotas de missões", () => {
       expect(turma.missions.map(String)).not.toContain(String(quiz._id));
     });
 
+    it("deve apagar as notificações de nova missão e manter as de outras missões", async() => {
+      const OUTRA_MISSAO_ID = "507f1f77bcf86cd799439099";
+      await Notification.create([
+        { user: alunoA._id, type: "new_mission", message: "Nova missão", data: { mission: String(quiz._id) } },
+        { user: alunoA._id, type: "new_mission", message: "Outra missão", data: { mission: OUTRA_MISSAO_ID } },
+      ]);
+
+      const res = await request(app)
+        .delete(`/missions/${quiz._id}`)
+        .set("Authorization", await como(profA));
+
+      expect(res.status).toBe(200);
+      expect(await Notification.countDocuments({ "data.mission": String(quiz._id) })).toBe(0);
+      expect(await Notification.countDocuments({ "data.mission": OUTRA_MISSAO_ID })).toBe(1);
+    });
+
     it("deve retornar 403 quando a professora não criou a missão", async() => {
       const res = await request(app)
         .delete(`/missions/${quiz._id}`)

@@ -33,6 +33,11 @@ class NotificationRepository {
     );
   }
 
+  async deleteByMission(missionId) {
+    const result = await this.notificationModel.deleteMany({ "data.mission": String(missionId) });
+    return result.deletedCount;
+  }
+
   async markAllAsRead(userId) {
     const result = await this.notificationModel.updateMany({ user: userId, read: false }, { read: true });
     return result.modifiedCount;

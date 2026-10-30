@@ -112,6 +112,18 @@ describe("NotificationRepository", () => {
     });
   });
 
+  describe("deleteByMission", () => {
+    it("deve apagar as notificações que apontam para a missão e devolver quantas", async() => {
+      const MISSAO_ID = "507f1f77bcf86cd799439031";
+      modelo.deleteMany = jest.fn().mockResolvedValue({ deletedCount: 5 });
+
+      const resultado = await repository.deleteByMission(MISSAO_ID);
+
+      expect(modelo.deleteMany).toHaveBeenCalledWith({ "data.mission": MISSAO_ID });
+      expect(resultado).toBe(5);
+    });
+  });
+
   describe("markAllAsRead", () => {
     it("deve marcar todas as não lidas do usuário e devolver quantas mudaram", async() => {
       modelo.updateMany = jest.fn().mockResolvedValue({ modifiedCount: 4 });

@@ -98,7 +98,7 @@ describe("MissionService", () => {
     UserRepository.mockImplementation(() => userRepository);
     ProgressionService.mockImplementation(() => progressionService);
 
-    notificationService = { notifyNewMission: jest.fn() };
+    notificationService = { notifyNewMission: jest.fn(), removeMissionNotifications: jest.fn() };
     NotificationService.mockImplementation(() => notificationService);
 
     Class.findById.mockResolvedValue({ _id: TURMA_A_ID, teacher: PROF_A_ID });
@@ -842,11 +842,23 @@ describe("MissionService", () => {
       expect(repository.delete).toHaveBeenCalledWith(MISSION_ID);
     });
 
+    it("deve remover as notificações da missão depois de excluí-la", async() => {
+      repository.delete.mockResolvedValue({ _id: MISSION_ID });
+
+      await service.delete(MISSION_ID, { user_id: PROF_A_ID });
+
+      expect(notificationService.removeMissionNotifications).toHaveBeenCalledWith(MISSION_ID);
+      const ordemExclusao = repository.delete.mock.invocationCallOrder[0];
+      const ordemNotificacoes = notificationService.removeMissionNotifications.mock.invocationCallOrder[0];
+      expect(ordemExclusao).toBeLessThan(ordemNotificacoes);
+    });
+
     it("deve lançar 403 quando a professora não criou a missão", async() => {
       const erro = await capturarErro(service.delete(MISSION_ID, { user_id: PROF_B_ID }));
 
       expect(erro.statusCode).toBe(403);
       expect(erro.customMessage).toBe("Você só pode excluir missões que criou.");
+      expect(notificationService.removeMissionNotifications).not.toHaveBeenCalled();
       expect(repository.delete).not.toHaveBeenCalled();
       expect(Class.findByIdAndUpdate).not.toHaveBeenCalled();
     });

@@ -177,7 +177,11 @@ class MissionService {
       $pull: { missions: mission._id },
     });
 
-    return await this.repository.delete(id);
+    const deleted = await this.repository.delete(id);
+
+    await this.notificationService.removeMissionNotifications(mission._id);
+
+    return deleted;
   }
 
   async submitProgress(missionId, parsedData, req) {

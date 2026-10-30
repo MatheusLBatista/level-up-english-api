@@ -105,6 +105,15 @@ class NotificationService {
     );
   }
 
+  async removeMissionNotifications(missionId) {
+    try {
+      return await this.repository.deleteByMission(missionId);
+    } catch (error) {
+      logger.error(`Falha ao remover as notificações da missão ${missionId}: ${error.message}`);
+      return 0;
+    }
+  }
+
   async list(req) {
     const page = positiveInt(req.query?.page, 1);
     const limit = Math.min(positiveInt(req.query?.limit, DEFAULT_LIMIT), MAX_LIMIT);

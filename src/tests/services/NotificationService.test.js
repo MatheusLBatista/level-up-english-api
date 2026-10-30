@@ -278,6 +278,26 @@ describe("NotificationService", () => {
     });
   });
 
+  describe("removeMissionNotifications", () => {
+    it("deve apagar as notificações da missão", async() => {
+      repository.deleteByMission.mockResolvedValue(3);
+
+      const resultado = await service.removeMissionNotifications(MISSAO_ID);
+
+      expect(repository.deleteByMission).toHaveBeenCalledWith(MISSAO_ID);
+      expect(resultado).toBe(3);
+    });
+
+    it("não deve lançar erro quando a remoção falhar, só registrar no log", async() => {
+      repository.deleteByMission.mockRejectedValue(new Error("banco fora do ar"));
+
+      const resultado = await service.removeMissionNotifications(MISSAO_ID);
+
+      expect(resultado).toBe(0);
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("banco fora do ar"));
+    });
+  });
+
   describe("list", () => {
     const pagina = { docs: [], totalDocs: 0 };
 
