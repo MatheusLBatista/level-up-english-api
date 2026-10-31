@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.19 — complementa o [Plano de Teste](planoTeste.md) v3.10_
+_versão 2.20 — complementa o [Plano de Teste](planoTeste.md) v3.11_
 
 ## Histórico das alterações
 
@@ -29,6 +29,7 @@ _versão 2.19 — complementa o [Plano de Teste](planoTeste.md) v3.10_
 | 16/10/2026 | 2.17   | Token expirado e token inválido exercitados em rota: `CT-AUTH-012` automatizado e caso `CT-AUTH-051`; o `AuthMiddleware` fica sem linha descoberta | Matheus Lucas |
 | 16/10/2026 | 2.18   | Célula restritiva do `GET /attitude-logs/{id}` exercitada: `CT-PERM-033` automatizado e a matriz de permissões fica completa | Matheus Lucas |
 | 29/10/2026 | 2.19   | Limite de caracteres das perguntas (`CT-MISSION-043` a `047`), desempenho por tipo de missão para o radar (RF-015, `CT-XP-040` a `049`), saída do ranking global (`CT-RANK-009` a `012`) e notificações (RF-016, nova seção 8 com `CT-NOTIF-001` a `019`); `CT-PERM-043` a `047`; as seções seguintes passam a 9 a 12 | Matheus Lucas |
+| 31/10/2026 | 2.20   | Foto de perfil (`PATCH` e `DELETE /users/{id}/avatar`, RF-017): casos `CT-USER-038` a `057`; `CT-PERM-049` e `050`, e `CT-PERM-048` para o `POST /auth/register-teacher`, que estava fora da matriz | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -177,6 +178,26 @@ Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O
 | CT-USER-035  | Professor exclui aluno sem turma     | `profA` excluindo `semTurma`                                            | 403 com a mesma mensagem do CT-USER-034; o aluno segue na base                            | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-036  | Busca por nome com caractere especial | `GET /users?name=Ana.` como admin, com `Ana.` e `Anax` cadastrados     | 200 apenas com `Ana.` — o ponto é texto literal, não "qualquer caractere"; a busca parcial comum segue funcionando | RF-001 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
 | CT-USER-037  | Busca com parêntese sem par          | `GET /users?name=Ana (` como admin                                      | 200 com lista vazia, e não 500 por regex inválida                                         | RF-001 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-038  | Aluno envia a própria foto           | `PATCH /users/{alunoA}/avatar` como `alunoA`, PNG 400×300 no campo `avatar` | 200, "Avatar updated successfully."; `avatar_url` no formato `/uploads/avatars/{id}-{timestamp}.webp`, gravado no usuário, e o arquivo no disco é WebP 256×256 | RF-017 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-039  | Troca da foto apaga a anterior       | duas fotos seguidas do `alunoA`                                         | URLs diferentes; o arquivo da primeira some do disco e o da segunda fica                  | RF-017 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-040  | Banco atualizado antes do disco      | troca de foto em que apagar o arquivo antigo falha                      | a troca conclui com a URL nova; a foto antiga só é apagada depois de o banco ser atualizado, e a falha só é registrada em log | RF-017 | Unit | `services/UserService` | ✅ |
+| CT-USER-041  | Admin troca a foto de outro usuário  | `PATCH /users/{alunoA}/avatar` como `admin`                             | 200                                                                                       | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-042  | Professor troca a foto de um aluno   | `PATCH /users/{alunoA}/avatar` como `profA`                             | 403, "You do not have permission to update another user's avatar."; `avatar_url` segue nulo | RF-011 | Int | `routes/userRoutes`   | ✅       |
+| CT-USER-043  | Arquivo que finge ser imagem         | `image/png` no rótulo, mas o conteúdo é texto                           | 400, "O arquivo enviado não é uma imagem válida ou é grande demais."; nada gravado no usuário nem no disco | RF-017 | Int | `routes/userRoutes`, `utils/AvatarImage` | ✅ |
+| CT-USER-044  | Tipo de arquivo não permitido        | `application/pdf` no campo `avatar`                                     | 400, "A foto deve ser JPEG, PNG ou WebP." — JPEG, PNG e WebP passam                        | RF-017 | Int   | `middlewares/AvatarUploadMiddleware` | ✅ |
+| CT-USER-045  | Foto acima de 2 MB                   | arquivo com 2 MB + 1 byte                                               | 413, "A foto deve ter no máximo 2 MB."                                                    | RF-017 | Int   | `middlewares/AvatarUploadMiddleware` | ✅ |
+| CT-USER-046  | Envio fora do campo `avatar`         | arquivo em outro campo; multipart sem arquivo; corpo JSON               | 400, "Envie apenas um arquivo, no campo \"avatar\"." no primeiro e "Envie a foto no campo \"avatar\"." no segundo; 400 também no terceiro | RF-017 | Int | `middlewares/AvatarUploadMiddleware` | ✅ |
+| CT-USER-047  | Imagem pequena em bytes, enorme em pixels | arquivo leve acima de 25 milhões de pixels                         | 400 sem decodificar a imagem inteira — protege a memória do servidor                      | RF-017 | Unit  | `utils/AvatarImage`   | ✅       |
+| CT-USER-048  | Metadados da foto descartados        | JPEG com EXIF                                                           | WebP sem EXIF — dados da câmera e localização não chegam a quem abre a foto               | RF-017 | Unit  | `utils/AvatarImage`   | ✅       |
+| CT-USER-049  | `avatar_url` pelo `PATCH` comum      | `PATCH /users/{próprio id}` com `{ avatar_url: "https://site-malicioso.com/x.png" }` | o campo é descartado e `avatar_url` segue nulo — a foto só muda pela rota de upload | RF-011 | Int | `routes/userRoutes`   | ✅       |
+| CT-USER-050  | Exclusão do usuário apaga a foto     | `DELETE /users/{alunoA}` como `admin`, com foto enviada                 | 200 e o arquivo da foto some do disco; se a exclusão for proibida, o arquivo fica          | RF-017 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-051  | Aluno remove a própria foto          | `DELETE /users/{alunoA}/avatar` como `alunoA`                           | 200, "Avatar removed successfully."; `avatar_url: null` na resposta e no banco, e o arquivo some do disco | RF-017 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-052  | Admin remove a foto de outro usuário | `DELETE /users/{alunoA}/avatar` como `admin`                            | 200 e `avatar_url` nulo no banco                                                          | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-053  | Professor remove a foto de um aluno  | `DELETE /users/{alunoA}/avatar` como `profA`                            | 403; a URL e o arquivo continuam                                                          | RF-011 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-054  | Remoção sem foto                     | `DELETE /users/{alunoA}/avatar` sem foto enviada                        | 200 com `avatar_url: null`; nada é gravado                                                | RF-017 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-055  | Remoção em usuário inexistente       | id válido que não existe, como `admin`                                  | 404                                                                                       | RF-017 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-056  | Entrega pública da foto              | `GET /uploads/avatars/{arquivo}` sem token                              | 200 `image/webp`, `Cross-Origin-Resource-Policy: cross-origin` e `Cache-Control: public, max-age=604800` | RF-017 | Int | `middlewares/UploadsStaticMiddleware` | ✅ |
+| CT-USER-057  | Arquivo inexistente, oculto ou pasta | `GET /uploads/avatars/nao-existe.webp`, `/.secreto` e `/uploads/avatars/` | 404 nos três — não revela arquivo oculto nem lista a pasta                              | RF-017 | Int   | `middlewares/UploadsStaticMiddleware` | ✅ |
 
 ---
 
@@ -480,8 +501,11 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-045  | `GET /notifications/unread-count` | 200 (só as próprias)            | 200 (só as próprias)                 | 200 (só as próprias) | `routes/notificationRoutes` | ✅ |
 | CT-PERM-046  | `PATCH /notifications/read-all`   | 200 (só as próprias)            | 200 (só as próprias)                 | 200 (só as próprias) | `routes/notificationRoutes` | ✅ |
 | CT-PERM-047  | `PATCH /notifications/{id}/read`  | 200 própria / 404 de outro      | 200 própria / 404 de outro           | 200 própria / 404 de outro | `routes/notificationRoutes` | ✅ |
+| CT-PERM-048  | `POST /auth/register-teacher`     | 403                             | 403                                  | 201   | `routes/authRoutes`         | ✅       |
+| CT-PERM-049  | `PATCH /users/{id}/avatar`        | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
+| CT-PERM-050  | `DELETE /users/{id}/avatar`       | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
 
-**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida, e as cinco linhas novas da v2.19 entraram completas. As rotas de notificação não restringem papel — o que restringe é a posse, sempre pelo usuário do token —, e a célula restritiva do `CT-PERM-047` é o 404 do `CT-NOTIF-015`. A última célula restritiva a ser coberta antes delas foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
+**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida, e as cinco linhas novas da v2.19 entraram completas. Na v2.20 a matriz passou a ter uma linha para cada uma das 49 operações do Swagger: entraram as duas rotas da foto de perfil e o `POST /auth/register-teacher`, que existia desde a v2.6 com a célula restritiva coberta pelo `CT-AUTH-030`, mas não tinha linha aqui. As rotas de notificação não restringem papel — o que restringe é a posse, sempre pelo usuário do token —, e a célula restritiva do `CT-PERM-047` é o 404 do `CT-NOTIF-015`. A última célula restritiva a ser coberta antes delas foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
 
 ---
 
@@ -537,21 +561,21 @@ O `CT-BADGE-001` (badge no primeiro login) e o `CT-BADGE-002` (badge ao atingir 
 
 ## 12 - Resumo
 
-Situação em 29/10/2026, com a suíte em **68 arquivos de teste e 1483 testes**, executando em cerca de 8 a 12 segundos.
+Situação em 31/10/2026, com a suíte em **68 arquivos de teste e 1483 testes**, executando em cerca de 8 a 12 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
 | Autenticação e sessão         | `CT-AUTH`    | 51    | 51               | 0            |
-| Usuários                      | `CT-USER`    | 37    | 37               | 0            |
+| Usuários                      | `CT-USER`    | 57    | 57               | 0            |
 | Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
 | Missões                       | `CT-MISSION` | 47    | 47               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 49    | 49               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
 | Ranking                       | `CT-RANK`    | 12    | 12               | 0            |
 | Notificações                  | `CT-NOTIF`   | 19    | 19               | 0            |
-| Matriz de permissões          | `CT-PERM`    | 47    | 47               | 0            |
+| Matriz de permissões          | `CT-PERM`    | 50    | 50               | 0            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **318** | **314 (98,7%)** | **4**        |
+| **Total**                     | -            | **341** | **337 (98,8%)** | **4**        |
 
 O caso bloqueado da seção 11 não entra nesta contagem.
 
