@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.10_
+_versão 3.11_
 
 ## Histórico das alterações
 
@@ -21,6 +21,7 @@ _versão 3.10_
 | 16/10/2026 | 3.8    | `CT-AUTH-012` automatizado e caso `CT-AUTH-051` (token inválido); o `AuthMiddleware` chega a 100% e o `if (!decoded)` inalcançável é removido | Matheus Lucas |
 | 16/10/2026 | 3.9    | `CT-PERM-033` automatizado: a matriz de permissões fica completa e só os fluxos ponta a ponta seguem pendentes | Matheus Lucas |
 | 29/10/2026 | 3.10   | RF-015 (desempenho por tipo de missão, para o radar) e RF-016 (notificações); RF-004 com o limite de caracteres das perguntas e RF-007 com a saída do ranking global; seção 4 alinhada à seção 12 do catálogo (318 casos, 314 automatizados); seções 6, 7 e 10 medidas de novo | Matheus Lucas |
+| 31/10/2026 | 3.11   | RF-017 (foto de perfil); seção 2 alinhada à API atual (9 domínios, 33 caminhos e 49 operações, com notificações, desempenho e upload); RNF-005 com as 49 operações; seção 4 alinhada à seção 12 do catálogo (341 casos, 337 automatizados) | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -34,26 +35,27 @@ O escopo desta versão é a API REST. O front-end e a integração com ele ficam
 
 A aplicação é construída em uma arquitetura modular em camadas, utilizando Node.js, Express 5, MongoDB com Mongoose, Zod para validação de dados, JWT para autenticação e Swagger (zod-to-openapi) para documentação.
 
-São **8 domínios**, expostos em **27 caminhos** e **42 operações** documentadas em `/api-docs`.
+São **9 domínios**, expostos em **33 caminhos** e **49 operações** documentadas em `/api-docs`.
 
 ### Camadas
 
 - **Routes**: definem os endpoints, declaram quem pode chamá-los e direcionam para os controllers.
   - `authRoutes.js`: autenticação e gestão de sessão
-  - `userRoutes.js`: gerenciamento de usuários e histórico de XP do aluno
+  - `userRoutes.js`: gerenciamento de usuários, foto de perfil, histórico de XP e desempenho do aluno
   - `classRoutes.js`: gerenciamento de turmas
   - `missionRoutes.js`: gerenciamento de missões e submissão de progresso
   - `attitudeRoutes.js`: catálogo de atitudes
   - `attitudeLogRoutes.js`: atitudes aplicadas a alunos
   - `rankingRoutes.js`: ranking global e por turma
   - `xpAdjustmentRoutes.js`: ajuste manual de XP pelo professor
+  - `notificationRoutes.js`: notificações do usuário logado
 
 - **Controllers**: validam o corpo da requisição com Zod e chamam o service correspondente.
-  - `AuthController`, `UserController`, `ClassController`, `MissionController`, `AttitudeController`, `AttitudeLogController`, `RankingController`, `XpAdjustmentController`, `XpHistoryController`
+  - `AuthController`, `UserController`, `ClassController`, `MissionController`, `AttitudeController`, `AttitudeLogController`, `RankingController`, `XpAdjustmentController`, `XpHistoryController`, `PerformanceController`, `NotificationController`
 
 - **Services**: concentram as regras de negócio e a verificação de posse do recurso.
   - `AuthService`: login, refresh rotation, recuperação e troca de senha
-  - `UserService`: validação de e-mail, permissões de criação/edição/exclusão
+  - `UserService`: validação de e-mail, permissões de criação/edição/exclusão, troca e remoção da foto de perfil
   - `ClassService`: turmas, visibilidade por papel, posse do professor
   - `MissionService`: missões, correção do quiz, ocultação do gabarito
   - `AttitudeService` / `AttitudeLogService`: catálogo de atitudes e aplicação de XP
@@ -61,12 +63,14 @@ São **8 domínios**, expostos em **27 caminhos** e **42 operações** documenta
   - `XpAdjustmentService`: ajuste manual de XP, com posse do professor e histórico de auditoria
   - `XpHistoryService`: linha do tempo do XP do aluno (atitudes, ajustes e missões), paginada em memória
   - `ProgressionService`: aplica XP, recalcula o nível e atualiza os rankings; no ajuste manual, com piso em 0 XP
+  - `PerformanceService`: média das melhores notas por tipo de missão, comparada à da turma, para o radar
+  - `NotificationService`: cria, lista e marca como lidas as notificações; os textos de cada aviso ficam nos métodos `notify*`
 
 - **Repositories**: acessam o MongoDB, isolando a persistência.
   - Paginação com `mongoose-paginate-v2`, populate de referências e filtros dedicados (`repository/filters/`)
 
 - **Models**: definem os schemas das entidades.
-  - `User` (role, xp, level, mission_progress, badges, streak, active), `Class`, `Mission`, `Attitude`, `AttitudeLog`, `XpAdjustment`, `Ranking`
+  - `User` (role, xp, level, mission_progress, avatar_url, badges, streak, active), `Class`, `Mission`, `Attitude`, `AttitudeLog`, `XpAdjustment`, `Ranking`, `Notification`
 
 - **Schemas (validação)**: regras de entrada e contratos de saída em Zod, reaproveitados pelo Swagger.
 
@@ -76,6 +80,10 @@ São **8 domínios**, expostos em **27 caminhos** e **42 operações** documenta
   - `asyncWrapper`: captura erros de handlers assíncronos
   - `LogRoutesMiddleware`: log de requisições quando `DEBUGLOG` está ligado
   - `RateLimitMiddleware`: limita as tentativas de login, `forgot-password` e `reset-password` (RNF-007)
+  - `AvatarUploadMiddleware`: recebe a foto em memória, só JPEG, PNG ou WebP e até 2 MB
+  - `UploadsStaticMiddleware`: serve as fotos em `/uploads`, sem token, liberadas para outra origem e com cache de 7 dias
+
+- **Armazenamento da foto**: `AvatarImage` converte para WebP 256×256 sem metadados, e `LocalDiskStorage` grava no disco do servidor atrás de uma interface (`save`, `delete`, `getUrl`, `keyFromUrl`) que permite trocar por outro armazenamento sem mexer no service.
 
 ### Regra de autorização
 
@@ -109,6 +117,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-014 | Histórico de XP                | O aluno vê de onde veio o próprio XP — atitudes, ajustes manuais e missões —, com o valor efetivamente aplicado, do mais recente ao mais antigo e paginado. O professor vê o dos alunos das turmas dele; o admin, o de qualquer aluno. | Essencial     | Implementado    |
 | RF-015 | Desempenho por Tipo de Missão  | O aluno vê a média das melhores notas por tipo de missão (quiz, vocabulário e áudio), para o gráfico de radar, comparada à média dos alunos ativos da turma e com filtro opcional por período de conclusão. Mesma regra de acesso do RF-014. | Não Essencial | Implementado    |
 | RF-016 | Notificações                   | O aluno é avisado de atitude aplicada, corrigida ou desfeita, de ajuste manual de XP e de missão nova na turma, com o XP aplicado de fato e a mudança de nível. Ele lista as próprias notificações, vê quantas não leu e marca uma ou todas como lidas; as notificações são apagadas após 90 dias. | Não Essencial | Implementado    |
+| RF-017 | Foto de Perfil                 | O usuário envia a própria foto (JPEG, PNG ou WebP, até 2 MB), que o servidor converte para WebP 256×256 sem metadados e entrega em `/uploads`. Ele pode trocá-la ou removê-la, e a foto antiga sai do disco; o admin troca ou remove a de qualquer usuário. | Não Essencial | Implementado    |
 
 `RF-009` é atendido no frontend, e o backend não persiste conquistas: o campo `badges` do model segue sem uso. Como as conquistas são derivadas do progresso de missão e não alteram XP nem ranking, gravá-las seria duplicar um dado que a API já entrega. Nenhuma conquista regride, e por isso não há conquista de nível — o nível pode cair com uma atitude negativa. O `streak` fica como trabalho futuro: faltam o campo `last_activity_at` no model e a regra de atualização, e o caso correspondente segue **bloqueado** no catálogo, e não como falha.
 
@@ -120,7 +129,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | Parcial — limite aplicado nos 5 repositórios; o p95 ainda não foi medido |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
-| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,93% de linhas e as 47 operações exercitadas por teste de integração (ver seção 7) |
+| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,93% de linhas e as 49 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Fora do escopo desta versão     |
 | RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
 
@@ -133,20 +142,20 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Módulo                        | Prefixo      | Casos | Requisitos cobertos         |
 | ----------------------------- | ------------ | ----- | --------------------------- |
 | Autenticação e sessão         | `CT-AUTH`    | 51    | RF-001, RF-002, RF-010, RF-011, RNF-007 |
-| Usuários                      | `CT-USER`    | 37    | RF-001, RF-006, RF-011      |
+| Usuários                      | `CT-USER`    | 57    | RF-001, RF-006, RF-011, RF-017 |
 | Turmas                        | `CT-CLASS`   | 28    | RF-003, RF-011              |
 | Missões                       | `CT-MISSION` | 47    | RF-004, RF-011, RF-012      |
 | Progressão de XP e nível      | `CT-XP`      | 49    | RF-005, RF-006, RF-011, RF-013, RF-014, RF-015 |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | RF-008, RF-011              |
 | Ranking                       | `CT-RANK`    | 12    | RF-007, RF-011              |
 | Notificações                  | `CT-NOTIF`   | 19    | RF-011, RF-016              |
-| Matriz de permissões          | `CT-PERM`    | 47    | RF-011                      |
+| Matriz de permissões          | `CT-PERM`    | 50    | RF-011                      |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
-| **Total**                     | -            | **318** | -                         |
+| **Total**                     | -            | **341** | -                         |
 
 Além destes, 1 caso fica **bloqueado** enquanto o streak não existir (seção 11 do catálogo).
 
-**Situação em 29/10/2026: 314 dos 318 casos estão automatizados (98,7%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 12 do catálogo.
+**Situação em 31/10/2026: 337 dos 341 casos estão automatizados (98,8%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 12 do catálogo.
 
 A matriz `CT-PERM` cobre uma linha por operação da API, com o status esperado para cada um dos três papéis. Ela é a rede de segurança contra regressão de permissão: qualquer rota nova entra ali antes de ser considerada pronta.
 
