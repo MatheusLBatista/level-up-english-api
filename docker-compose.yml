@@ -6,7 +6,7 @@ services:
     volumes:
       - vol-mongodb:/data/db
     ports:
-      - 27018:27017
+      - 127.0.0.1:27018:27017
   api:
     container_name: level-up-english-api
     build: ./
