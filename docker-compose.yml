@@ -3,6 +3,7 @@ services:
   mongodb:
     container_name: level-up-english-db
     image: mongo:8
+    restart: unless-stopped
     volumes:
       - vol-mongodb:/data/db
     ports:
@@ -15,7 +16,7 @@ services:
       - DB_URL=mongodb://mongodb:27017/level-up-english
     depends_on:
       - mongodb
-    restart: on-failure
+    restart: unless-stopped
     ports:
       - 5011:5011
     volumes:
