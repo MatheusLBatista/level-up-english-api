@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.12_
+_versão 3.13_
 
 ## Histórico das alterações
 
@@ -23,6 +23,7 @@ _versão 3.12_
 | 29/10/2026 | 3.10   | RF-015 (desempenho por tipo de missão, para o radar) e RF-016 (notificações); RF-004 com o limite de caracteres das perguntas e RF-007 com a saída do ranking global; seção 4 alinhada à seção 12 do catálogo (318 casos, 314 automatizados); seções 6, 7 e 10 medidas de novo | Matheus Lucas |
 | 31/10/2026 | 3.11   | RF-017 (foto de perfil); seção 2 alinhada à API atual (9 domínios, 33 caminhos e 49 operações, com notificações, desempenho e upload); RNF-005 com as 49 operações; seção 4 alinhada à seção 12 do catálogo (341 casos, 337 automatizados) | Matheus Lucas |
 | 09/11/2026 | 3.12   | Streak retirado do escopo do RF-009 e removido da API, por nunca ter tido regra que o alimentasse; RF-009 passa a Implementado e o streak fica como trabalho futuro | Matheus Lucas |
+| 09/11/2026 | 3.13   | RNF-002 atendido com o p95 medido na VM de produção; RNF-006 implementado, com backup diário e plano de recuperação; seções 1 e 10 alinhadas ao projeto atual (frontend e pipeline existem) | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -30,7 +31,7 @@ O LevelUp English é uma plataforma de gamificação para aprendizado de inglês
 
 Este plano descreve a estratégia, os níveis, o ambiente e os critérios de aceitação dos testes aplicados à API. Os cenários em si estão catalogados no documento complementar [casosDeTeste.md](casosDeTeste.md), que é a lista executável — este documento diz **como e por que** testar, o outro diz **o quê**.
 
-O escopo desta versão é a API REST. O front-end e a integração com ele ficam fora, e serão tratados quando existirem.
+O escopo deste plano é a API REST. O front-end fica em repositório próprio, com testes próprios, e não é coberto aqui.
 
 ## 2 - Arquitetura da API
 
@@ -127,14 +128,44 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | Código  | Nome              | Descrição                                                                                                                     | Situação                        |
 | ------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
 | RNF-001 | Segurança         | JWT para autenticação, senhas com bcrypt, cabeçalhos com helmet, CORS e rate limiting.                                          | Implementado — rate limiting detalhado no RNF-007 |
-| RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | Parcial — limite aplicado nos 5 repositórios; o p95 ainda não foi medido |
+| RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | **Atendido** — limite aplicado nos 5 repositórios e p95 de até 33,38 ms na VM de produção (detalhe abaixo) |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
 | RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,93% de linhas e as 49 operações exercitadas por teste de integração (ver seção 7) |
-| RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Fora do escopo desta versão     |
+| RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Implementado — backup diário e plano de recuperação (detalhe abaixo) |
 | RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
 
 `RNF-007` guarda os contadores em memória: um restart ou deploy da API os zera, e com mais de uma instância cada uma contaria separado. Para a escala do projeto, com uma instância, é aceitável; o passo seguinte seria um store compartilhado (Redis ou o próprio MongoDB).
+
+#### Medição do RNF-002
+
+Medido em 09/11/2026 com o k6 (`documentacao/testes/carga/p95.js`), contra a API pública em HTTPS. A API e o MongoDB rodam na mesma VM, com 2 vCPU e 4 GB de memória, e o k6 rodou em uma máquina externa, de modo que o tempo inclui a rede. A carga foi de 40 usuários simultâneos, o tamanho de uma turma, por 4 minutos (30 s de subida, 3 min estáveis e 30 s de descida), com 1 a 3 s de pausa entre as requisições e um em cada dez usuários no papel de professor. O banco continha os dados de demonstração, com 30 usuários.
+
+| Endpoint                          | p95      | Limite |
+| --------------------------------- | -------- | ------ |
+| `GET /users`                      | 33,38 ms | 500 ms |
+| `GET /rankings/me`                | 29,59 ms | 500 ms |
+| `GET /missions`                   | 29,16 ms | 500 ms |
+| `GET /classes`                    | 28,89 ms | 500 ms |
+| `GET /rankings/global`            | 28,04 ms | 500 ms |
+| `GET /users/{id}`                 | 25,93 ms | 500 ms |
+| `GET /notifications/unread-count` | 22,73 ms | 500 ms |
+
+Foram 4.287 requisições, sem nenhuma falha. A medição cobre as leituras mais frequentes: o login fica fora porque o bcrypt é lento por design e o rate limit barraria a repetição, e a submissão de missão fica fora porque alteraria XP e ranking em produção. Com um banco maior, os tempos podem subir.
+
+#### Backup e recuperação (RNF-006)
+
+O `scripts/backup-mongo.sh` roda todo dia às 3h pelo cron da VM. Ele gera em `~/backups` um dump do banco e um arquivo com as fotos de perfil, só publica arquivos que passaram na verificação de integridade e mantém os últimos 7 dias. Em 09/11/2026, o backup foi restaurado em um container separado: 439 documentos, nenhuma falha, índices recriados e a mesma contagem de usuários do banco original.
+
+Para recuperar, na pasta do projeto na VM, escolhendo os arquivos em `~/backups`:
+
+1. Parar a API: `docker compose stop api`.
+2. Restaurar o banco, substituindo as coleções: `docker exec -i level-up-english-db mongorestore --archive --gzip --drop < ARQUIVO_DB`.
+3. Subir a API: `docker compose start api`.
+4. Restaurar as fotos: `docker exec -i level-up-english-api tar -xzf - -C /node-app < ARQUIVO_UPLOADS`.
+5. Conferir `GET /` e um login.
+
+Limitação: os backups ficam no disco da própria VM, então protegem contra perda de dados e erro de operação, mas não contra a perda da VM.
 
 ## 4 - Casos de Teste
 
@@ -390,12 +421,10 @@ A ordem de criticidade dos módulos na fase de integração é: **auth → permi
 
 ### O que continua aberto
 
-A suíte fecha o RNF-005, mas três frentes de teste seguem em aberto, em ordem de risco:
+A suíte fecha o RNF-005, mas duas frentes de teste seguem em aberto, em ordem de risco:
 
 1. **Os quatro fluxos `CT-E2E`.** É o nível que prova que os módulos se compõem, e o único ainda vazio.
 2. **`app.js` e `routes/index.js` sem cobertura**, pelo motivo descrito na seção 6 — handler 404, cabeçalhos de segurança e ordem de montagem nunca são exercitados.
-3. **Nenhuma execução automática.** Não existe `.gitlab-ci.yml`: a suíte só roda na máquina do desenvolvedor, por disciplina. Enquanto for assim, o item 6 da Definição de Pronto ("não derruba a cobertura da `main`") depende de alguém lembrar de rodar.
-
 ## 11 - Referências
 
 - [Jest](https://jestjs.io/docs/getting-started)
