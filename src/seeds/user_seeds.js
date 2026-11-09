@@ -47,9 +47,7 @@ async function userSeeds() {
       xp: globalFakeMapping.xp(),
       level: globalFakeMapping.level(),
       mission_progress: globalFakeMapping.mission_progress(),
-      // streak e badges (RF-009) ficam no default do model — 0 e lista vazia.
-      // Nenhuma regra os alimenta, então semeá-los produziria número que a
-      // aplicação não sabe explicar.
+      // badges (RF-009) fica no default do model: lista vazia.
       active: globalFakeMapping.active(),
     });
   }

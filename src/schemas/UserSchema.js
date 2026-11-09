@@ -53,10 +53,6 @@ export const UserSchema = z
       description:
         "Histórico de submissões do aluno, uma entrada por missão. Alimenta a tela de progresso.",
     }),
-    streak: z.number().openapi({
-      example: 0,
-      description: "Campo previsto no RF-009. Nenhuma regra o alimenta hoje: é sempre 0.",
-    }),
     badges: z.array(z.string()).openapi({
       example: [],
       description: "Campo previsto no RF-009. Nenhuma regra o alimenta hoje: é sempre uma lista vazia.",
@@ -98,7 +94,6 @@ export const CreateUserBodySchema = z
 export const UpdateUserBodySchema = z
   .object({
     name: z.string().optional().openapi({ example: "John Doe Updated" }),
-    streak: z.number().optional().openapi({ example: 5 }),
     badges: z.array(z.string()).optional().openapi({ example: ["first_login"] }),
     active: z.boolean().optional().openapi({
       example: true,

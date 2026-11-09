@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.11_
+_versão 3.12_
 
 ## Histórico das alterações
 
@@ -22,6 +22,7 @@ _versão 3.11_
 | 16/10/2026 | 3.9    | `CT-PERM-033` automatizado: a matriz de permissões fica completa e só os fluxos ponta a ponta seguem pendentes | Matheus Lucas |
 | 29/10/2026 | 3.10   | RF-015 (desempenho por tipo de missão, para o radar) e RF-016 (notificações); RF-004 com o limite de caracteres das perguntas e RF-007 com a saída do ranking global; seção 4 alinhada à seção 12 do catálogo (318 casos, 314 automatizados); seções 6, 7 e 10 medidas de novo | Matheus Lucas |
 | 31/10/2026 | 3.11   | RF-017 (foto de perfil); seção 2 alinhada à API atual (9 domínios, 33 caminhos e 49 operações, com notificações, desempenho e upload); RNF-005 com as 49 operações; seção 4 alinhada à seção 12 do catálogo (341 casos, 337 automatizados) | Matheus Lucas |
+| 09/11/2026 | 3.12   | Streak retirado do escopo do RF-009 e removido da API, por nunca ter tido regra que o alimentasse; RF-009 passa a Implementado e o streak fica como trabalho futuro | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -70,7 +71,7 @@ São **9 domínios**, expostos em **33 caminhos** e **49 operações** documenta
   - Paginação com `mongoose-paginate-v2`, populate de referências e filtros dedicados (`repository/filters/`)
 
 - **Models**: definem os schemas das entidades.
-  - `User` (role, xp, level, mission_progress, avatar_url, badges, streak, active), `Class`, `Mission`, `Attitude`, `AttitudeLog`, `XpAdjustment`, `Ranking`, `Notification`
+  - `User` (role, xp, level, mission_progress, avatar_url, badges, active), `Class`, `Mission`, `Attitude`, `AttitudeLog`, `XpAdjustment`, `Ranking`, `Notification`
 
 - **Schemas (validação)**: regras de entrada e contratos de saída em Zod, reaproveitados pelo Swagger.
 
@@ -109,7 +110,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-006 | Sistema de XP e Nível          | O XP é proporcional ao score sobre o `xp_reward` e paga apenas a diferença do melhor desempenho. O nível segue curva quadrática.     | Essencial     | Implementado    |
 | RF-007 | Ranking Global e por Turma     | Ranking dos 30 melhores por XP, global e por turma, recalculado a cada mudança de XP. O aluno pode sair do ranking global, e a mudança vale na hora; ele continua no ranking da turma. | Essencial     | Implementado    |
 | RF-008 | Registro de Atitudes           | Professor aplica atitudes positivas e negativas a alunos das turmas dele, creditando ou descontando XP; desfazer estorna o XP.       | Essencial     | Implementado    |
-| RF-009 | Gerenciamento de Badges        | O aluno vê conquistas por marcos de progresso — missões concluídas, missões com nota 100% e XP ganho em missões —, calculadas no frontend a partir do `mission_progress` que já vem no `GET /users/{id}`. O streak não foi implementado. | Não Essencial | Parcial         |
+| RF-009 | Gerenciamento de Badges        | O aluno vê conquistas por marcos de progresso — missões concluídas, missões com nota 100% e XP ganho em missões —, calculadas no frontend a partir do `mission_progress` que já vem no `GET /users/{id}`. | Não Essencial | Implementado    |
 | RF-010 | Autenticação por Refresh Token | Refresh token rotation para renovar a sessão sem novo login, com o token vigente conferido no banco.                                  | Essencial     | Implementado    |
 | RF-011 | Controle de Acesso             | Papel declarado na rota e posse do recurso conferida no service; conta desativada perde acesso mesmo com token válido.                | Essencial     | Implementado    |
 | RF-012 | Sigilo do Gabarito             | O aluno recebe a missão sem `questions[].correct_answer`; o gabarito fica restrito a teacher e admin.                                 | Essencial     | Implementado    |
@@ -119,7 +120,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-016 | Notificações                   | O aluno é avisado de atitude aplicada, corrigida ou desfeita, de ajuste manual de XP e de missão nova na turma, com o XP aplicado de fato e a mudança de nível. Ele lista as próprias notificações, vê quantas não leu e marca uma ou todas como lidas; as notificações são apagadas após 90 dias. | Não Essencial | Implementado    |
 | RF-017 | Foto de Perfil                 | O usuário envia a própria foto (JPEG, PNG ou WebP, até 2 MB), que o servidor converte para WebP 256×256 sem metadados e entrega em `/uploads`. Ele pode trocá-la ou removê-la, e a foto antiga sai do disco; o admin troca ou remove a de qualquer usuário. | Não Essencial | Implementado    |
 
-`RF-009` é atendido no frontend, e o backend não persiste conquistas: o campo `badges` do model segue sem uso. Como as conquistas são derivadas do progresso de missão e não alteram XP nem ranking, gravá-las seria duplicar um dado que a API já entrega. Nenhuma conquista regride, e por isso não há conquista de nível — o nível pode cair com uma atitude negativa. O `streak` fica como trabalho futuro: faltam o campo `last_activity_at` no model e a regra de atualização, e o caso correspondente segue **bloqueado** no catálogo, e não como falha.
+`RF-009` é atendido no frontend, e o backend não persiste conquistas: o campo `badges` do model segue sem uso. Como as conquistas são derivadas do progresso de missão e não alteram XP nem ranking, gravá-las seria duplicar um dado que a API já entrega. Nenhuma conquista regride, e por isso não há conquista de nível — o nível pode cair com uma atitude negativa. O `streak` saiu do escopo do requisito na v3.12 e foi removido da API, porque nenhuma regra o alimentava. Fica como trabalho futuro: exigiria um campo `last_activity_at` no model e a regra de atualização.
 
 ### Requisitos Não Funcionais
 
@@ -152,8 +153,6 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Matriz de permissões          | `CT-PERM`    | 50    | RF-011                      |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
 | **Total**                     | -            | **341** | -                         |
-
-Além destes, 1 caso fica **bloqueado** enquanto o streak não existir (seção 11 do catálogo).
 
 **Situação em 31/10/2026: 337 dos 341 casos estão automatizados (98,8%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 12 do catálogo.
 

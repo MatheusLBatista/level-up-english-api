@@ -34,7 +34,6 @@ class User {
             completed_at: { type: Date, default: null },
           },
         ],
-        streak: { type: Number, default: 0 },
         badges: [{ type: String }],
         avatar_url: { type: String, default: null },
         active: { type: Boolean, default: true },
