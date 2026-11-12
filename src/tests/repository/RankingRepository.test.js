@@ -19,6 +19,7 @@ describe("RankingRepository", () => {
       populate: jest.fn(() => encadeavel),
       select: jest.fn(() => encadeavel),
       sort: jest.fn(() => encadeavel),
+      lean: jest.fn(() => encadeavel),
       then: (resolve, reject) => Promise.resolve(resultado).then(resolve, reject),
     };
 
@@ -151,6 +152,22 @@ describe("RankingRepository", () => {
       userModel.find.mockReturnValue(query(alunos));
 
       await expect(repository.listRankedUsers()).resolves.toBe(alunos);
+    });
+  });
+
+  describe("findContainingUser", () => {
+    it("deve buscar os rankings em que o aluno aparece, com o nome da turma", async() => {
+      const rankings = [{ type: "global", entries: [] }];
+      const encadeavel = query(rankings);
+      rankingModel.find = jest.fn(() => encadeavel);
+
+      const resultado = await repository.findContainingUser(ALUNO_ID);
+
+      expect(rankingModel.find).toHaveBeenCalledWith({ "entries.user": ALUNO_ID });
+      expect(encadeavel.select).toHaveBeenCalledWith("type class entries updatedAt");
+      expect(encadeavel.populate).toHaveBeenCalledWith("class", "name");
+      expect(encadeavel.lean).toHaveBeenCalled();
+      expect(resultado).toBe(rankings);
     });
   });
 

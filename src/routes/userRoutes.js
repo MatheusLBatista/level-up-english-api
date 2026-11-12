@@ -2,6 +2,7 @@ import express from "express";
 import UserController from "../controllers/UserController.js";
 import XpHistoryController from "../controllers/XpHistoryController.js";
 import PerformanceController from "../controllers/PerformanceController.js";
+import PrivacyController from "../controllers/PrivacyController.js";
 import { asyncWrapper } from "../utils/helpers/index.js";
 import authMiddleware from "../middlewares/AuthMiddleware.js";
 import authorize from "../middlewares/AuthPermission.js";
@@ -12,6 +13,7 @@ const router = express.Router();
 const userController = new UserController();
 const xpHistoryController = new XpHistoryController();
 const performanceController = new PerformanceController();
+const privacyController = new PrivacyController();
 
 router
   .get("/users", authMiddleware, authorize("teacher", "admin"), asyncWrapper(userController.list.bind(userController)))
@@ -33,7 +35,19 @@ router
     authorize("student", "teacher", "admin"),
     asyncWrapper(performanceController.getByStudent.bind(performanceController)),
   )
+  .get(
+    "/users/:id/data-export",
+    authMiddleware,
+    authorize("admin"),
+    asyncWrapper(privacyController.exportData.bind(privacyController)),
+  )
   .post("/users", authMiddleware, authorize("teacher", "admin"), asyncWrapper(userController.create.bind(userController)))
+  .post(
+    "/users/:id/erasure",
+    authMiddleware,
+    authorize("admin"),
+    asyncWrapper(privacyController.erase.bind(privacyController)),
+  )
   .post(
     "/users/recalculate-levels",
     authMiddleware,

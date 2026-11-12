@@ -62,6 +62,14 @@ class RankingRepository {
       .sort({ xp: -1, level: -1 });
   }
 
+  async findContainingUser(userId) {
+    return await this.rankingModel
+      .find({ "entries.user": userId })
+      .select("type class entries updatedAt")
+      .populate("class", "name")
+      .lean();
+  }
+
   async findActiveClasses() {
     return await this.classModel.find({ active: true }).select("_id");
   }
