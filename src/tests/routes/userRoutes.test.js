@@ -12,6 +12,7 @@ import errorHandler from "../../utils/helpers/errorHandler.js";
 import User from "../../models/User.js";
 import Class from "../../models/Class.js";
 import Ranking from "../../models/Ranking.js";
+import { UserSchema } from "../../schemas/UserSchema.js";
 // registra o model "missions", que o ClassRepository.findById popula
 import "../../models/Mission.js";
 import {
@@ -779,6 +780,7 @@ describe("Rotas de usuários", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.message).toBe("Termo dos responsáveis registrado.");
+        expect(() => UserSchema.parse(res.body.data)).not.toThrow();
         expect(res.body.data.guardian_consent_recorded_by).toBe(String(teacher._id));
         expect(res.body.data).not.toHaveProperty("password");
 
@@ -858,6 +860,7 @@ describe("Rotas de usuários", () => {
 
         expect(res.status).toBe(200);
         expect(res.body.message).toBe("Consentimento revogado. A conta do aluno foi desativada.");
+        expect(() => UserSchema.parse(res.body.data)).not.toThrow();
         expect(res.body.data.active).toBe(false);
         expect(res.body.data.guardian_consent_revoked_at).toEqual(expect.any(String));
 
@@ -1097,6 +1100,7 @@ describe("Rotas de usuários", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.message).toBe("User deactivated successfully.");
+      expect(() => UserSchema.parse(res.body.data)).not.toThrow();
       expect(res.body.data.active).toBe(false);
       expect(res.body.data.deactivated_at).toEqual(expect.any(String));
 

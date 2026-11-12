@@ -105,6 +105,11 @@ async function seedPeople() {
       level: 1,
       mission_progress: [],
       active: true,
+      guardian_consent_at: student.consentPending ? null : createdAt,
+      guardian_consent_recorded_by: null,
+      guardian_consent_revoked_at: null,
+      deactivated_at: null,
+      anonymized_at: null,
       createdAt,
       updatedAt: createdAt,
     };
@@ -145,10 +150,13 @@ async function seedClasses(people) {
   for (const classDef of demo.classes) {
     const studentIds = classDef.students.map(({ name }) => people.students.get(emailFor(name))._id);
 
+    const teacherId = people.teachers.get(classDef.teacher)._id;
+
     const { insertedId } = await Class.collection.insertOne({
       name: classDef.name,
       active: true,
-      teacher: people.teachers.get(classDef.teacher)._id,
+      class_ranking_visible: true,
+      teacher: teacherId,
       students: studentIds,
       missions: [],
       createdAt,
@@ -156,6 +164,10 @@ async function seedClasses(people) {
     });
 
     await User.updateMany({ _id: { $in: studentIds } }, { $set: { class: insertedId } });
+    await User.updateMany(
+      { _id: { $in: studentIds }, guardian_consent_at: { $ne: null } },
+      { $set: { guardian_consent_recorded_by: teacherId } },
+    );
     classes.set(classDef.key, insertedId);
   }
 

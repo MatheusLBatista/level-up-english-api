@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.21 — complementa o [Plano de Teste](planoTeste.md) v3.13_
+_versão 2.22 — complementa o [Plano de Teste](planoTeste.md) v3.14_
 
 ## Histórico das alterações
 
@@ -31,6 +31,7 @@ _versão 2.21 — complementa o [Plano de Teste](planoTeste.md) v3.13_
 | 29/10/2026 | 2.19   | Limite de caracteres das perguntas (`CT-MISSION-043` a `047`), desempenho por tipo de missão para o radar (RF-015, `CT-XP-040` a `049`), saída do ranking global (`CT-RANK-009` a `012`) e notificações (RF-016, nova seção 8 com `CT-NOTIF-001` a `019`); `CT-PERM-043` a `047`; as seções seguintes passam a 9 a 12 | Matheus Lucas |
 | 31/10/2026 | 2.20   | Foto de perfil (`PATCH` e `DELETE /users/{id}/avatar`, RF-017): casos `CT-USER-038` a `057`; `CT-PERM-049` e `050`, e `CT-PERM-048` para o `POST /auth/register-teacher`, que estava fora da matriz | Matheus Lucas |
 | 09/11/2026 | 2.21   | Streak retirado do escopo do RF-009: o `CT-STREAK-001` sai dos casos bloqueados e a seção 11 fica sem casos | Matheus Lucas |
+| 12/11/2026 | 2.22   | Adequação à LGPD (RF-018): nova seção 9 com `CT-LGPD-001` a `041` (termo dos responsáveis, revogação, desativação no lugar da exclusão, retenção e anonimização, eliminação e exportação); ranking da turma ocultável pelo professor e ranking sem e-mail (`CT-RANK-013` a `017`); `CT-PERM-051` a `054`; `CT-USER-012` a `016`, `028`, `034`, `035`, `050` e `CT-PERM-013` ajustados para a desativação; as seções seguintes passam a 10 a 13 | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -44,13 +45,13 @@ Cada caso tem um identificador estável (`CT-<MÓDULO>-<NNN>`), que é o que apa
 
 - ✅ — **automatizado**: coberto pela suíte, executado a cada `npm run test`.
 - ⬜ — **pendente**: cenário descrito e válido, ainda sem teste que o exercite.
-- ⛔ — **bloqueado**: depende de funcionalidade que ainda não existe (seção 11).
+- ⛔ — **bloqueado**: depende de funcionalidade que ainda não existe (seção 12).
 
 Todos os casos de nível `Int` pressupõem banco limpo, cenário montado pelas factories e token obtido pelo helper de autenticação. Onde não se diz o contrário, o corpo da resposta segue o envelope padrão `{ message, data, errors }`.
 
 ### Critério de cobertura da matriz de permissões
 
-A seção 9 tem três células por operação (student / teacher / admin). Um caso da matriz é considerado **automatizado** quando:
+A seção 10 tem três células por operação (student / teacher / admin). Um caso da matriz é considerado **automatizado** quando:
 
 1. toda célula **restritiva** (403, ou 403 condicionado à posse do recurso) tem teste; e
 2. pelo menos uma célula **permissiva** tem teste.
@@ -153,11 +154,11 @@ Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O
 | CT-USER-009  | Atualização do próprio perfil        | `PATCH /users/{próprio id}` com `{ name }`                              | 200 com o nome atualizado                                                                 | RF-001 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-010  | Atualização de perfil alheio         | `alunoA` alterando `alunoB`; professor alterando outro usuário          | 403, "You do not have permission to update another user."                                 | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-011  | Escalada de privilégio pelo PATCH    | `alunoA` envia `{ role: "admin", xp: 99999, class, active }` no próprio  | 200, porém os quatro campos são descartados: papel, XP, turma e situação seguem iguais    | RF-011 | Int   | `routes/userRoutes`   | ✅       |
-| CT-USER-012  | Aluno exclui a própria conta         | `DELETE /users/{próprio id}` como `alunoB`                              | 200 e o usuário some da base                                                              | RF-001 | Int   | `routes/userRoutes`   | ✅       |
-| CT-USER-013  | Aluno exclui conta alheia            | `alunoA` excluindo `alunoB`                                             | 403, "Students can only delete their own account."                                        | RF-011 | Int   | `routes/userRoutes`   | ✅       |
-| CT-USER-014  | Professor exclui conta de admin      | `profA` excluindo `admin`                                               | 403, "Teachers can only delete student accounts."                                         | RF-011 | Int   | `routes/userRoutes`   | ✅       |
-| CT-USER-015  | Professor exclui outro professor     | `profA` excluindo `profB`                                               | 403, mesma mensagem do CT-USER-014                                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
-| CT-USER-016  | Professor exclui aluno da turma dele | `profA` excluindo `alunoA`                                              | 200; o aluno some da base e sai de `Class.students` da `turmaA`                           | RF-011 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-012  | Aluno desativa a própria conta       | `DELETE /users/{próprio id}` como `alunoB`                              | 403, "Permissão insuficiente para executar a operação."; a conta segue ativa — o pedido de exclusão passa pela escola | RF-018 | Int | `routes/userRoutes` | ✅ |
+| CT-USER-013  | Aluno desativa conta alheia          | `alunoA` desativando `alunoB`                                           | 403 do `authorize`, com a mesma mensagem do CT-USER-012                                   | RF-011 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-014  | Professor desativa conta de admin    | `profA` desativando `admin`                                             | 403, "Teachers can only deactivate student accounts."                                     | RF-011 | Int   | `routes/userRoutes`   | ✅       |
+| CT-USER-015  | Professor desativa outro professor   | `profA` desativando `profB`                                             | 403, mesma mensagem do CT-USER-014                                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-016  | Professor desativa aluno da turma dele | `profA` desativando `alunoA`                                          | 200; o aluno fica com `active: false`, continua na base e em `Class.students` da `turmaA` | RF-011 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-017  | Recálculo de níveis pelo admin       | `POST /users/recalculate-levels` com usuários de nível defasado          | 200 e `updated` igual à quantidade de usuários corrigidos                                 | RF-006 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-018  | Professor lista alunos da turma dele | `GET /users?role=student&class={turmaA}&active=true&limit=100` como `profA` | 200, apenas os alunos ativos da `turmaA` — sem o filtro de papel e situação, vêm todos os usuários da turma | RF-001 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
 | CT-USER-019  | Professor filtra turma alheia        | `GET /users?class={turmaB}` como `profA`                                | 403, "Você só pode listar alunos das suas turmas."                                        | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
@@ -169,14 +170,14 @@ Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O
 | CT-USER-025  | Admin tira o aluno da turma          | `PATCH /users/{alunoA}` com `{ class: null }` como `admin`               | 200 com `class: null`; o id do aluno sai de `Class.students` da `turmaA`                  | RF-001 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-026  | Troca para turma inexistente         | `PATCH /users/{alunoA}` com `class` de id válido que não existe          | 400, "Turma não encontrada."; `User.class` e os arrays das turmas não mudam               | RF-001 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-027  | Turma atribuída a quem não é aluno   | `PATCH /users/{profA}` com `class` como `admin`                          | 400 no path `class`, "Apenas alunos podem ser vinculados a uma turma."                    | RF-001 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
-| CT-USER-028  | Exclusão de aluno com turma          | `DELETE /users/{alunoA}` como `admin`                                   | 200; o id do aluno sai de `Class.students` da `turmaA`                                    | RF-001 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-028  | Desativação de aluno com turma       | `DELETE /users/{alunoA}` como `admin`                                   | 200; o id do aluno **continua** em `Class.students` da `turmaA`, para a reativação devolvê-lo à turma | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-029  | Admin lista usuários sem turma       | `GET /users?class=none&role=student` como `admin`                       | 200, apenas os alunos com `class` nulo ou ausente; nenhuma turma é consultada              | RF-001 | Int   | `routes/userRoutes`, `services/UserService`, `repository/filters/UserFilterBuild` | ✅ |
 | CT-USER-030  | Professor usa `class=none`           | `GET /users?class=none` como `profA`                                    | 403, "Só o admin pode listar alunos sem turma."                                           | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-031  | Professor cria aluno sem turma       | `POST /users` como `profA` sem `class`                                  | 400 no path `class`, "Escolha uma das suas turmas."; nenhum usuário criado                | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-032  | Professor cria aluno em turma alheia | `POST /users` como `profA` com `class` da `turmaB`                      | 403, "Você só pode cadastrar alunos nas suas turmas."; nenhum usuário criado              | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-033  | Admin cria aluno sem turma           | `POST /users` como `admin` sem `class`                                  | 201; o admin não passa pela regra de posse                                                | RF-001 | Int   | `routes/userRoutes`   | ✅       |
-| CT-USER-034  | Professor exclui aluno de turma alheia | `profA` excluindo `alunoB`                                            | 403, "Você só pode excluir alunos das suas turmas."; o aluno segue na base e em `Class.students` da `turmaB` | RF-011 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
-| CT-USER-035  | Professor exclui aluno sem turma     | `profA` excluindo `semTurma`                                            | 403 com a mesma mensagem do CT-USER-034; o aluno segue na base                            | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-034  | Professor desativa aluno de turma alheia | `profA` desativando `alunoB`                                        | 403, "Você só pode desativar alunos das suas turmas."; o aluno segue ativo                | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-035  | Professor desativa aluno sem turma   | `profA` desativando `semTurma`                                          | 403 com a mesma mensagem do CT-USER-034; o aluno segue ativo                              | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-036  | Busca por nome com caractere especial | `GET /users?name=Ana.` como admin, com `Ana.` e `Anax` cadastrados     | 200 apenas com `Ana.` — o ponto é texto literal, não "qualquer caractere"; a busca parcial comum segue funcionando | RF-001 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
 | CT-USER-037  | Busca com parêntese sem par          | `GET /users?name=Ana (` como admin                                      | 200 com lista vazia, e não 500 por regex inválida                                         | RF-001 | Int   | `routes/userRoutes`   | ✅       |
 | CT-USER-038  | Aluno envia a própria foto           | `PATCH /users/{alunoA}/avatar` como `alunoA`, PNG 400×300 no campo `avatar` | 200, "Avatar updated successfully."; `avatar_url` no formato `/uploads/avatars/{id}-{timestamp}.webp`, gravado no usuário, e o arquivo no disco é WebP 256×256 | RF-017 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
@@ -191,7 +192,7 @@ Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O
 | CT-USER-047  | Imagem pequena em bytes, enorme em pixels | arquivo leve acima de 25 milhões de pixels                         | 400 sem decodificar a imagem inteira — protege a memória do servidor                      | RF-017 | Unit  | `utils/AvatarImage`   | ✅       |
 | CT-USER-048  | Metadados da foto descartados        | JPEG com EXIF                                                           | WebP sem EXIF — dados da câmera e localização não chegam a quem abre a foto               | RF-017 | Unit  | `utils/AvatarImage`   | ✅       |
 | CT-USER-049  | `avatar_url` pelo `PATCH` comum      | `PATCH /users/{próprio id}` com `{ avatar_url: "https://site-malicioso.com/x.png" }` | o campo é descartado e `avatar_url` segue nulo — a foto só muda pela rota de upload | RF-011 | Int | `routes/userRoutes`   | ✅       |
-| CT-USER-050  | Exclusão do usuário apaga a foto     | `DELETE /users/{alunoA}` como `admin`, com foto enviada                 | 200 e o arquivo da foto some do disco; se a exclusão for proibida, o arquivo fica          | RF-017 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-USER-050  | Desativação mantém a foto            | `DELETE /users/{alunoA}` como `admin`, com foto enviada                 | 200 e o arquivo da foto continua no disco; ele só sai na anonimização (`CT-LGPD-024` e `033`) | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-051  | Aluno remove a própria foto          | `DELETE /users/{alunoA}/avatar` como `alunoA`                           | 200, "Avatar removed successfully."; `avatar_url: null` na resposta e no banco, e o arquivo some do disco | RF-017 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-052  | Admin remove a foto de outro usuário | `DELETE /users/{alunoA}/avatar` como `admin`                            | 200 e `avatar_url` nulo no banco                                                          | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-USER-053  | Professor remove a foto de um aluno  | `DELETE /users/{alunoA}/avatar` como `profA`                            | 403; a URL e o arquivo continuam                                                          | RF-011 | Int   | `routes/userRoutes`   | ✅       |
@@ -408,6 +409,11 @@ A curva de nível é quadrática: nível _n_ exige `100 * (n - 1)²` de XP (nív
 | CT-RANK-010  | Aluno antigo, sem o campo          | `alunoA` gravado sem `show_in_global_ranking`, e recálculo           | `alunoA` continua no ranking global — a ausência do campo vale como `true`        | RF-007 | Int   | `routes/rankingRoutes`                       | ✅       |
 | CT-RANK-011  | Trocar a opção atualiza na hora    | `PATCH /users/{id do alunoA}` como `alunoA` com `show_in_global_ranking: false`, depois `true` | 200; o aluno sai do ranking global sem refresh manual e volta ao religar; se o recálculo falhar, a opção fica gravada e a falha vai para o log | RF-007 | Int   | `routes/userRoutes`, `services/UserService`  | ✅       |
 | CT-RANK-012  | Quem pode trocar e valor inválido  | `profA` mudando a opção de `alunoA`; `alunoA` enviando `show_in_global_ranking: "não"` | 403 para a professora (só o próprio aluno ou o admin mudam); 400 com o erro em `show_in_global_ranking` para o valor não booleano | RF-011 | Int   | `routes/userRoutes`, `services/UserService`  | ✅       |
+| CT-RANK-013  | Turma nasce com o ranking visível  | `POST /classes` como `profA`                                        | 201 com `class_ranking_visible: true`                                             | RF-007 | Int   | `routes/classRoutes`                         | ✅       |
+| CT-RANK-014  | Professora oculta o ranking da turma | `PATCH /classes/{turmaA}` como `profA` com `class_ranking_visible: false`, depois `true`; `profA` na `turmaB`; `alunoA` na própria turma; valor `"não"` | 200 nas duas trocas da dona; 403 para a turma de outra professora e para o aluno, sem alterar o campo; 400 com o erro em `class_ranking_visible` | RF-007 | Int | `routes/classRoutes` | ✅ |
+| CT-RANK-015  | Ranking oculto para o aluno        | `turmaA` com `class_ranking_visible: false`; `GET /rankings/me` e `GET /rankings/class/{turmaA}` como `alunoA`, `profA` e `admin` | 403 para o aluno nas duas rotas, "O professor ocultou o ranking desta turma."; 200 para professora e admin; o ranking global continua visível ao aluno; religado, o aluno volta a ver | RF-007 | Int | `routes/rankingRoutes`, `services/RankingService` | ✅ |
+| CT-RANK-016  | Turma antiga, sem o campo          | turma gravada sem `class_ranking_visible`, ou já apagada             | o aluno vê o ranking — só um `false` explícito esconde                           | RF-007 | Unit  | `services/RankingService`                    | ✅       |
+| CT-RANK-017  | Ranking sem e-mail dos colegas     | `GET /rankings/global` como `admin`                                 | cada entrada traz nome, nível, XP e foto, sem `email` nem `password`              | RF-018 | Int   | `routes/rankingRoutes`, `repository/RankingRepository` | ✅ |
 
 O `CT-RANK-003` é o caso que amarra os três módulos: quem credita o XP é o `ProgressionService`, e o que a suíte prova é que ele atualiza o ranking global e o da turma **na mesma operação** que grava o XP. Há ainda dois testes de resiliência em `services/ProgressionService` sem caso próprio no catálogo: falha ao montar o ranking não invalida o XP já aplicado, nem no global nem no de turma.
 
@@ -447,7 +453,61 @@ O `CT-RANK-003` é o caso que amarra os três módulos: quem credita o XP é o `
 
 ---
 
-## 9 - Matriz de permissões (`CT-PERM`)
+## 9 - Privacidade e LGPD (`CT-LGPD`)
+
+O público inclui crianças e adolescentes, e as contas são criadas pela escola. Os casos cobrem os arts. 14 (consentimento dos responsáveis), 16 (eliminação ao fim do tratamento) e 18 (acesso, eliminação e revogação) da Lei 13.709/2018. Nesta seção, `inativo` é um aluno com `active: false`, e "anonimizado" é o aluno com `anonymized_at` preenchido.
+
+| ID           | Cenário                              | Entrada / passos                                                        | Resultado esperado                                                                     | RF     | Nível | Suíte                 | Situação |
+| ------------ | ------------------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ------ | ----- | --------------------- | -------- |
+| CT-LGPD-001  | Cadastro com o termo dos responsáveis | `POST /auth/register-student` como `profA` com `guardian_consent: true` e a `turmaA` | 201 com `guardian_consent_at` preenchido, `guardian_consent_recorded_by` igual a `profA` e `guardian_consent_revoked_at: null`; o campo `guardian_consent` não é gravado | RF-018 | Int | `routes/authRoutes`, `services/AuthService` | ✅ |
+| CT-LGPD-002  | Cadastro sem o termo                 | `POST /auth/register-student` sem `guardian_consent`, com `false` e com `"true"` em texto | 400 com `{ path: "guardian_consent", message: "Confirme o recebimento do termo de consentimento assinado pelos responsáveis." }`; nenhum usuário criado e nenhum e-mail enviado | RF-018 | Int | `routes/authRoutes`, `controllers/AuthController` | ✅ |
+| CT-LGPD-003  | Criação de aluno com o termo         | `POST /users` como `admin` com `guardian_consent: true`                 | 201 com a data do termo e `guardian_consent_recorded_by` igual ao `admin`                | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-004  | Criação de aluno sem o termo         | `POST /users` sem `guardian_consent`, sem papel e com `role: "student"`  | 400 no path `guardian_consent`; nenhum usuário criado                                    | RF-018 | Int   | `routes/userRoutes`, `controllers/UserController` | ✅ |
+| CT-LGPD-005  | Professor ou admin dispensam o termo | `POST /users` como `admin` com `role: "teacher"`, sem `guardian_consent` | 201 com os campos do termo nulos — o termo é só de aluno                                 | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-006  | Filtro pela situação do termo        | `GET /users?guardian_consent=pending`, `recorded` e `revoked` como `admin` | cada filtro traz só os alunos na situação pedida; o filtro restringe a `role: "student"`; valor desconhecido é ignorado | RF-018 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
+| CT-LGPD-007  | Professor registra o termo pendente  | `PATCH /users/{alunoA}/guardian-consent` como `profA`, `alunoA` sem termo | 200, "Termo dos responsáveis registrado."; data gravada e `guardian_consent_recorded_by` igual a `profA` | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-008  | Admin registra o termo de aluno sem turma | `PATCH /users/{semTurma}/guardian-consent` como `admin`            | 200 com `guardian_consent_recorded_by` igual ao `admin`                                  | RF-018 | Int   | `routes/userRoutes`   | ✅       |
+| CT-LGPD-009  | Professor registra termo de aluno alheio | `profA` registrando o termo de `alunoB` ou de `semTurma`            | 403, "Você só pode alterar o termo de alunos das suas turmas."; nada gravado            | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-010  | Alvo que não é aluno                 | `PATCH /users/{profB}/guardian-consent`, id inexistente e `nao-e-id`, como `admin` | 404, "Aluno não encontrado." nos três                                      | RF-018 | Int   | `routes/userRoutes`   | ✅       |
+| CT-LGPD-011  | Termo de aluno desativado            | `PATCH /users/{inativo}/guardian-consent` como `admin`                  | 409, "Não é possível registrar o termo de um aluno desativado."                          | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-012  | Termo já registrado                  | `PATCH /users/{alunoA}/guardian-consent` com o termo já gravado         | 409, "O termo deste aluno já foi registrado."; a data original fica                     | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-013  | Revogação do consentimento           | `alunoA` logado; `POST /users/{alunoA}/guardian-consent/revoke` como `profA` | 200, "Consentimento revogado. A conta do aluno foi desativada."; `active: false`, `guardian_consent_revoked_at` e `deactivated_at` preenchidos; o access token antigo, o refresh e um novo login respondem 401 | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-014  | Revogação tira dos rankings          | revogar `alunoA` com 500 XP                                             | `alunoA` sai do ranking da Turma A e do global; o XP continua 500                        | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-015  | Professor revoga aluno alheio        | `profA` revogando o consentimento de aluno de outra turma               | 403; a conta segue ativa e sem revogação                                                 | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-016  | Revogar duas vezes                   | segundo `POST .../revoke` no mesmo aluno                                | 409, "O consentimento deste aluno já foi revogado."                                      | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-017  | Revogação de aluno já desativado     | revogar aluno desativado pela escola antes                              | só `guardian_consent_revoked_at` é gravado; `deactivated_at` mantém a data original, para não esticar o prazo de retenção | RF-018 | Unit | `services/UserService` | ✅ |
+| CT-LGPD-018  | Reativação e termo novo              | revogar `alunoA`; `PATCH /users/{alunoA}` como `admin` com `active: true`; registrar o termo como `profA` | a reativação zera os três campos do termo e o aluno aparece em `guardian_consent=pending`; o termo novo é aceito (200) | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-019  | Desativação no lugar da exclusão     | `DELETE /users/{alunoA}` como `admin`, aluno com 300 XP e turma          | 200, "User deactivated successfully."; `active: false` e `deactivated_at` preenchido; o documento continua, com XP e turma | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-020  | Desativação encerra a sessão e o ranking | `alunoA` logado; `DELETE /users/{alunoA}` como `admin`              | o refresh token antigo responde 401 e o aluno sai do ranking da turma                    | RF-018 | Int   | `routes/userRoutes`   | ✅       |
+| CT-LGPD-021  | Desativar conta já desativada        | `DELETE /users/{inativo}` como `admin`                                  | 409, "Este usuário já está desativado."; `deactivated_at` não muda                       | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-022  | `active` pelo PATCH                  | `PATCH /users/{alunoA}` como `admin` com `active: false`, depois `true`; `profA` enviando `active: false` para si | `deactivated_at` preenchido e depois limpo, com os rankings recalculados; o `active` da professora é ignorado | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-023  | Migração de `deactivated_at`         | `npm run migrate:deactivated-at` com usuários já inativos                | preenche `deactivated_at` com o `updatedAt` (ou `createdAt`, ou a data atual), sem alterar o `updatedAt`; não toca ativos nem quem já tem a data; idempotente | RF-018 | Int | `migrations/backfillDeactivatedAt` | ✅ |
+| CT-LGPD-024  | Retenção anonimiza o aluno vencido   | aluno desativado há mais de `RETENTION_MONTHS` (12), com foto, notificação, ajuste com motivo e token; rodar a retenção | nome "Aluno removido", e-mail `removido-<id>@anonimizado.invalid`, foto fora do disco, senha e tokens nulos, notificações apagadas, `reason` nulo; XP mantido; registro com `reason: "retention"` e `performed_by: null` | RF-018 | Int | `services/RetentionService`, `services/AnonymizationService` | ✅ |
+| CT-LGPD-025  | Retenção poupa quem não venceu       | na mesma execução, aluno desativado há 10 meses, aluno ativo e professora desativada há anos | nenhum dos três muda; as notificações e o motivo do ajuste do aluno ativo continuam | RF-018 | Int | `services/RetentionService` | ✅ |
+| CT-LGPD-026  | Backup restaurado                    | aluno com registro em `dataErasureLogs` e dados de volta                 | a retenção reaplica a anonimização sem criar registro novo                               | RF-018 | Int   | `services/RetentionService` | ✅ |
+| CT-LGPD-027  | Retenção idempotente                 | rodar a retenção duas vezes                                             | a segunda não anonimiza nada e não cria registro                                         | RF-018 | Int   | `services/RetentionService` | ✅ |
+| CT-LGPD-028  | Prazo de retenção                    | `RETENTION_MONTHS` ausente, `"24"`, `"0"`, `"1.5"` e `"doze"`           | 12 por padrão e 24 quando informado; os inválidos derrubam a execução com erro em vez de cair no padrão | RF-018 | Unit | `services/RetentionService` | ✅ |
+| CT-LGPD-029  | Falha em um aluno                    | a anonimização de um aluno lança erro                                   | os demais seguem; o resumo lista só o id e o erro de quem falhou (o script usa a lista para sair com código 1) | RF-018 | Unit | `services/RetentionService` | ✅ |
+| CT-LGPD-030  | Foto que não sai do disco            | apagar o arquivo da foto falha                                          | a anonimização para antes de gravar o usuário e o registro, e pode ser refeita depois    | RF-018 | Unit  | `services/AnonymizationService` | ✅ |
+| CT-LGPD-031  | Aluno anonimizado não muda           | editar, reativar, trocar a foto ou revogar o consentimento de um aluno anonimizado | 409, "Os dados deste aluno foram eliminados e não podem ser alterados."        | RF-018 | Unit  | `services/UserService` | ✅ |
+| CT-LGPD-032  | XP congelado do aluno desativado     | `POST /attitude-logs` e `POST /xp-adjustments` em aluno desativado ou anonimizado | 409, "Este aluno está desativado."; o XP não muda e nenhum registro é criado     | RF-018 | Int   | `routes/attitudeLogRoutes`, `routes/xpAdjustmentRoutes` | ✅ |
+| CT-LGPD-033  | Eliminação a pedido do titular       | `POST /users/{alunoA}/erasure` como `admin` com `{ confirm: true }`      | 200, "Dados do aluno eliminados."; registro anonimizado como no CT-LGPD-024, com XP e turma mantidos; notificações e motivo apagados; registro com `reason: "holder_request"`, o `admin` em `performed_by` e só os campos `user`, `reason`, `performed_by` e `performed_at` | RF-018 | Int | `routes/privacyRoutes`, `services/PrivacyService` | ✅ |
+| CT-LGPD-034  | Aluno eliminado                      | depois do CT-LGPD-033, login com o e-mail e a senha antigos e consulta ao ranking da turma | login responde 401 e o aluno não está no ranking                     | RF-018 | Int   | `routes/privacyRoutes` | ✅      |
+| CT-LGPD-035  | Eliminação sem confirmação           | `POST /users/{alunoA}/erasure` com `{}` e com `{ confirm: false }`      | 400 com `{ path: "confirm", message: "Confirme a eliminação definitiva dos dados do aluno." }`; nada muda | RF-018 | Int | `routes/privacyRoutes`, `controllers/PrivacyController` | ✅ |
+| CT-LGPD-036  | Eliminação por quem não é admin      | `profA` eliminando `alunoA`; `alunoA` eliminando os próprios dados      | 403 nos dois; o aluno segue intacto                                                      | RF-011 | Int   | `routes/privacyRoutes` | ✅      |
+| CT-LGPD-037  | Eliminação de quem não é aluno       | `POST /users/{profA}/erasure`, id inexistente e `nao-e-id`, como `admin` | 404, "Aluno não encontrado."                                                             | RF-018 | Int   | `routes/privacyRoutes` | ✅      |
+| CT-LGPD-038  | Eliminar duas vezes                  | segundo `POST .../erasure` no mesmo aluno                               | 409, "Os dados deste aluno já foram eliminados."; continua um só registro                | RF-018 | Int   | `routes/privacyRoutes` | ✅      |
+| CT-LGPD-039  | Exportação dos dados do aluno        | `GET /users/{alunoA}/data-export` como `admin`, aluno com missão, atitude, ajuste, notificação e ranking | 200 com `Content-Disposition: attachment; filename="dados-aluno-<id>.json"`; perfil, termo, progresso com título, atitudes, ajustes, notificações e posição no ranking; professor só pelo nome; nenhuma senha ou token no JSON | RF-018 | Int | `routes/privacyRoutes`, `services/PrivacyService` | ✅ |
+| CT-LGPD-040  | Exportação de aluno anonimizado      | exportar depois do CT-LGPD-033                                          | 200 com o que restou: "Aluno removido", `anonymized_at` preenchido e nenhuma notificação | RF-018 | Int   | `routes/privacyRoutes` | ✅      |
+| CT-LGPD-041  | Exportação por quem não é admin      | `profA` e `alunoA` exportando os dados de `alunoA`; `admin` exportando `profA` | 403 para os dois primeiros; 404 para o alvo que não é aluno                       | RF-011 | Int   | `routes/privacyRoutes` | ✅      |
+
+**Contrato do Swagger (`CT-LGPD-033`, `039`).** As respostas da eliminação, da revogação, do registro do termo e da desativação são validadas no teste de rota contra o `UserSchema` do Swagger, e a exportação contra o `DataExportSchema` (em modo estrito no primeiro nível). Um campo novo na resposta que não estiver no contrato quebra o teste.
+
+**Fora da suíte.** O script `npm run retention:anonymize` (`src/jobs/run_retention.js`) só conecta ao banco, chama o `RetentionService` e imprime o resumo; a regra está coberta pelos casos acima. Ele foi conferido à mão contra um MongoDB em memória em 12/11/2026.
+
+---
+
+## 10 - Matriz de permissões (`CT-PERM`)
 
 Uma linha por operação da API. Cada célula é o status esperado para um token **ativo** daquele papel. Onde há posse, a célula traz os dois desfechos. O critério que decide entre ✅ e ⬜ está descrito em "Como ler este documento".
 
@@ -467,7 +527,7 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-010  | `POST /users`                     | 403                             | 201 aluno na própria turma / 403 teacher, admin ou turma de outro | 201 | `routes/userRoutes`         | ✅       |
 | CT-PERM-011  | `GET /users/{id}`                 | 200 próprio / 403 outro         | 200                                  | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-012  | `PATCH /users/{id}`               | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
-| CT-PERM-013  | `DELETE /users/{id}`              | 200 próprio / 403 outro         | 200 aluno da própria turma e próprio / 403 privilegiado ou aluno de outra turma | 200 | `routes/userRoutes`         | ✅       |
+| CT-PERM-013  | `DELETE /users/{id}` (desativa)   | 403 (inclusive a própria conta) | 200 aluno da própria turma e próprio / 403 privilegiado ou aluno de outra turma | 200 | `routes/userRoutes`         | ✅       |
 | CT-PERM-014  | `POST /users/recalculate-levels`  | 403                             | 403                                  | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-015  | `GET /classes`                    | 200 só a própria turma          | 200                                  | 200   | `routes/classRoutes`        | ✅       |
 | CT-PERM-016  | `POST /classes`                   | 403                             | 201                                  | 201   | `routes/classRoutes`        | ✅       |
@@ -505,12 +565,16 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-048  | `POST /auth/register-teacher`     | 403                             | 403                                  | 201   | `routes/authRoutes`         | ✅       |
 | CT-PERM-049  | `PATCH /users/{id}/avatar`        | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-050  | `DELETE /users/{id}/avatar`       | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
+| CT-PERM-051  | `PATCH /users/{id}/guardian-consent` | 403 (inclusive o próprio)    | 200 aluno da turma dele / 403 outro  | 200   | `routes/userRoutes`         | ✅       |
+| CT-PERM-052  | `POST /users/{id}/guardian-consent/revoke` | 403                    | 200 aluno da turma dele / 403 outro  | 200   | `routes/userRoutes`         | ✅       |
+| CT-PERM-053  | `POST /users/{id}/erasure`        | 403 (inclusive o próprio)       | 403 (inclusive aluno da turma dele)  | 200   | `routes/privacyRoutes`      | ✅       |
+| CT-PERM-054  | `GET /users/{id}/data-export`     | 403 (inclusive o próprio)       | 403 (inclusive aluno da turma dele)  | 200   | `routes/privacyRoutes`      | ✅       |
 
-**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida, e as cinco linhas novas da v2.19 entraram completas. Na v2.20 a matriz passou a ter uma linha para cada uma das 49 operações do Swagger: entraram as duas rotas da foto de perfil e o `POST /auth/register-teacher`, que existia desde a v2.6 com a célula restritiva coberta pelo `CT-AUTH-030`, mas não tinha linha aqui. As rotas de notificação não restringem papel — o que restringe é a posse, sempre pelo usuário do token —, e a célula restritiva do `CT-PERM-047` é o 404 do `CT-NOTIF-015`. A última célula restritiva a ser coberta antes delas foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
+**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida, e as cinco linhas novas da v2.19 entraram completas. Na v2.22 entraram as quatro rotas da LGPD, completas, e a matriz chega às 53 operações do Swagger. Na v2.20 a matriz passou a ter uma linha para cada uma das 49 operações de então: entraram as duas rotas da foto de perfil e o `POST /auth/register-teacher`, que existia desde a v2.6 com a célula restritiva coberta pelo `CT-AUTH-030`, mas não tinha linha aqui. As rotas de notificação não restringem papel — o que restringe é a posse, sempre pelo usuário do token —, e a célula restritiva do `CT-PERM-047` é o 404 do `CT-NOTIF-015`. A última célula restritiva a ser coberta antes delas foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
 
 ---
 
-## 10 - Fluxos ponta a ponta (`CT-E2E`)
+## 11 - Fluxos ponta a ponta (`CT-E2E`)
 
 Nenhum dos quatro está automatizado. A suíte atual cobre cada endpoint isoladamente, e mesmo os testes de rota que encadeiam duas ou três chamadas o fazem dentro de um só módulo. Estes casos existem para provar que os módulos se compõem — é o nível onde erro de integração entre XP, ranking e progresso apareceria.
 
@@ -548,7 +612,7 @@ Nenhum dos quatro está automatizado. A suíte atual cobre cada endpoint isolada
 
 ---
 
-## 11 - Casos bloqueados
+## 12 - Casos bloqueados
 
 Nenhum caso está bloqueado nesta versão.
 
@@ -560,9 +624,9 @@ O `CT-BADGE-001` (badge no primeiro login) e o `CT-BADGE-002` (badge ao atingir 
 
 O `CT-STREAK-001` (streak diária de atividade) saiu desta tabela na v2.21: o streak foi retirado do escopo do RF-009 e removido da API, e fica como trabalho futuro.
 
-## 12 - Resumo
+## 13 - Resumo
 
-Situação em 31/10/2026, com a suíte em **68 arquivos de teste e 1483 testes**, executando em cerca de 8 a 12 segundos.
+Situação em 12/11/2026, com a suíte em **77 arquivos de teste e 1687 testes**, executando em cerca de 11 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
@@ -572,11 +636,12 @@ Situação em 31/10/2026, com a suíte em **68 arquivos de teste e 1483 testes**
 | Missões                       | `CT-MISSION` | 47    | 47               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 49    | 49               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
-| Ranking                       | `CT-RANK`    | 12    | 12               | 0            |
+| Ranking                       | `CT-RANK`    | 17    | 17               | 0            |
 | Notificações                  | `CT-NOTIF`   | 19    | 19               | 0            |
-| Matriz de permissões          | `CT-PERM`    | 50    | 50               | 0            |
+| Privacidade e LGPD            | `CT-LGPD`    | 41    | 41               | 0            |
+| Matriz de permissões          | `CT-PERM`    | 54    | 54               | 0            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **341** | **337 (98,8%)** | **4**        |
+| **Total**                     | -            | **391** | **387 (99,0%)** | **4**        |
 
 ### As quatro pendências
 

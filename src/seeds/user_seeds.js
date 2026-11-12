@@ -39,6 +39,9 @@ async function userSeeds() {
 
   //students
   for (let i = 0; i < 40; i++) {
+    const active = globalFakeMapping.active();
+    const consentPending = i % 8 === 7;
+
     users.push({
       name: `Student ${i + 1}`,
       email: `student${i + 1}@example.com`,
@@ -48,11 +51,22 @@ async function userSeeds() {
       level: globalFakeMapping.level(),
       mission_progress: globalFakeMapping.mission_progress(),
       // badges (RF-009) fica no default do model: lista vazia.
-      active: globalFakeMapping.active(),
+      active,
+      deactivated_at: active ? null : new Date(),
+      anonymized_at: null,
+      guardian_consent_at: consentPending ? null : new Date(),
+      guardian_consent_recorded_by: null,
+      guardian_consent_revoked_at: null,
     });
   }
 
   const result = await User.collection.insertMany(users);
+
+  const admin = await User.findOne({ role: "admin" });
+  await User.updateMany(
+    { role: "student", guardian_consent_at: { $ne: null } },
+    { $set: { guardian_consent_recorded_by: admin._id } },
+  );
   console.log(
     `${Object.keys(result.insertedIds).length} users inserted successfully!`,
   );

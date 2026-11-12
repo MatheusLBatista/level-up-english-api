@@ -81,6 +81,7 @@ import {
   MissionRefSchema,
   AttitudeRefSchema,
 } from "../schemas/PopulatedRefSchemas.js";
+import { ErasureBodySchema, DataExportSchema } from "../schemas/PrivacySchema.js";
 
 const registry = new OpenAPIRegistry();
 
@@ -135,6 +136,8 @@ registry.register("UpdateUserBody", UpdateUserBodySchema);
 registry.register("Ranking", RankingSchema);
 registry.register("RankingEntry", RankingEntrySchema);
 registry.register("RefreshRankingResponse", RefreshRankingResponseSchema);
+registry.register("ErasureBody", ErasureBodySchema);
+registry.register("DataExport", DataExportSchema);
 
 registry.registerComponent("securitySchemes", "bearerAuth", {
   type: "http",
@@ -219,6 +222,30 @@ const error404User = errorResponse(
   "Recurso não encontrado em User.",
 );
 
+const error404Student = errorResponse(
+  "Alvo inexistente, com id inválido ou que não é aluno",
+  "Aluno não encontrado.",
+);
+
+const error409Anonymized = errorResponse(
+  "Os dados do aluno já foram eliminados (anonimizado)",
+  "Os dados deste aluno foram eliminados e não podem ser alterados.",
+);
+
+const error409InactiveStudent = errorResponse(
+  "Aluno desativado (inclusive anonimizado): o XP dele fica congelado",
+  "Este aluno está desativado.",
+);
+
+const guardianConsentError = {
+  path: "guardian_consent",
+  message: "Confirme o recebimento do termo de consentimento assinado pelos responsáveis.",
+};
+
+const userIdParam = z.object({
+  id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
+});
+
 const classIdParam = z.object({
   id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
 });
@@ -268,7 +295,10 @@ registry.registerPath({
     + "dele; admin cadastra em qualquer turma ou sem turma. Se class for informado, a "
     + "turma precisa existir e estar ativa; isso é conferido antes de criar o aluno e "
     + "enviar o e-mail, então uma turma inválida não deixa usuário criado pela metade. "
-    + "Criado o aluno, o id dele entra em Class.students da turma.",
+    + "Criado o aluno, o id dele entra em Class.students da turma.\n\n"
+    + "**Termo dos responsáveis (LGPD art. 14).** guardian_consent: true é obrigatório: "
+    + "registra que a escola recebeu o termo de consentimento assinado em papel. O aluno é "
+    + "criado com guardian_consent_at e guardian_consent_recorded_by (quem cadastrou).",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -278,11 +308,12 @@ registry.registerPath({
   responses: {
     201: commonResponse(UserSchema, "Aluno cadastrado e e-mail enviado"),
     400: errorResponse(
-      "Dados inválidos, e-mail já cadastrado (path email), turma inexistente/inativa "
+      "Dados inválidos, termo dos responsáveis ausente ou diferente de true (path "
+      + "guardian_consent), e-mail já cadastrado (path email), turma inexistente/inativa "
       + "(path class, \"Turma não encontrada ou inativa.\") ou professor sem turma "
       + "(path class, \"Escolha uma das suas turmas.\")",
-      "Turma não encontrada ou inativa.",
-      [{ path: "class", message: "Turma não encontrada ou inativa." }],
+      guardianConsentError.message,
+      [guardianConsentError],
     ),
     401: error401Session,
     498: error498Token,
@@ -479,6 +510,12 @@ registry.registerPath({
           + "combine com role=student para listar os alunos sem turma.",
       }),
       active: z.string().optional().openapi({ example: "true" }),
+      guardian_consent: z.enum(["pending", "recorded", "revoked"]).optional().openapi({
+        example: "pending",
+        description:
+          "Situação do termo dos responsáveis. Restringe a lista a alunos: pending (sem termo "
+          + "registrado nem revogação), recorded (termo registrado) ou revoked (consentimento revogado).",
+      }),
       page: z.string().optional().openapi({ example: "1" }),
       limit: z.string().optional().openapi({ example: "10" }),
     }),
@@ -605,7 +642,10 @@ registry.registerPath({
     "Para professor, class é obrigatório e a turma precisa existir, estar ativa e ser "
     + "dele; admin cria em qualquer turma ou sem turma. Se class for informado, o "
     + "usuário precisa ser aluno e a turma precisa existir e estar ativa, conferidos "
-    + "antes de criar. Criado o aluno, o id dele entra em Class.students da turma.",
+    + "antes de criar. Criado o aluno, o id dele entra em Class.students da turma.\n\n"
+    + "**Termo dos responsáveis (LGPD art. 14).** Para aluno (role student ou ausente), "
+    + "guardian_consent: true é obrigatório e grava guardian_consent_at e "
+    + "guardian_consent_recorded_by. Para professor e admin o campo é ignorado.",
   security: [{ bearerAuth: [] }],
   request: {
     body: { content: { "application/json": { schema: CreateUserBodySchema } } },
@@ -613,7 +653,8 @@ registry.registerPath({
   responses: {
     201: commonResponse(UserSchema, "Usuário criado"),
     400: errorResponse(
-      "Dados inválidos, e-mail já cadastrado, ou turma inválida (path class: "
+      "Dados inválidos, aluno sem o termo dos responsáveis (path guardian_consent), "
+      + "e-mail já cadastrado, ou turma inválida (path class: "
       + "\"Turma não encontrada.\", \"Turma não encontrada ou inativa.\", "
       + "\"Apenas alunos podem ser vinculados a uma turma.\" ou, para professor sem "
       + "turma, \"Escolha uma das suas turmas.\")",
@@ -659,7 +700,12 @@ registry.registerPath({
     + "de Class.students da turma antiga e entra no da nova. Com class: null, o aluno "
     + "sai da turma atual e fica sem turma. Mudar show_in_global_ranking recalcula o "
     + "ranking geral na hora; se o recálculo falhar, a alteração é mantida e o ranking "
-    + "se acerta no próximo recálculo.",
+    + "se acerta no próximo recálculo.\n\n"
+    + "**active (só admin).** Desativar preenche deactivated_at, que inicia o prazo de "
+    + "retenção, e encerra a sessão; reativar limpa deactivated_at. Nos dois casos os rankings "
+    + "do aluno são recalculados. Reativar um aluno com consentimento revogado zera os três "
+    + "campos do termo: ele volta a ficar pendente, e o termo novo é registrado com "
+    + "PATCH /users/{id}/guardian-consent. Aluno anonimizado não pode ser alterado (409).",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -682,6 +728,7 @@ registry.registerPath({
       "You do not have permission to update another user.",
     ),
     404: error404User,
+    409: error409Anonymized,
   },
 });
 
@@ -764,6 +811,7 @@ registry.registerPath({
       "You do not have permission to remove another user's avatar.",
     ),
     404: error404User,
+    409: error409Anonymized,
   },
 });
 
@@ -771,28 +819,150 @@ registry.registerPath({
   method: "delete",
   path: "/users/{id}",
   tags: ["Users"],
-  summary: "Deletar usuário (aluno só a própria conta; professor, alunos das turmas dele e a própria conta)",
+  summary: "Desativar usuário (teacher/admin; professor só alunos das turmas dele e a própria conta)",
   description:
-    "Professor só exclui aluno cuja turma é dele (ativa ou não); aluno sem turma ou de "
-    + "turma de outro professor devolve 403. Admin exclui qualquer conta. "
-    + "A foto de perfil, se houver, é apagada do disco.",
+    "Não apaga o documento: marca active: false, preenche deactivated_at (início do prazo de "
+    + "retenção) e encerra a sessão. XP, progresso, turma e foto continuam, para não quebrar "
+    + "o histórico; os dados do aluno são anonimizados quando o prazo de RETENTION_MONTHS "
+    + "vence, ou na hora por POST /users/{id}/erasure. O aluno não desativa a própria conta: "
+    + "o pedido passa pela escola. Professor só desativa aluno cuja turma é dele (ativa ou "
+    + "não). Desativar aluno recalcula os rankings.",
   security: [{ bearerAuth: [] }],
   request: {
-    params: z.object({
-      id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
-    }),
+    params: userIdParam,
   },
   responses: {
-    200: commonResponse(z.null(), "Usuário deletado"),
+    200: commonResponse(UserSchema, "Usuário desativado"),
     401: error401Session,
     498: error498Token,
     403: errorResponse(
-      "Aluno tentando deletar a conta de outro usuário, professor tentando deletar conta "
-      + "de teacher/admin (\"Teachers can only delete student accounts.\"), ou professor "
-      + "tentando deletar aluno sem turma ou de turma de outro professor",
-      "Você só pode excluir alunos das suas turmas.",
+      "Aluno chamando a rota (inclusive para a própria conta), professor tentando desativar "
+      + "conta de teacher/admin (\"Teachers can only deactivate student accounts.\"), ou "
+      + "professor tentando desativar aluno sem turma ou de turma de outro professor",
+      "Você só pode desativar alunos das suas turmas.",
     ),
     404: error404User,
+    409: errorResponse("A conta já está desativada", "Este usuário já está desativado."),
+  },
+});
+
+// ─── LGPD ───────────────────────────────────────────────────────────────────
+
+registry.registerPath({
+  method: "patch",
+  path: "/users/{id}/guardian-consent",
+  tags: ["LGPD"],
+  summary: "Registrar o termo dos responsáveis de um aluno pendente (teacher/admin)",
+  description:
+    "Para alunos cadastrados antes da exigência do termo, ou reativados depois de uma "
+    + "revogação. Grava guardian_consent_at e guardian_consent_recorded_by (quem chamou). "
+    + "Professor só registra o termo de alunos das turmas dele.",
+  security: [{ bearerAuth: [] }],
+  request: { params: userIdParam },
+  responses: {
+    200: commonResponse(UserSchema, "Termo registrado"),
+    401: error401Session,
+    498: error498Token,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou aluno sem turma ou de turma de outro professor",
+      "Você só pode alterar o termo de alunos das suas turmas.",
+    ),
+    404: error404Student,
+    409: errorResponse(
+      "Aluno desativado (\"Não é possível registrar o termo de um aluno desativado.\") ou "
+      + "termo já registrado",
+      "O termo deste aluno já foi registrado.",
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/users/{id}/guardian-consent/revoke",
+  tags: ["LGPD"],
+  summary: "Revogar o consentimento dos responsáveis (teacher/admin)",
+  description:
+    "Registra guardian_consent_revoked_at, desativa a conta (preenchendo deactivated_at, se "
+    + "ela ainda estava ativa), encerra a sessão e recalcula os rankings. Os dados seguem para "
+    + "a regra de retenção. Professor só revoga o consentimento de alunos das turmas dele. "
+    + "Para o aluno voltar, o admin reativa a conta (PATCH active: true) e registra um termo novo.",
+  security: [{ bearerAuth: [] }],
+  request: { params: userIdParam },
+  responses: {
+    200: commonResponse(UserSchema, "Consentimento revogado e conta desativada"),
+    401: error401Session,
+    498: error498Token,
+    403: errorResponse(
+      "Papel sem acesso à rota, ou aluno sem turma ou de turma de outro professor",
+      "Você só pode alterar o termo de alunos das suas turmas.",
+    ),
+    404: error404Student,
+    409: errorResponse(
+      "Consentimento já revogado, ou aluno anonimizado",
+      "O consentimento deste aluno já foi revogado.",
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/users/{id}/erasure",
+  tags: ["LGPD"],
+  summary: "Eliminar os dados de um aluno a pedido do titular (admin) — irreversível",
+  description:
+    "Anonimização imediata (LGPD art. 18, VI): nome vira \"Aluno removido\", e-mail vira "
+    + "removido-<id>@anonimizado.invalid, e a foto (arquivo e URL), a senha, os tokens, as "
+    + "notificações e os motivos dos ajustes de XP são apagados. A conta fica desativada. XP, "
+    + "progresso, turma e logs de atitude continuam no registro anonimizado, para os rankings e "
+    + "as médias da turma não mudarem. A eliminação é registrada com o id do aluno, o motivo "
+    + "(holder_request), o admin que executou e a data, sem nenhum dado pessoal. O corpo precisa "
+    + "trazer confirm: true.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: userIdParam,
+    body: { content: { "application/json": { schema: ErasureBodySchema } } },
+  },
+  responses: {
+    200: commonResponse(UserSchema, "Dados eliminados; devolve o registro anonimizado"),
+    400: errorResponse(
+      "Confirmação ausente ou diferente de true",
+      "Confirme a eliminação definitiva dos dados do aluno.",
+      [{ path: "confirm", message: "Confirme a eliminação definitiva dos dados do aluno." }],
+    ),
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+    404: error404Student,
+    409: errorResponse("Os dados já foram eliminados", "Os dados deste aluno já foram eliminados."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/users/{id}/data-export",
+  tags: ["LGPD"],
+  summary: "Exportar os dados de um aluno em JSON (admin)",
+  description:
+    "Acesso aos dados (LGPD art. 18, II). A resposta traz o cabeçalho Content-Disposition "
+    + "com o nome dados-aluno-<id>.json, para o navegador salvar como arquivo. Inclui perfil, "
+    + "termo, progresso nas missões, atitudes, ajustes de XP, notificações e posição nos "
+    + "rankings. Nunca inclui senha nem tokens; professores aparecem só pelo nome.",
+  security: [{ bearerAuth: [] }],
+  request: { params: userIdParam },
+  responses: {
+    200: {
+      ...commonResponse(DataExportSchema, "Dados do aluno"),
+      headers: {
+        "Content-Disposition": {
+          description: "Anexo com o nome do arquivo.",
+          schema: { type: "string", example: "attachment; filename=\"dados-aluno-507f1f77bcf86cd799439011.json\"" },
+        },
+      },
+    },
+    401: error401Session,
+    498: error498Token,
+    403: error403,
+    404: error404Student,
   },
 });
 
@@ -880,7 +1050,8 @@ registry.registerPath({
     + "professor. Se students for enviado, ele substitui a lista "
     + "inteira: os alunos adicionados passam a ter class apontando para esta turma e saem "
     + "da turma anterior; os removidos ficam com class nulo, a menos que já tenham sido "
-    + "movidos para outra turma.",
+    + "movidos para outra turma. class_ranking_visible: false esconde o ranking da turma dos "
+    + "alunos; professor e admin continuam vendo.",
   security: [{ bearerAuth: [] }],
   request: {
     params: classIdParam,
@@ -1324,6 +1495,7 @@ registry.registerPath({
       "Você só pode aplicar atitudes a alunos das suas turmas.",
     ),
     404: errorResponse("Aluno ou atitude não encontrados", "Recurso não encontrado."),
+    409: error409InactiveStudent,
   },
 });
 
@@ -1422,6 +1594,7 @@ registry.registerPath({
       "Você só pode ajustar o XP de alunos das suas turmas.",
     ),
     404: errorResponse("Aluno não encontrado", "Recurso não encontrado em User."),
+    409: error409InactiveStudent,
   },
 });
 
@@ -1456,6 +1629,10 @@ registry.registerPath({
     200: commonResponse(RankingSchema, "Ranking da turma encontrado"),
     401: error401Session,
     498: error498Token,
+    403: errorResponse(
+      "Professor ocultou o ranking da turma (class_ranking_visible: false)",
+      "O professor ocultou o ranking desta turma.",
+    ),
     404: errorResponse(
       "Usuário sem turma ou ranking inexistente",
       "Você não está matriculado em nenhuma turma.",
@@ -1478,7 +1655,8 @@ registry.registerPath({
     401: error401Session,
     498: error498Token,
     403: errorResponse(
-      "Sem permissão",
+      "Aluno pedindo o ranking de outra turma, ou de turma cujo ranking o professor ocultou "
+      + "(\"O professor ocultou o ranking desta turma.\"). Professor e admin veem qualquer turma.",
       "Você só pode ver o ranking da sua própria turma.",
     ),
     404: error404Ranking,
@@ -1597,7 +1775,7 @@ export function generateOpenAPIDocument() {
         + "assim como qualquer usuário com active igual a false. "
         + "A posse do recurso é verificada depois, no service: professor só altera a "
         + "turma e as missões dele, só aplica atitude a aluno das turmas dele e só "
-        + "deleta conta de aluno; o aluno só enxerga missão e ranking da própria "
+        + "desativa conta de aluno; o aluno só enxerga missão e ranking da própria "
         + "turma. Os resumos indicam entre parênteses quem pode chamar cada rota; "
         + "sem indicação, os três papéis podem.",
     },

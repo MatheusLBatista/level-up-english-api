@@ -14,6 +14,8 @@ import XpAdjustment from "../../models/XpAdjustment.js";
 import Notification from "../../models/Notification.js";
 import DataErasureLog from "../../models/DataErasureLog.js";
 import Mission from "../../models/Mission.js";
+import { UserSchema } from "../../schemas/UserSchema.js";
+import { DataExportSchema } from "../../schemas/PrivacySchema.js";
 import {
   connectTestDatabase,
   clearTestDatabase,
@@ -97,6 +99,7 @@ describe("Rotas de privacidade (LGPD)", () => {
       });
       expect(res.body.data.anonymized_at).toEqual(expect.any(String));
       expect(res.body.data).not.toHaveProperty("password");
+      expect(() => UserSchema.parse(res.body.data)).not.toThrow();
 
       expect(await Notification.countDocuments({ user: student._id })).toBe(0);
       expect((await XpAdjustment.findOne({ student: student._id })).reason).toBeNull();
@@ -210,6 +213,7 @@ describe("Rotas de privacidade (LGPD)", () => {
       expect(res.headers["content-disposition"]).toBe(`attachment; filename="dados-aluno-${student._id}.json"`);
 
       const { data } = res.body;
+      expect(() => DataExportSchema.strict().parse(data)).not.toThrow();
       expect(data.student).toMatchObject({
         _id: String(student._id),
         name: "Bia Souza",
@@ -245,6 +249,7 @@ describe("Rotas de privacidade (LGPD)", () => {
       expect(res.body.data.student.name).toBe("Aluno removido");
       expect(res.body.data.student.anonymized_at).toEqual(expect.any(String));
       expect(res.body.data.notifications).toEqual([]);
+      expect(() => DataExportSchema.parse(res.body.data)).not.toThrow();
     });
 
     it("deve retornar 403 quando a professora tenta exportar aluno da turma dela", async() => {
