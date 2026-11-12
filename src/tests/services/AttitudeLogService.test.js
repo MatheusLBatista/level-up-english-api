@@ -260,6 +260,17 @@ describe("AttitudeLogService", () => {
       expect(repository.create).not.toHaveBeenCalled();
     });
 
+    it("deve lançar 409 sem aplicar a atitude quando os dados do aluno já foram eliminados", async() => {
+      registrar({ _id: ALUNO_A_ID, role: "student", class: TURMA_A_ID, anonymized_at: new Date() });
+
+      const erro = await capturarErro(service.create({ ...corpo }, { user_id: PROF_A_ID }));
+
+      expect(erro.statusCode).toBe(409);
+      expect(erro.customMessage).toBe("Os dados deste aluno foram eliminados.");
+      expect(repository.create).not.toHaveBeenCalled();
+      expect(progressionService.adjustXp).not.toHaveBeenCalled();
+    });
+
     it("deve lançar 403 quando o aluno não for de uma turma da professora", async() => {
       Class.findById.mockResolvedValue({ _id: TURMA_A_ID, teacher: PROF_B_ID });
 

@@ -90,6 +90,16 @@ class AttitudeLogService {
       });
     }
 
+    if (student.anonymized_at) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.CONFLICT.code,
+        errorType: "conflictError",
+        field: "student",
+        details: [],
+        customMessage: "Os dados deste aluno foram eliminados.",
+      });
+    }
+
     const loggedUser = await this.userRepository.findById(req.user_id);
 
     await this.ensureOwnsStudent(student, loggedUser);

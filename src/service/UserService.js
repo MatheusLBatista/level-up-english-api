@@ -141,6 +141,7 @@ class UserService {
     delete parsedData.password;
 
     const target = await this.ensureUserExists(id);
+    this.ensureNotAnonymized(target);
 
     const user = await this.repository.findById(req.user_id);
     const isAdmin = user?.role === "admin";
@@ -227,6 +228,7 @@ class UserService {
   async revokeGuardianConsent(id, req) {
     const loggedUser = await this.repository.findById(req.user_id);
     const student = await this.findStudentForConsent(id, loggedUser);
+    this.ensureNotAnonymized(student);
 
     if (student.guardian_consent_revoked_at) {
       throw this.conflict("guardian_consent", "O consentimento deste aluno já foi revogado.");
@@ -284,6 +286,7 @@ class UserService {
 
   async updateAvatar(id, buffer, req) {
     const target = await this.ensureUserExists(id);
+    this.ensureNotAnonymized(target);
     const user = await this.repository.findById(req.user_id);
 
     if (user.role !== "admin" && String(user._id) !== String(id)) {
@@ -429,6 +432,12 @@ class UserService {
     }
 
     return existingUser;
+  }
+
+  ensureNotAnonymized(user) {
+    if (user.anonymized_at) {
+      throw this.conflict("User", "Os dados deste aluno foram eliminados e não podem ser alterados.");
+    }
   }
 
   async discardAvatarFile(key) {

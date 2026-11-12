@@ -38,6 +38,11 @@ class NotificationRepository {
     return result.deletedCount;
   }
 
+  async deleteByUser(userId) {
+    const result = await this.notificationModel.deleteMany({ user: userId });
+    return result.deletedCount;
+  }
+
   async markAllAsRead(userId) {
     const result = await this.notificationModel.updateMany({ user: userId, read: false }, { read: true });
     return result.modifiedCount;

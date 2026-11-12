@@ -36,6 +36,20 @@ describe("XpAdjustmentRepository", () => {
     });
   });
 
+  describe("clearReasonsByStudent", () => {
+    it("deve apagar só os motivos preenchidos dos ajustes do aluno e devolver quantos mudaram", async() => {
+      modelo.updateMany = jest.fn().mockResolvedValue({ modifiedCount: 2 });
+
+      const alterados = await repository.clearReasonsByStudent(STUDENT_ID);
+
+      expect(modelo.updateMany).toHaveBeenCalledWith(
+        { student: STUDENT_ID, reason: { $ne: null } },
+        { $set: { reason: null } },
+      );
+      expect(alterados).toBe(2);
+    });
+  });
+
   describe("findByStudent", () => {
     it("deve buscar os ajustes do aluno com o nome de quem ajustou", async() => {
       const ajustes = [{ _id: AJUSTE_ID }];

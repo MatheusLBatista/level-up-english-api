@@ -83,6 +83,12 @@ export const UserSchema = z
         "Quando a conta foi desativada; `null` enquanto ativa. Conta o prazo de retenção "
         + "dos dados do aluno.",
     }),
+    anonymized_at: z.string().nullable().openapi({
+      example: null,
+      description:
+        "Quando os dados pessoais do aluno foram eliminados, pelo prazo de retenção ou a pedido "
+        + "do titular. Depois disso o nome é \"Aluno removido\" e o e-mail é um endereço fictício.",
+    }),
     show_in_global_ranking: z.boolean().openapi({
       example: true,
       description: "Se o aluno aparece no ranking geral. O ranking da turma não muda.",

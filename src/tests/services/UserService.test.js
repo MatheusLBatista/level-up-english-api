@@ -427,6 +427,43 @@ describe("UserService", () => {
     });
   });
 
+  describe("dados eliminados", () => {
+    const anonimizado = () => usuario(STUDENT_ID, "student", { active: false, anonymized_at: new Date() });
+    const mensagem = "Os dados deste aluno foram eliminados e não podem ser alterados.";
+
+    it("deve lançar 409 quando o admin tenta alterar ou reativar um aluno anonimizado", async() => {
+      responderFindById(anonimizado(), admin());
+
+      const erro = await capturarErro(service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID }));
+
+      expect(erro.statusCode).toBe(409);
+      expect(erro.errorType).toBe("conflictError");
+      expect(erro.customMessage).toBe(mensagem);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 409 antes de processar a foto de um aluno anonimizado", async() => {
+      responderFindById(anonimizado(), admin());
+
+      const erro = await capturarErro(service.updateAvatar(STUDENT_ID, Buffer.from("x"), { user_id: ADMIN_ID }));
+
+      expect(erro.statusCode).toBe(409);
+      expect(toAvatarWebp).not.toHaveBeenCalled();
+      expect(storage.save).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 409 ao revogar o consentimento de um aluno anonimizado", async() => {
+      responderFindById(admin());
+      repository.findByIds.mockResolvedValue([anonimizado()]);
+
+      const erro = await capturarErro(service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+      expect(erro.statusCode).toBe(409);
+      expect(erro.customMessage).toBe(mensagem);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe("update", () => {
     describe("ao reativar um aluno com consentimento revogado", () => {
       const revogado = () => usuario(STUDENT_ID, "student", {

@@ -51,6 +51,17 @@ describe("NotificationRepository", () => {
     });
   });
 
+  describe("deleteByUser", () => {
+    it("deve apagar todas as notificações do usuário e devolver quantas saíram", async() => {
+      modelo.deleteMany = jest.fn().mockResolvedValue({ deletedCount: 4 });
+
+      const apagadas = await repository.deleteByUser(ALUNO_ID);
+
+      expect(modelo.deleteMany).toHaveBeenCalledWith({ user: ALUNO_ID });
+      expect(apagadas).toBe(4);
+    });
+  });
+
   describe("listByUser", () => {
     it("deve paginar só as notificações do usuário, das mais recentes para as mais antigas", async() => {
       const pagina = { docs: [], totalDocs: 0 };
