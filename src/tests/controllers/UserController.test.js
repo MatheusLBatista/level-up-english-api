@@ -294,15 +294,15 @@ describe("UserController", () => {
   });
 
   describe("delete", () => {
-    it("deve devolver 200 com o usuário removido", async() => {
-      const removido = { _id: USER_ID };
-      controller.service.delete.mockResolvedValue(removido);
+    it("deve desativar pelo service e devolver 200 sem a senha", async() => {
+      const desativado = { _id: USER_ID, active: false };
+      controller.service.deactivate.mockResolvedValue(documento({ ...desativado, password: "hash" }));
       req.params.id = USER_ID;
 
       await controller.delete(req, res);
 
-      expect(controller.service.delete).toHaveBeenCalledWith(USER_ID, req);
-      esperarResposta(200, "User deleted successfully.", removido);
+      expect(controller.service.deactivate).toHaveBeenCalledWith(USER_ID, req);
+      esperarResposta(200, "User deactivated successfully.", desativado);
     });
 
     it("deve lançar 400 quando o id não vier na rota", async() => {
@@ -311,7 +311,7 @@ describe("UserController", () => {
       expect(erro).toBeInstanceOf(CustomError);
       expect(erro.statusCode).toBe(400);
       expect(erro.customMessage).toBe("User ID is required.");
-      expect(controller.service.delete).not.toHaveBeenCalled();
+      expect(controller.service.deactivate).not.toHaveBeenCalled();
     });
   });
 

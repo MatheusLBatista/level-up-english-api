@@ -384,17 +384,6 @@ describe("UserRepository", () => {
     });
   });
 
-  describe("delete", () => {
-    it("deve remover o usuário pelo id", async() => {
-      modelo.findByIdAndDelete.mockResolvedValue({ _id: USER_ID });
-
-      const resultado = await repository.delete(USER_ID);
-
-      expect(modelo.findByIdAndDelete).toHaveBeenCalledWith(USER_ID);
-      expect(resultado).toEqual({ _id: USER_ID });
-    });
-  });
-
   describe("storeTokens", () => {
     it("deve gravar os dois tokens no documento", async() => {
       const save = jest.fn().mockResolvedValue(true);

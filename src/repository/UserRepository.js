@@ -196,10 +196,6 @@ class UserRepository {
     return user;
   }
 
-  async delete(id) {
-    return await this.userModel.findByIdAndDelete(id);
-  }
-
   /**
    * Progresso do aluno em uma missão específica, ou null se ele ainda não a tentou.
    */

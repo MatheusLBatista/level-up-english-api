@@ -37,6 +37,7 @@ class User {
         badges: [{ type: String }],
         avatar_url: { type: String, default: null },
         active: { type: Boolean, default: true },
+        deactivated_at: { type: Date, default: null },
         show_in_global_ranking: { type: Boolean, default: true },
         guardian_consent_at: { type: Date, default: null },
         guardian_consent_recorded_by: {

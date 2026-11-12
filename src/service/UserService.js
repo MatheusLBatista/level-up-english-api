@@ -174,6 +174,12 @@ class UserService {
       parsedData.guardian_consent_revoked_at = null;
     }
 
+    const changingActive = "active" in parsedData && parsedData.active !== target.active;
+
+    if (changingActive) {
+      Object.assign(parsedData, parsedData.active ? { deactivated_at: null } : this.deactivationFields());
+    }
+
     const changingClass = "class" in parsedData;
 
     if (changingClass && parsedData.class !== null) {
@@ -190,7 +196,11 @@ class UserService {
     const changingRankingVisibility = "show_in_global_ranking" in parsedData
       && (target.show_in_global_ranking !== false) !== parsedData.show_in_global_ranking;
 
-    if (changingRankingVisibility) await this.refreshGlobalRanking(id);
+    if (changingActive && target.role === "student") {
+      await this.refreshStudentRankings(id, target.class);
+    } else if (changingRankingVisibility) {
+      await this.refreshGlobalRanking(id);
+    }
 
     return updated;
   }
@@ -200,11 +210,11 @@ class UserService {
     const student = await this.findStudentForConsent(id, loggedUser);
 
     if (!student.active) {
-      throw this.consentConflict("Não é possível registrar o termo de um aluno desativado.");
+      throw this.conflict("guardian_consent", "Não é possível registrar o termo de um aluno desativado.");
     }
 
     if (student.guardian_consent_at) {
-      throw this.consentConflict("O termo deste aluno já foi registrado.");
+      throw this.conflict("guardian_consent", "O termo deste aluno já foi registrado.");
     }
 
     return await this.repository.update(id, {
@@ -219,17 +229,15 @@ class UserService {
     const student = await this.findStudentForConsent(id, loggedUser);
 
     if (student.guardian_consent_revoked_at) {
-      throw this.consentConflict("O consentimento deste aluno já foi revogado.");
+      throw this.conflict("guardian_consent", "O consentimento deste aluno já foi revogado.");
     }
 
     const updated = await this.repository.update(id, {
-      active: false,
+      ...(student.active ? this.deactivationFields() : {}),
       guardian_consent_revoked_at: new Date(),
-      accesstoken: null,
-      refreshtoken: null,
     });
 
-    await this.refreshRankingsAfterDeactivation(id, student.class);
+    await this.refreshStudentRankings(id, student.class);
 
     return updated;
   }
@@ -243,22 +251,26 @@ class UserService {
     });
   }
 
-  consentConflict(message) {
+  conflict(field, message) {
     return new CustomError({
       statusCode: HttpStatusCodes.CONFLICT.code,
       errorType: "conflictError",
-      field: "guardian_consent",
+      field,
       details: [],
       customMessage: message,
     });
   }
 
-  async refreshRankingsAfterDeactivation(id, classId) {
+  deactivationFields() {
+    return { active: false, deactivated_at: new Date(), accesstoken: null, refreshtoken: null };
+  }
+
+  async refreshStudentRankings(id, classId) {
     try {
       await this.rankingService.refreshGlobal();
       if (classId) await this.rankingService.refreshClass(classId);
     } catch (err) {
-      logger.error(`Falha ao atualizar os rankings após desativar o usuário ${id}: ${err.message}`);
+      logger.error(`Falha ao atualizar os rankings após mudar a situação do usuário ${id}: ${err.message}`);
     }
   }
 
@@ -323,21 +335,11 @@ class UserService {
     return updated;
   }
 
-  async delete(id, req) {
+  async deactivate(id, req) {
     const loggedUser = await this.repository.findById(req.user_id);
     const target = await this.ensureUserExists(id);
 
     const isSelf = String(loggedUser._id) === String(id);
-
-    if (loggedUser.role === "student" && !isSelf) {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.FORBIDDEN.code,
-        errorType: "permissionError",
-        field: "User",
-        details: [],
-        customMessage: "Students can only delete their own account.",
-      });
-    }
 
     if (loggedUser.role === "teacher" && !isSelf && target.role !== "student") {
       throw new CustomError({
@@ -345,25 +347,25 @@ class UserService {
         errorType: "permissionError",
         field: "User",
         details: [],
-        customMessage: "Teachers can only delete student accounts.",
+        customMessage: "Teachers can only deactivate student accounts.",
       });
     }
 
     if (loggedUser.role === "teacher" && !isSelf) {
       const classDoc = target.class ? await this.classRepository.findPlainById(target.class) : null;
 
-      ensureTeacherOwnsClass(classDoc, loggedUser, "Você só pode excluir alunos das suas turmas.");
+      ensureTeacherOwnsClass(classDoc, loggedUser, "Você só pode desativar alunos das suas turmas.");
     }
 
-    const deleted = await this.repository.delete(id);
-
-    if (target.class) {
-      await this.classRepository.removeStudent(target.class, id);
+    if (!target.active) {
+      throw this.conflict("User", "Este usuário já está desativado.");
     }
 
-    await this.discardAvatarFile(this.storage.keyFromUrl(target.avatar_url));
+    const deactivated = await this.repository.update(id, this.deactivationFields());
 
-    return deleted;
+    if (target.role === "student") await this.refreshStudentRankings(id, target.class);
+
+    return deactivated;
   }
 
   async recalculateLevels() {

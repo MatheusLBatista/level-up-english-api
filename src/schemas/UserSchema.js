@@ -77,6 +77,12 @@ export const UserSchema = z
         + "muda a cada troca, então pode ser cacheada.",
     }),
     active: z.boolean().openapi({ example: true }),
+    deactivated_at: z.string().nullable().openapi({
+      example: null,
+      description:
+        "Quando a conta foi desativada; `null` enquanto ativa. Conta o prazo de retenção "
+        + "dos dados do aluno.",
+    }),
     show_in_global_ranking: z.boolean().openapi({
       example: true,
       description: "Se o aluno aparece no ranking geral. O ranking da turma não muda.",
@@ -137,7 +143,9 @@ export const UpdateUserBodySchema = z
     badges: z.array(z.string()).optional().openapi({ example: ["first_login"] }),
     active: z.boolean().optional().openapi({
       example: true,
-      description: "Apenas admin. Ignorado nos demais papéis.",
+      description:
+        "Apenas admin. Ignorado nos demais papéis. Desativar preenche `deactivated_at` e "
+        + "encerra a sessão; reativar limpa `deactivated_at`.",
     }),
     show_in_global_ranking: z.boolean().optional().openapi({
       example: false,

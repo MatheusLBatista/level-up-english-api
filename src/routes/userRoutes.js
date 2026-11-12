@@ -74,7 +74,7 @@ router
   .delete(
     "/users/:id",
     authMiddleware,
-    authorize("student", "teacher", "admin"),
+    authorize("teacher", "admin"),
     asyncWrapper(userController.delete.bind(userController)),
   );
 

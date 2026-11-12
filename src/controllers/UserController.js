@@ -115,8 +115,8 @@ class UserController {
       });
     }
 
-    const data = await this.service.delete(id, req);
-    return CommonResponse.success(res, data, 200, "User deleted successfully.");
+    const data = await this.service.deactivate(id, req);
+    return CommonResponse.success(res, this.withoutCredentials(data), 200, "User deactivated successfully.");
   }
 }
 

@@ -1016,15 +1016,14 @@ describe("Rotas de usuários", () => {
       expect((await User.findById(student._id)).avatar_url).toBeNull();
     });
 
-    it("deve apagar o arquivo da foto quando o usuário é excluído", async() => {
+    it("deve manter o arquivo da foto quando o usuário é desativado", async() => {
       const upload = await enviarFoto(student, student);
       const arquivo = caminhoNoDisco(upload.body.data.avatar_url);
-      await expect(fs.access(arquivo)).resolves.toBeUndefined();
 
       const res = await request(app).delete(`/users/${student._id}`).set("Authorization", await como(admin));
 
       expect(res.status).toBe(200);
-      await expect(fs.access(arquivo)).rejects.toThrow();
+      await expect(fs.access(arquivo)).resolves.toBeUndefined();
     });
   });
 
@@ -1087,104 +1086,123 @@ describe("Rotas de usuários", () => {
   });
 
   describe("DELETE /users/:id", () => {
-    it("deve permitir que o aluno apague a própria conta", async() => {
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(student));
+    const desativar = async(alvo, logado) =>
+      await request(app).delete(`/users/${alvo._id}`).set("Authorization", await como(logado));
+
+    it("deve desativar a conta em vez de apagar, preservando XP e turma", async() => {
+      const turma = await Class.create({ name: "Turma A", students: [student._id] });
+      await User.findByIdAndUpdate(student._id, { class: turma._id, xp: 300 });
+
+      const res = await desativar(student, admin);
 
       expect(res.status).toBe(200);
-      expect(res.body.message).toBe("User deleted successfully.");
-      expect(await User.findById(student._id)).toBeNull();
+      expect(res.body.message).toBe("User deactivated successfully.");
+      expect(res.body.data.active).toBe(false);
+      expect(res.body.data.deactivated_at).toEqual(expect.any(String));
+
+      const salvo = await User.findById(student._id);
+      expect(salvo).not.toBeNull();
+      expect(salvo.xp).toBe(300);
+      expect((await Class.findById(turma._id)).students.map(String)).toEqual([String(student._id)]);
     });
 
-    it("deve retornar 403 quando o aluno apaga a conta de outro", async() => {
-      const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com" });
+    it("deve encerrar a sessão de quem foi desativado", async() => {
+      const login = await request(app).post("/auth/login").send({ email: student.email, password: SENHA_PADRAO });
 
-      const res = await request(app)
-        .delete(`/users/${outro._id}`)
-        .set("Authorization", await como(student));
+      await desativar(student, admin);
+
+      const renovacao = await request(app).post("/auth/refresh").send({ refreshToken: login.body.data.refreshToken });
+      expect(renovacao.status).toBe(401);
+    });
+
+    it("deve tirar o aluno desativado do ranking da turma", async() => {
+      const turma = await Class.create({ name: "Turma A", students: [student._id] });
+      await User.findByIdAndUpdate(student._id, { class: turma._id, xp: 300 });
+
+      await desativar(student, admin);
+
+      const ranking = await Ranking.findOne({ type: "class", class: turma._id });
+      expect(ranking.entries).toHaveLength(0);
+    });
+
+    it("deve retornar 403 quando o aluno tenta desativar a própria conta", async() => {
+      const res = await desativar(student, student);
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Students can only delete their own account.");
-      expect(await User.findById(outro._id)).not.toBeNull();
+      expect(res.body.message).toBe("Permissão insuficiente para executar a operação.");
+      expect((await User.findById(student._id)).active).toBe(true);
     });
 
-    it("deve permitir que a professora apague um aluno da turma dela", async() => {
+    it("deve retornar 403 quando o aluno tenta desativar a conta de outro", async() => {
+      const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com" });
+
+      const res = await desativar(outro, student);
+
+      expect(res.status).toBe(403);
+      expect((await User.findById(outro._id)).active).toBe(true);
+    });
+
+    it("deve permitir que a professora desative um aluno da turma dela", async() => {
       const turma = await Class.create({ name: "Turma A", teacher: teacher._id, students: [student._id] });
       await User.findByIdAndUpdate(student._id, { class: turma._id });
 
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(teacher));
+      const res = await desativar(student, teacher);
 
       expect(res.status).toBe(200);
-      expect(await User.findById(student._id)).toBeNull();
-      expect((await Class.findById(turma._id)).students).toHaveLength(0);
+      expect((await User.findById(student._id)).active).toBe(false);
     });
 
-    it("deve retornar 403 quando a professora apaga um aluno de turma de outro professor", async() => {
+    it("deve retornar 403 quando a professora desativa um aluno de turma de outro professor", async() => {
       const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com", role: "teacher" });
       const turma = await Class.create({ name: "Turma B", teacher: outro._id, students: [student._id] });
       await User.findByIdAndUpdate(student._id, { class: turma._id });
 
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(teacher));
+      const res = await desativar(student, teacher);
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Você só pode excluir alunos das suas turmas.");
-      expect(await User.findById(student._id)).not.toBeNull();
-      expect((await Class.findById(turma._id)).students.map(String)).toEqual([String(student._id)]);
+      expect(res.body.message).toBe("Você só pode desativar alunos das suas turmas.");
+      expect((await User.findById(student._id)).active).toBe(true);
     });
 
-    it("deve retornar 403 quando a professora apaga um aluno sem turma", async() => {
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(teacher));
+    it("deve retornar 403 quando a professora desativa um aluno sem turma", async() => {
+      const res = await desativar(student, teacher);
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Você só pode excluir alunos das suas turmas.");
-      expect(await User.findById(student._id)).not.toBeNull();
+      expect(res.body.message).toBe("Você só pode desativar alunos das suas turmas.");
+      expect((await User.findById(student._id)).active).toBe(true);
     });
 
-    it("deve permitir que a professora apague a própria conta", async() => {
-      const res = await request(app)
-        .delete(`/users/${teacher._id}`)
-        .set("Authorization", await como(teacher));
+    it("deve permitir que a professora desative a própria conta", async() => {
+      const res = await desativar(teacher, teacher);
 
       expect(res.status).toBe(200);
-      expect(await User.findById(teacher._id)).toBeNull();
+      expect((await User.findById(teacher._id)).active).toBe(false);
     });
 
-    it("deve retornar 403 quando a professora apaga uma conta privilegiada", async() => {
-      const res = await request(app)
-        .delete(`/users/${admin._id}`)
-        .set("Authorization", await como(teacher));
+    it("deve retornar 403 quando a professora desativa uma conta privilegiada", async() => {
+      const res = await desativar(admin, teacher);
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Teachers can only delete student accounts.");
-      expect(await User.findById(admin._id)).not.toBeNull();
+      expect(res.body.message).toBe("Teachers can only deactivate student accounts.");
+      expect((await User.findById(admin._id)).active).toBe(true);
     });
 
-    it("deve permitir que o admin apague qualquer conta", async() => {
-      const res = await request(app)
-        .delete(`/users/${teacher._id}`)
-        .set("Authorization", await como(admin));
+    it("deve permitir que o admin desative uma professora", async() => {
+      const res = await desativar(teacher, admin);
 
       expect(res.status).toBe(200);
-      expect(await User.findById(teacher._id)).toBeNull();
+      expect((await User.findById(teacher._id)).active).toBe(false);
     });
 
-    it("deve tirar o id do aluno apagado de Class.students", async() => {
-      const turma = await Class.create({ name: "Turma A", students: [student._id] });
-      await User.findByIdAndUpdate(student._id, { class: turma._id });
+    it("deve retornar 409 sem mudar a data quando a conta já estiver desativada", async() => {
+      const desativadoEm = new Date("2026-02-01T00:00:00.000Z");
+      await User.findByIdAndUpdate(student._id, { active: false, deactivated_at: desativadoEm });
 
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(admin));
+      const res = await desativar(student, admin);
 
-      expect(res.status).toBe(200);
-      expect((await Class.findById(turma._id)).students).toHaveLength(0);
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe("Este usuário já está desativado.");
+      expect((await User.findById(student._id)).deactivated_at).toEqual(desativadoEm);
     });
 
     it("deve retornar 404 quando o usuário não existir", async() => {
@@ -1199,6 +1217,38 @@ describe("Rotas de usuários", () => {
       const res = await request(app).delete(`/users/${student._id}`);
 
       expect(res.status).toBe(498);
+    });
+  });
+
+  describe("PATCH /users/:id com active", () => {
+    it("deve preencher deactivated_at quando o admin desativa e limpar quando reativa", async() => {
+      const desativacao = await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(admin))
+        .send({ active: false });
+
+      expect(desativacao.status).toBe(200);
+      expect((await User.findById(student._id)).deactivated_at).toBeInstanceOf(Date);
+
+      const reativacao = await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(admin))
+        .send({ active: true });
+
+      expect(reativacao.status).toBe(200);
+      expect((await User.findById(student._id)).deactivated_at).toBeNull();
+    });
+
+    it("deve ignorar active vindo da professora", async() => {
+      const res = await request(app)
+        .patch(`/users/${teacher._id}`)
+        .set("Authorization", await como(teacher))
+        .send({ active: false });
+
+      expect(res.status).toBe(200);
+      const salvo = await User.findById(teacher._id);
+      expect(salvo.active).toBe(true);
+      expect(salvo.deactivated_at).toBeNull();
     });
   });
 
