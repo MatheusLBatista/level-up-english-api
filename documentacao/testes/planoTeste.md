@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.15_
+_versão 3.16_
 
 ## Histórico das alterações
 
@@ -26,6 +26,7 @@ _versão 3.15_
 | 09/11/2026 | 3.13   | RNF-002 atendido com o p95 medido na VM de produção; RNF-006 implementado, com backup diário e plano de recuperação; seções 1 e 10 alinhadas ao projeto atual (frontend e pipeline existem) | Matheus Lucas |
 | 12/11/2026 | 3.14   | RF-018 (adequação à LGPD): termo dos responsáveis, revogação, desativação no lugar da exclusão, retenção com anonimização, eliminação e exportação a pedido; RF-007 com o ranking da turma ocultável pelo professor e sem e-mail; seção 2 alinhada à API atual (37 caminhos e 53 operações); seção 4 alinhada à seção 13 do catálogo (391 casos, 387 automatizados); seções 6, 7 e 10 medidas de novo | Matheus Lucas |
 | 12/11/2026 | 3.15   | A LGPD passa a ser também requisito não funcional: RNF-008 (conformidade com a LGPD, com retenção, minimização, backups e registro das eliminações) e RF-018 restrito ao que o usuário faz (termo, revogação, desativação, eliminação e exportação); a retirada do e-mail do ranking sai do RF-007 e vai para o RNF-008 | Matheus Lucas |
+| 12/11/2026 | 3.16   | Termo dos responsáveis obrigatório para todo aluno, sem estado pendente (os ambientes são recriados pelos seeds): sai o registro posterior do termo, e reativar aluno revogado exige termo novo; RNF-008 com a conferência `check:guardian-consent`; seção 2 com 36 caminhos e 52 operações; seção 4 alinhada à seção 13 do catálogo (384 casos, 380 automatizados); seções 7 e 10 medidas de novo | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -39,13 +40,13 @@ O escopo deste plano é a API REST. O front-end fica em repositório próprio, c
 
 A aplicação é construída em uma arquitetura modular em camadas, utilizando Node.js, Express 5, MongoDB com Mongoose, Zod para validação de dados, JWT para autenticação e Swagger (zod-to-openapi) para documentação.
 
-São **9 domínios**, expostos em **37 caminhos** e **53 operações** documentadas em `/api-docs`.
+São **9 domínios**, expostos em **36 caminhos** e **52 operações** documentadas em `/api-docs`.
 
 ### Camadas
 
 - **Routes**: definem os endpoints, declaram quem pode chamá-los e direcionam para os controllers.
   - `authRoutes.js`: autenticação e gestão de sessão
-  - `userRoutes.js`: gerenciamento de usuários, foto de perfil, histórico de XP, desempenho do aluno e as rotas da LGPD (termo dos responsáveis, revogação, eliminação e exportação)
+  - `userRoutes.js`: gerenciamento de usuários, foto de perfil, histórico de XP, desempenho do aluno e as rotas da LGPD (revogação do consentimento, eliminação e exportação)
   - `classRoutes.js`: gerenciamento de turmas
   - `missionRoutes.js`: gerenciamento de missões e submissão de progresso
   - `attitudeRoutes.js`: catálogo de atitudes
@@ -125,7 +126,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-015 | Desempenho por Tipo de Missão  | O aluno vê a média das melhores notas por tipo de missão (quiz, vocabulário e áudio), para o gráfico de radar, comparada à média dos alunos ativos da turma e com filtro opcional por período de conclusão. Mesma regra de acesso do RF-014. | Não Essencial | Implementado    |
 | RF-016 | Notificações                   | O aluno é avisado de atitude aplicada, corrigida ou desfeita, de ajuste manual de XP e de missão nova na turma, com o XP aplicado de fato e a mudança de nível. Ele lista as próprias notificações, vê quantas não leu e marca uma ou todas como lidas; as notificações são apagadas após 90 dias. | Não Essencial | Implementado    |
 | RF-017 | Foto de Perfil                 | O usuário envia a própria foto (JPEG, PNG ou WebP, até 2 MB), que o servidor converte para WebP 256×256 sem metadados e entrega em `/uploads`. Ele pode trocá-la ou removê-la, e a foto antiga sai do disco; o admin troca ou remove a de qualquer usuário. | Não Essencial | Implementado    |
-| RF-018 | Direitos do titular e consentimento | O cadastro de aluno registra o recebimento do termo assinado pelos responsáveis (data e quem registrou), e alunos antigos aparecem como termo pendente. Professor e admin registram o termo depois ou revogam o consentimento, o que desativa a conta. A exclusão vira desativação, e o aluno não desativa a própria conta. A pedido do titular, o admin elimina os dados do aluno na hora (anonimização irreversível) e exporta os dados dele em JSON. | Essencial     | Implementado    |
+| RF-018 | Direitos do titular e consentimento | O cadastro de aluno exige a confirmação do termo assinado pelos responsáveis e registra a data e quem registrou; sem ela, o cadastro é recusado. Professor e admin revogam o consentimento, o que desativa a conta, e reativar o aluno exige um termo novo. A exclusão vira desativação, e o aluno não desativa a própria conta. A pedido do titular, o admin elimina os dados do aluno na hora (anonimização irreversível) e exporta os dados dele em JSON. | Essencial     | Implementado    |
 
 `RF-018` reúne as ações que um usuário dispara por causa da LGPD; a obrigação de cumprir a lei, que vale para o sistema inteiro, está no `RNF-008`. A divisão segue a classificação de Sommerville, em que a exigência legal é requisito não funcional externo: ela não descreve uma função, e sim uma restrição sobre como todas as funções tratam os dados. A retenção automática fica no RNF-008 porque ninguém a dispara — ela existe só para cumprir o prazo da lei.
 
@@ -139,10 +140,10 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | **Atendido** — limite aplicado nos 5 repositórios e p95 de até 33,38 ms na VM de produção (detalhe abaixo) |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
-| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,94% de linhas e as 53 operações exercitadas por teste de integração (ver seção 7) |
+| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,94% de linhas e as 52 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Implementado — backup diário e plano de recuperação (detalhe abaixo) |
 | RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
-| RNF-008 | Conformidade com a LGPD | Tratamento dos dados dos alunos conforme a Lei 13.709/2018: consentimento dos responsáveis para menores (art. 14, pelo RF-018); minimização — o ranking não traz e-mail, a foto é opcional e sem metadados, as notificações somem após 90 dias; retenção de 12 meses após a desativação (`RETENTION_MONTHS`), com anonimização automática diária (art. 16); dados anonimizados nos backups por no máximo 7 dias; registro de cada eliminação sem dado pessoal; atendimento aos direitos do titular (art. 18, pelo RF-018). | Implementado — o texto jurídico da política e do termo é modelo e exige revisão antes do uso real (detalhe abaixo) |
+| RNF-008 | Conformidade com a LGPD | Tratamento dos dados dos alunos conforme a Lei 13.709/2018: consentimento dos responsáveis para menores (art. 14, pelo RF-018), sem nenhum aluno ativo sem termo — conferido pelo `npm run check:guardian-consent` depois de cada reseed; minimização — o ranking não traz e-mail, a foto é opcional e sem metadados, as notificações somem após 90 dias; retenção de 12 meses após a desativação (`RETENTION_MONTHS`), com anonimização automática diária (art. 16); dados anonimizados nos backups por no máximo 7 dias; registro de cada eliminação sem dado pessoal; atendimento aos direitos do titular (art. 18, pelo RF-018). | Implementado — o texto jurídico da política e do termo é modelo e exige revisão antes do uso real (detalhe abaixo) |
 
 `RNF-008` é verificado pelos casos `CT-LGPD` (seção 9 do catálogo) e pelo `CT-RANK-017`. A anonimização mantém XP, progresso, turma e logs de atitude ligados ao registro anonimizado, para os rankings e as médias da turma não mudarem, e apaga o que identifica o aluno: nome, e-mail, foto, credenciais, notificações e o texto livre dos ajustes de XP (o único campo de texto livre ligado ao aluno; `AttitudeLog` não tem). O `DataErasureLog` guarda só o id, o motivo, quem executou e a data, e serve também para a retenção reaplicar a anonimização se um backup antigo for restaurado. A API não decide quem é o controlador dos dados: isso, a política de privacidade, os termos de uso e o modelo do termo ficam no frontend, como textos-modelo.
 
@@ -192,12 +193,12 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | RF-008, RF-011              |
 | Ranking                       | `CT-RANK`    | 17    | RF-007, RF-011, RNF-008     |
 | Notificações                  | `CT-NOTIF`   | 19    | RF-011, RF-016              |
-| Privacidade e LGPD            | `CT-LGPD`    | 41    | RF-011, RF-018, RNF-008     |
-| Matriz de permissões          | `CT-PERM`    | 54    | RF-011                      |
+| Privacidade e LGPD            | `CT-LGPD`    | 35    | RF-011, RF-018, RNF-008     |
+| Matriz de permissões          | `CT-PERM`    | 53    | RF-011                      |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
-| **Total**                     | -            | **391** | -                         |
+| **Total**                     | -            | **384** | -                         |
 
-**Situação em 12/11/2026: 387 dos 391 casos estão automatizados (99,0%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 13 do catálogo.
+**Situação em 12/11/2026: 380 dos 384 casos estão automatizados (99,0%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 13 do catálogo.
 
 A matriz `CT-PERM` cobre uma linha por operação da API, com o status esperado para cada um dos três papéis. Ela é a rede de segurança contra regressão de permissão: qualquer rota nova entra ali antes de ser considerada pronta.
 
@@ -335,7 +336,7 @@ Uma consequência dessa estrutura merece registro: **nenhuma suíte carrega `src
 
 ### Metas de cobertura por camada, e o que foi alcançado
 
-Medição de 12/11/2026, com 77 arquivos de teste e 1687 testes:
+Medição de 12/11/2026, com 77 arquivos de teste e 1661 testes:
 
 | Camada             | Meta  | Realizado (stmts)  | Prioridade | Justificativa                                                |
 | ------------------ | ----- | ------------------ | ---------- | ------------------------------------------------------------ |
@@ -366,7 +367,7 @@ Configurar `collectCoverageFrom` continua sendo o ajuste correto: ele faz a gara
 
 | Métrica              | Alvo                     | Medido em 12/11/2026     |
 | -------------------- | ------------------------ | ------------------------ |
-| Pass rate na `main`  | mínimo de 95%            | **100%** (1687/1687)     |
+| Pass rate na `main`  | mínimo de 95%            | **100%** (1661/1661)     |
 | Flakiness            | máximo de 5%             | Nenhum caso instável isolado; a suíte cheia tem uma falha intermitente de infraestrutura em testes de rota (~1 em 8 rodadas em 02/10/2026; 2 em 7 em 16/10/2026, com `socket hang up` do supertest; em 29/10/2026, timeouts de 30 s em `missionRoutes` e `classRoutes` e um 401 no lugar de 403 em `performanceRoutes`; em 12/11/2026, uma falha em `middlewares/UploadsStaticMiddleware`, que usa diretório temporário próprio; todos passando isolados e na rodada seguinte) |
 | Tempo de execução    | menos de 60 s            | **~11 s**                |
 | Cobertura de linhas  | mínimo de 70%            | **99,94%**               |
@@ -426,7 +427,7 @@ O campo **Teste de regressão** é obrigatório para severidade Blocker e Grave:
 | Planejamento     | Revisão do plano e do catálogo de casos                          | 1 dia    | ✅ concluído em 14/08/2026                      |
 | Infraestrutura   | `setupDatabase`, factories e helper de autenticação              | 2 dias   | ✅ concluído — sem factories nem helper de auth, ver seção 6 |
 | Integração       | Suíte por módulo, seguindo a ordem de criticidade                | 5 dias   | ✅ concluído — 13 suítes de rota                |
-| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 54 de 54                                     |
+| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 53 de 53                                     |
 | Unitários        | Regras isoladas de XP, nível, correção de quiz e schemas         | 2 dias   | ✅ concluído                                    |
 | Ponta a ponta    | Fluxos `CT-E2E`                                                  | 1 dia    | ⬜ pendente                                     |
 | Fechamento       | Cobertura, ajuste das metas e revisão do plano                   | 1 dia    | ✅ concluído em 19/08/2026 — esta versão        |

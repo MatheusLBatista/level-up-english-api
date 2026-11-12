@@ -13,6 +13,7 @@ import User from "../../models/User.js";
 import Class from "../../models/Class.js";
 import Ranking from "../../models/Ranking.js";
 import { UserSchema } from "../../schemas/UserSchema.js";
+import UserRepository from "../../repository/UserRepository.js";
 // registra o model "missions", que o ClassRepository.findById popula
 import "../../models/Mission.js";
 import {
@@ -88,35 +89,6 @@ describe("Rotas de usuários", () => {
       const res = await request(app).get("/users").set("Authorization", await como(admin));
 
       res.body.data.docs.forEach((usuario) => expect(usuario).not.toHaveProperty("password"));
-    });
-
-    it.each([
-      ["pending", "pendente@escola.com"],
-      ["recorded", "registrado@escola.com"],
-      ["revoked", "revogado@escola.com"],
-    ])("deve filtrar os alunos pela situação do termo dos responsáveis (%s)", async(situacao, email) => {
-      await User.deleteOne({ _id: student._id });
-      await criarUsuario({ name: "Pendente", email: "pendente@escola.com" });
-      await criarUsuario({
-        name: "Registrado",
-        email: "registrado@escola.com",
-        guardian_consent_at: new Date(),
-        guardian_consent_recorded_by: admin._id,
-      });
-      await criarUsuario({
-        name: "Revogado",
-        email: "revogado@escola.com",
-        active: false,
-        guardian_consent_at: new Date(),
-        guardian_consent_revoked_at: new Date(),
-      });
-
-      const res = await request(app)
-        .get(`/users?guardian_consent=${situacao}`)
-        .set("Authorization", await como(admin));
-
-      expect(res.status).toBe(200);
-      expect(res.body.data.docs.map((usuario) => usuario.email)).toEqual([email]);
     });
 
     it("deve filtrar por papel", async() => {
@@ -764,92 +736,10 @@ describe("Rotas de usuários", () => {
       await Class.updateOne({ _id: turma._id }, { $push: { students: aluno._id } });
     });
 
-    const registrar = async(quem, alvoId) =>
-      await request(app)
-        .patch(`/users/${alvoId}/guardian-consent`)
-        .set("Authorization", await como(quem));
-
     const revogar = async(quem, alvoId) =>
       await request(app)
         .post(`/users/${alvoId}/guardian-consent/revoke`)
         .set("Authorization", await como(quem));
-
-    describe("PATCH /users/:id/guardian-consent", () => {
-      it("deve permitir que a professora registre o termo pendente de aluno da turma dela", async() => {
-        const res = await registrar(teacher, aluno._id);
-
-        expect(res.status).toBe(200);
-        expect(res.body.message).toBe("Termo dos responsáveis registrado.");
-        expect(() => UserSchema.parse(res.body.data)).not.toThrow();
-        expect(res.body.data.guardian_consent_recorded_by).toBe(String(teacher._id));
-        expect(res.body.data).not.toHaveProperty("password");
-
-        const salvo = await User.findById(aluno._id);
-        expect(salvo.guardian_consent_at).toBeInstanceOf(Date);
-      });
-
-      it("deve permitir que o admin registre o termo de aluno sem turma", async() => {
-        const res = await registrar(admin, student._id);
-
-        expect(res.status).toBe(200);
-        expect(res.body.data.guardian_consent_recorded_by).toBe(String(admin._id));
-      });
-
-      it("deve retornar 403 quando a professora tenta registrar o termo de aluno de outra turma", async() => {
-        const outra = await criarUsuario({ name: "Outra", email: "outra@escola.com", role: "teacher" });
-        await Class.updateOne({ _id: turma._id }, { teacher: outra._id });
-
-        const res = await registrar(teacher, aluno._id);
-
-        expect(res.status).toBe(403);
-        expect(res.body.message).toBe("Você só pode alterar o termo de alunos das suas turmas.");
-        expect((await User.findById(aluno._id)).guardian_consent_at).toBeNull();
-      });
-
-      it("deve retornar 403 quando quem chama é aluno, mesmo para si", async() => {
-        const res = await registrar(aluno, aluno._id);
-
-        expect(res.status).toBe(403);
-        expect(res.body.message).toBe("Permissão insuficiente para executar a operação.");
-      });
-
-      it.each([
-        ["for professor", () => teacher._id],
-        ["não existir", () => ID_INEXISTENTE],
-        ["tiver id inválido", () => "nao-e-id"],
-      ])("deve retornar 404 quando o alvo %s", async(_, alvo) => {
-        const res = await registrar(admin, alvo());
-
-        expect(res.status).toBe(404);
-        expect(res.body.message).toBe("Aluno não encontrado.");
-      });
-
-      it("deve retornar 409 quando o aluno estiver desativado", async() => {
-        await User.updateOne({ _id: aluno._id }, { active: false });
-
-        const res = await registrar(admin, aluno._id);
-
-        expect(res.status).toBe(409);
-        expect(res.body.message).toBe("Não é possível registrar o termo de um aluno desativado.");
-      });
-
-      it("deve retornar 409 quando o termo já estiver registrado", async() => {
-        const registradoEm = new Date("2026-01-10");
-        await User.updateOne({ _id: aluno._id }, { guardian_consent_at: registradoEm });
-
-        const res = await registrar(teacher, aluno._id);
-
-        expect(res.status).toBe(409);
-        expect(res.body.message).toBe("O termo deste aluno já foi registrado.");
-        expect((await User.findById(aluno._id)).guardian_consent_at).toEqual(registradoEm);
-      });
-
-      it("deve retornar 498 quando não houver autenticação", async() => {
-        const res = await request(app).patch(`/users/${aluno._id}/guardian-consent`);
-
-        expect(res.status).toBe(498);
-      });
-    });
 
     describe("POST /users/:id/guardian-consent/revoke", () => {
       it("deve registrar a revogação, desativar a conta e derrubar a sessão do aluno", async() => {
@@ -934,28 +824,60 @@ describe("Rotas de usuários", () => {
       });
     });
 
-    it("deve aceitar termo novo depois que o admin reativa o aluno revogado", async() => {
-      await revogar(teacher, aluno._id);
+    describe("reativação de aluno revogado", () => {
+      const reativar = async(corpo) =>
+        await request(app)
+          .patch(`/users/${aluno._id}`)
+          .set("Authorization", await como(admin))
+          .send(corpo);
 
-      const reativacao = await request(app)
-        .patch(`/users/${aluno._id}`)
-        .set("Authorization", await como(admin))
-        .send({ active: true });
+      beforeEach(async() => {
+        await revogar(teacher, aluno._id);
+      });
 
-      expect(reativacao.status).toBe(200);
-      expect(reativacao.body.data.guardian_consent_at).toBeNull();
-      expect(reativacao.body.data.guardian_consent_revoked_at).toBeNull();
+      it.each([
+        ["sem o termo", { active: true }],
+        ["com o termo falso", { active: true, guardian_consent: false }],
+      ])("deve retornar 409 e manter o aluno revogado quando o admin reativa %s", async(_, corpo) => {
+        const res = await reativar(corpo);
 
-      const pendentes = await request(app)
-        .get("/users?guardian_consent=pending")
-        .set("Authorization", await como(admin));
-      expect(pendentes.body.data.docs.map((u) => u.email)).toContain(aluno.email);
+        if (corpo.guardian_consent === false) {
+          expect(res.status).toBe(400);
+          expect(res.body.errors[0].path).toBe("guardian_consent");
+        } else {
+          expect(res.status).toBe(409);
+          expect(res.body.message).toBe(
+            "Para reativar um aluno com consentimento revogado, confirme o recebimento de um termo novo.",
+          );
+        }
 
-      const res = await registrar(teacher, aluno._id);
+        const salvo = await User.findById(aluno._id);
+        expect(salvo.active).toBe(false);
+        expect(salvo.guardian_consent_revoked_at).toBeInstanceOf(Date);
+      });
 
-      expect(res.status).toBe(200);
-      expect(res.body.data.guardian_consent_recorded_by).toBe(String(teacher._id));
+      it("deve reativar com o termo novo, registrando a data e o admin e limpando a revogação", async() => {
+        const antes = Date.now();
+
+        const res = await reativar({ active: true, guardian_consent: true });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.active).toBe(true);
+        expect(res.body.data.guardian_consent_revoked_at).toBeNull();
+        expect(res.body.data.guardian_consent_recorded_by).toBe(String(admin._id));
+        expect(new Date(res.body.data.guardian_consent_at).getTime()).toBeGreaterThanOrEqual(antes - 1000);
+        expect(res.body.data.deactivated_at).toBeNull();
+      });
+
+      it("deve deixar o aluno reativado fora da lista do script de checagem", async() => {
+        await reativar({ active: true, guardian_consent: true });
+
+        const semTermo = await new UserRepository().findActiveStudentsWithoutConsent();
+
+        expect(semTermo.map((u) => String(u._id))).not.toContain(String(aluno._id));
+      });
     });
+
   });
 
   describe("PATCH /users/:id/avatar", () => {

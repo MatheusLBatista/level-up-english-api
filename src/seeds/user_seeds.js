@@ -40,7 +40,6 @@ async function userSeeds() {
   //students
   for (let i = 0; i < 40; i++) {
     const active = globalFakeMapping.active();
-    const consentPending = i % 8 === 7;
 
     users.push({
       name: `Student ${i + 1}`,
@@ -54,7 +53,7 @@ async function userSeeds() {
       active,
       deactivated_at: active ? null : new Date(),
       anonymized_at: null,
-      guardian_consent_at: consentPending ? null : new Date(),
+      guardian_consent_at: new Date(),
       guardian_consent_recorded_by: null,
       guardian_consent_revoked_at: null,
     });
@@ -63,10 +62,7 @@ async function userSeeds() {
   const result = await User.collection.insertMany(users);
 
   const admin = await User.findOne({ role: "admin" });
-  await User.updateMany(
-    { role: "student", guardian_consent_at: { $ne: null } },
-    { $set: { guardian_consent_recorded_by: admin._id } },
-  );
+  await User.updateMany({ role: "student" }, { $set: { guardian_consent_recorded_by: admin._id } });
   console.log(
     `${Object.keys(result.insertedIds).length} users inserted successfully!`,
   );

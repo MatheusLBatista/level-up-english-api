@@ -473,33 +473,59 @@ describe("UserService", () => {
         guardian_consent_revoked_at: new Date("2026-03-01"),
       });
 
-      it("deve zerar o termo para que ele volte a ficar pendente", async() => {
+      it("deve lançar 409 sem gravar nada quando o termo novo não vier", async() => {
+        responderFindById(revogado(), admin());
+
+        const erro = await capturarErro(service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID }));
+
+        expect(erro.statusCode).toBe(409);
+        expect(erro.errorType).toBe("conflictError");
+        expect(erro.field).toBe("guardian_consent");
+        expect(erro.customMessage).toBe(
+          "Para reativar um aluno com consentimento revogado, confirme o recebimento de um termo novo.",
+        );
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+
+      it("deve registrar o termo novo com a data e o admin e limpar a revogação", async() => {
         responderFindById(revogado(), admin());
         repository.update.mockResolvedValue({});
+        const antes = Date.now();
 
-        await service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID });
+        await service.update(STUDENT_ID, { active: true, guardian_consent: true }, { user_id: ADMIN_ID });
 
-        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, {
+        const [, dados] = repository.update.mock.calls[0];
+        expect(dados).toEqual({
           active: true,
           deactivated_at: null,
-          guardian_consent_at: null,
-          guardian_consent_recorded_by: null,
+          guardian_consent_at: expect.any(Date),
+          guardian_consent_recorded_by: ADMIN_ID,
           guardian_consent_revoked_at: null,
         });
+        expect(dados.guardian_consent_at.getTime()).toBeGreaterThanOrEqual(antes);
       });
 
       it.each([
         ["desativado sem revogação", usuario(STUDENT_ID, "student", { active: false, guardian_consent_revoked_at: null })],
         ["já ativo", usuario(STUDENT_ID, "student", { active: true, guardian_consent_revoked_at: new Date() })],
-      ])("não deve mexer no termo de aluno %s", async(_, alvo) => {
+      ])("não deve exigir nem gravar termo ao reativar aluno %s", async(_, alvo) => {
         responderFindById(alvo, admin());
         repository.update.mockResolvedValue({});
 
-        await service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID });
+        await service.update(STUDENT_ID, { active: true, guardian_consent: true }, { user_id: ADMIN_ID });
 
-        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, expect.not.objectContaining({
-          guardian_consent_at: null,
-        }));
+        const [, dados] = repository.update.mock.calls[0];
+        expect(dados).not.toHaveProperty("guardian_consent");
+        expect(dados).not.toHaveProperty("guardian_consent_at");
+      });
+
+      it("deve ignorar o termo enviado por quem não é admin", async() => {
+        responderFindById(student(), student());
+        repository.update.mockResolvedValue({});
+
+        await service.update(STUDENT_ID, { name: "Novo", guardian_consent: true }, { user_id: STUDENT_ID });
+
+        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { name: "Novo" });
       });
     });
 
@@ -823,84 +849,6 @@ describe("UserService", () => {
       repository.update.mockImplementation(async(id, dados) => ({ _id: id, ...dados }));
     };
 
-    describe("recordGuardianConsent", () => {
-      it("deve registrar a data e quem registrou para o aluno pendente da turma da professora", async() => {
-        prepararAcesso(teacher(), aluno());
-        const antes = Date.now();
-
-        await service.recordGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID });
-
-        const [id, dados] = repository.update.mock.calls[0];
-        expect(id).toBe(STUDENT_ID);
-        expect(dados.guardian_consent_recorded_by).toBe(TEACHER_ID);
-        expect(dados.guardian_consent_revoked_at).toBeNull();
-        expect(dados.guardian_consent_at.getTime()).toBeGreaterThanOrEqual(antes);
-      });
-
-      it("deve permitir que o admin registre o termo de aluno de qualquer turma", async() => {
-        prepararAcesso(admin(), aluno(), turmaDeOutro);
-
-        await service.recordGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
-
-        expect(repository.update).toHaveBeenCalled();
-        expect(classRepository.findPlainById).not.toHaveBeenCalled();
-      });
-
-      it("deve lançar 403 quando a professora tenta registrar o termo de aluno de outra turma", async() => {
-        prepararAcesso(teacher(), aluno(), turmaDeOutro);
-
-        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID }));
-
-        expect(erro.statusCode).toBe(403);
-        expect(erro.customMessage).toBe("Você só pode alterar o termo de alunos das suas turmas.");
-        expect(repository.update).not.toHaveBeenCalled();
-      });
-
-      it("deve lançar 403 quando a professora tenta registrar o termo de aluno sem turma", async() => {
-        prepararAcesso(teacher(), aluno({ class: null }));
-
-        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID }));
-
-        expect(erro.statusCode).toBe(403);
-        expect(repository.update).not.toHaveBeenCalled();
-      });
-
-      it.each([
-        ["não existir", null],
-        ["não for aluno", usuario(STUDENT_ID, "teacher")],
-      ])("deve lançar 404 quando o alvo %s", async(_, alvo) => {
-        prepararAcesso(admin(), alvo);
-
-        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
-
-        expect(erro.statusCode).toBe(404);
-        expect(erro.customMessage).toBe("Aluno não encontrado.");
-        expect(repository.update).not.toHaveBeenCalled();
-      });
-
-      it("deve lançar 409 quando o aluno estiver desativado", async() => {
-        prepararAcesso(admin(), aluno({ active: false, guardian_consent_revoked_at: new Date() }));
-
-        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
-
-        expect(erro).toBeInstanceOf(CustomError);
-        expect(erro.statusCode).toBe(409);
-        expect(erro.errorType).toBe("conflictError");
-        expect(erro.customMessage).toBe("Não é possível registrar o termo de um aluno desativado.");
-        expect(repository.update).not.toHaveBeenCalled();
-      });
-
-      it("deve lançar 409 quando o termo já estiver registrado", async() => {
-        prepararAcesso(admin(), aluno({ guardian_consent_at: new Date("2026-01-10") }));
-
-        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
-
-        expect(erro.statusCode).toBe(409);
-        expect(erro.customMessage).toBe("O termo deste aluno já foi registrado.");
-        expect(repository.update).not.toHaveBeenCalled();
-      });
-    });
-
     describe("revokeGuardianConsent", () => {
       it("deve registrar a revogação, desativar a conta e encerrar a sessão", async() => {
         prepararAcesso(teacher(), aluno({ guardian_consent_at: new Date("2026-01-10") }));
@@ -960,14 +908,6 @@ describe("UserService", () => {
 
         const [, dados] = repository.update.mock.calls[0];
         expect(dados.deactivated_at).toBeInstanceOf(Date);
-      });
-
-      it("deve permitir revogar o consentimento de aluno com termo pendente", async() => {
-        prepararAcesso(admin(), aluno({ guardian_consent_at: null }));
-
-        await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
-
-        expect(repository.update).toHaveBeenCalled();
       });
 
       it("deve lançar 403 quando a professora tenta revogar o consentimento de aluno de outra turma", async() => {

@@ -9,7 +9,7 @@ O **LevelUp English** ajuda professores de inglês a engajar turmas através de 
 Existem três papéis de usuário, com permissões diferentes em cada rota:
 
 * **student (aluno)** — vê suas turmas, missões e atitudes; submete o progresso de missões; consulta seu próprio ranking.
-* **teacher (professor)** — cadastra alunos, turmas, missões e atitudes; registra ocorrências de atitude dos alunos (`attitude-logs`); registra o termo dos responsáveis, revoga o consentimento e desativa alunos das turmas dele; pode esconder o ranking da turma dos alunos.
+* **teacher (professor)** — cadastra alunos (com o termo dos responsáveis), turmas, missões e atitudes; registra ocorrências de atitude dos alunos (`attitude-logs`); revoga o consentimento e desativa alunos das turmas dele; pode esconder o ranking da turma dos alunos.
 * **admin** — acesso total, incluindo exclusão de turmas/atitudes, desativação de qualquer conta, eliminação e exportação dos dados de um aluno (LGPD), revogação de sessões e recálculo de níveis.
 
 As contas são criadas pela escola (admin) ou pelo professor; não há cadastro aberto.
@@ -31,8 +31,8 @@ As contas são criadas pela escola (admin) ou pelo professor; não há cadastro 
 
 O público inclui crianças e adolescentes, então a API segue a Lei 13.709/2018 (arts. 14, 16 e 18):
 
-* **Termo dos responsáveis** — cadastrar aluno exige `guardian_consent: true`, que registra que a escola recebeu o termo assinado em papel (não é um aceite do aluno). O aluno guarda a data e quem registrou. Alunos cadastrados antes disso aparecem como termo pendente (`GET /users?guardian_consent=pending`), e o termo é registrado depois com `PATCH /users/{id}/guardian-consent`.
-* **Revogação** — `POST /users/{id}/guardian-consent/revoke` (professor da turma ou admin) registra a revogação, desativa a conta e encerra a sessão. Para o aluno voltar, o admin reativa a conta e registra um termo novo.
+* **Termo dos responsáveis** — obrigatório: cadastrar aluno sem `guardian_consent: true` é recusado com 400. O campo registra que a escola recebeu o termo assinado em papel (não é um aceite do aluno), e o aluno guarda a data e quem registrou. Não existe aluno ativo sem termo — veja [Conferência do termo](#conferência-do-termo-dos-responsáveis).
+* **Revogação** — `POST /users/{id}/guardian-consent/revoke` (professor da turma ou admin) registra a revogação, desativa a conta e encerra a sessão. Para o aluno voltar, o admin reativa a conta com `PATCH /users/{id}` enviando `active: true` e `guardian_consent: true` (termo novo); sem o termo, a reativação é recusada com 409.
 * **Desativação no lugar da exclusão** — `DELETE /users/{id}` desativa a conta e marca `deactivated_at`. O aluno não desativa a própria conta: o pedido passa pela escola.
 * **Retenção** — os dados de um aluno desativado ficam guardados por `RETENTION_MONTHS` (12 por padrão) e depois são anonimizados por um script diário (veja [Retenção de dados](#retenção-de-dados-lgpd)).
 * **Eliminação a pedido** — `POST /users/{id}/erasure` (admin, com `{ "confirm": true }`) anonimiza o aluno na hora, de forma irreversível.
@@ -109,7 +109,7 @@ A API sobe em `http://localhost:$APP_PORT` (padrão `5011`, definido no `.env`).
 
 > ⚠️ `npm run seed` apaga (`deleteMany`) e recria usuários, turmas, missões, atitudes e attitude-logs. Não rode em um banco com dados que você queira manter.
 
-Para apresentações, `npm run seed:demo` monta uma escola realista: um semestre simulado pelos próprios services, com turmas, missões, atitudes, ranking, as notificações de cada aluno (com a data do evento e as da última semana como não lidas) e uma foto de perfil ilustrada para cada pessoa (estilo [Lorelei](https://www.dicebear.com/styles/lorelei/) do DiceBear, licença CC0, gerada a partir do e-mail e tratada como um upload comum). Todos os alunos vêm com o termo dos responsáveis registrado pelo professor da turma, menos um recém-chegado, que fica com o termo pendente para a tela ter um exemplo. Ele também apaga o banco e as fotos dos usuários apagados. Com `NODE_ENV=production`, ou em um banco com "prod" no nome, só roda se receber o nome exato do banco em `SEED_DEMO_CONFIRM`:
+Para apresentações, `npm run seed:demo` monta uma escola realista: um semestre simulado pelos próprios services, com turmas, missões, atitudes, ranking, as notificações de cada aluno (com a data do evento e as da última semana como não lidas) e uma foto de perfil ilustrada para cada pessoa (estilo [Lorelei](https://www.dicebear.com/styles/lorelei/) do DiceBear, licença CC0, gerada a partir do e-mail e tratada como um upload comum). Todos os alunos vêm com o termo dos responsáveis registrado pelo professor da turma. Ele também apaga o banco e as fotos dos usuários apagados. Com `NODE_ENV=production`, ou em um banco com "prod" no nome, só roda se receber o nome exato do banco em `SEED_DEMO_CONFIRM`:
 
 ```bash
 # no Docker, para as fotos irem para o volume vol-uploads
@@ -198,7 +198,7 @@ npm run migrate:mission-title-index
 npm run migrate:notification-indexes
 ```
 
-**`npm run migrate:deactivated-at`** — rodar **uma vez, logo depois do deploy** da adequação à LGPD. Preenche `deactivated_at` dos usuários que já estavam desativados, usando o `updatedAt` como aproximação. Sem ela, esses alunos nunca entram na retenção.
+**`npm run migrate:deactivated-at`** — só para um banco que já existia antes da adequação à LGPD; um ambiente recriado pelos seeds não precisa dela. Preenche `deactivated_at` dos usuários que já estavam desativados, usando o `updatedAt` como aproximação. Sem ela, esses alunos nunca entram na retenção.
 
 ```bash
 docker exec level-up-english-api npm run migrate:deactivated-at
@@ -219,6 +219,20 @@ Roda uma vez por dia pelo cron da VM, meia hora depois do backup (`crontab -e` n
 ```
 
 O script termina com código 1 se algum aluno falhar (os demais seguem), e o motivo fica no log. Os dados anonimizados ainda existem nos backups dos dias anteriores, que o `scripts/backup-mongo.sh` apaga depois de `KEEP_DAYS` (7) dias — esse é o prazo extra que a política de privacidade precisa informar.
+
+### Conferência do termo dos responsáveis
+
+O termo é obrigatório para todo aluno, e o `scripts/check-guardian-consent.js` confere isso no banco: lista os alunos **ativos** sem termo registrado ou com o consentimento revogado (aluno revogado deveria estar desativado). Rode depois de cada reseed e em cada ambiente; a lista precisa vir vazia.
+
+```bash
+# na VM, dentro do container da API (usa o DB_URL do container)
+docker exec level-up-english-api npm run check:guardian-consent
+
+# localmente, com o DB_URL do .env
+npm run check:guardian-consent
+```
+
+Com a lista vazia, imprime `OK: todos os alunos ativos têm o termo dos responsáveis registrado.` e sai com código 0. Se achar alguém, imprime o id, o nome e a turma de cada aluno e sai com código 1 — dá para usar no cron ou num pipeline. O script só lê o banco.
 
 ## Equipe
 

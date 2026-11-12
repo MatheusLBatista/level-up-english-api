@@ -58,7 +58,7 @@ export const classes = [
       { name: "Valentina Barbosa", profile: "regular" },
       { name: "Davi Lucas Rocha", profile: "oscilante" },
       { name: "Manuela Dias", profile: "desmotivado" },
-      { name: "Arthur Nascimento", profile: "recemChegado", joinedAt: "2026-10-14", consentPending: true },
+      { name: "Arthur Nascimento", profile: "recemChegado", joinedAt: "2026-10-14" },
     ],
   },
   {

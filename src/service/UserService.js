@@ -165,13 +165,23 @@ class UserService {
       delete parsedData.active;
     }
 
+    const newConsent = parsedData.guardian_consent === true;
+    delete parsedData.guardian_consent;
+
     const reactivatingRevokedStudent = parsedData.active === true
       && target.active === false
       && target.guardian_consent_revoked_at;
 
     if (reactivatingRevokedStudent) {
-      parsedData.guardian_consent_at = null;
-      parsedData.guardian_consent_recorded_by = null;
+      if (!newConsent) {
+        throw this.conflict(
+          "guardian_consent",
+          "Para reativar um aluno com consentimento revogado, confirme o recebimento de um termo novo.",
+        );
+      }
+
+      parsedData.guardian_consent_at = new Date();
+      parsedData.guardian_consent_recorded_by = user._id;
       parsedData.guardian_consent_revoked_at = null;
     }
 
@@ -204,25 +214,6 @@ class UserService {
     }
 
     return updated;
-  }
-
-  async recordGuardianConsent(id, req) {
-    const loggedUser = await this.repository.findById(req.user_id);
-    const student = await this.findStudentForConsent(id, loggedUser);
-
-    if (!student.active) {
-      throw this.conflict("guardian_consent", "Não é possível registrar o termo de um aluno desativado.");
-    }
-
-    if (student.guardian_consent_at) {
-      throw this.conflict("guardian_consent", "O termo deste aluno já foi registrado.");
-    }
-
-    return await this.repository.update(id, {
-      guardian_consent_at: new Date(),
-      guardian_consent_recorded_by: loggedUser._id,
-      guardian_consent_revoked_at: null,
-    });
   }
 
   async revokeGuardianConsent(id, req) {

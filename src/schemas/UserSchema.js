@@ -96,8 +96,8 @@ export const UserSchema = z
     guardian_consent_at: z.string().nullable().openapi({
       example: "2026-01-01T00:00:00.000Z",
       description:
-        "Quando a escola registrou o recebimento do termo assinado pelos responsáveis. "
-        + "`null` com `guardian_consent_revoked_at` também `null` significa termo pendente.",
+        "Quando a escola registrou o recebimento do termo assinado pelos responsáveis. Todo aluno "
+        + "nasce com ele preenchido; é `null` só para professor e admin.",
     }),
     guardian_consent_recorded_by: z.string().nullable().openapi({
       example: "507f1f77bcf86cd799439011",
@@ -105,7 +105,9 @@ export const UserSchema = z
     }),
     guardian_consent_revoked_at: z.string().nullable().openapi({
       example: null,
-      description: "Quando o consentimento foi revogado. A revogação desativa a conta.",
+      description:
+        "Quando o consentimento foi revogado. A revogação desativa a conta, e reativar exige um "
+        + "termo novo (guardian_consent no PATCH /users/{id}).",
     }),
     createdAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
     updatedAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
@@ -152,6 +154,11 @@ export const UpdateUserBodySchema = z
       description:
         "Apenas admin. Ignorado nos demais papéis. Desativar preenche `deactivated_at` e "
         + "encerra a sessão; reativar limpa `deactivated_at`.",
+    }),
+    guardian_consent: GuardianConsentSchema.optional().openapi({
+      description:
+        "Apenas admin, e só tem efeito ao reativar (active: true) um aluno com consentimento "
+        + "revogado: registra o termo novo, que é obrigatório nesse caso. Ignorado nos demais.",
     }),
     show_in_global_ranking: z.boolean().optional().openapi({
       example: false,

@@ -510,12 +510,6 @@ registry.registerPath({
           + "combine com role=student para listar os alunos sem turma.",
       }),
       active: z.string().optional().openapi({ example: "true" }),
-      guardian_consent: z.enum(["pending", "recorded", "revoked"]).optional().openapi({
-        example: "pending",
-        description:
-          "Situação do termo dos responsáveis. Restringe a lista a alunos: pending (sem termo "
-          + "registrado nem revogação), recorded (termo registrado) ou revoked (consentimento revogado).",
-      }),
       page: z.string().optional().openapi({ example: "1" }),
       limit: z.string().optional().openapi({ example: "10" }),
     }),
@@ -703,9 +697,9 @@ registry.registerPath({
     + "se acerta no próximo recálculo.\n\n"
     + "**active (só admin).** Desativar preenche deactivated_at, que inicia o prazo de "
     + "retenção, e encerra a sessão; reativar limpa deactivated_at. Nos dois casos os rankings "
-    + "do aluno são recalculados. Reativar um aluno com consentimento revogado zera os três "
-    + "campos do termo: ele volta a ficar pendente, e o termo novo é registrado com "
-    + "PATCH /users/{id}/guardian-consent. Aluno anonimizado não pode ser alterado (409).",
+    + "do aluno são recalculados. Reativar um aluno com consentimento revogado exige o termo "
+    + "novo na mesma chamada (guardian_consent: true), que grava a data e quem registrou e limpa "
+    + "a revogação; sem ele, 409. Aluno anonimizado não pode ser alterado (409).",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -728,7 +722,11 @@ registry.registerPath({
       "You do not have permission to update another user.",
     ),
     404: error404User,
-    409: error409Anonymized,
+    409: errorResponse(
+      "Reativação de aluno revogado sem o termo novo, ou aluno anonimizado (\"Os dados deste "
+      + "aluno foram eliminados e não podem ser alterados.\")",
+      "Para reativar um aluno com consentimento revogado, confirme o recebimento de um termo novo.",
+    ),
   },
 });
 
@@ -849,34 +847,6 @@ registry.registerPath({
 // ─── LGPD ───────────────────────────────────────────────────────────────────
 
 registry.registerPath({
-  method: "patch",
-  path: "/users/{id}/guardian-consent",
-  tags: ["LGPD"],
-  summary: "Registrar o termo dos responsáveis de um aluno pendente (teacher/admin)",
-  description:
-    "Para alunos cadastrados antes da exigência do termo, ou reativados depois de uma "
-    + "revogação. Grava guardian_consent_at e guardian_consent_recorded_by (quem chamou). "
-    + "Professor só registra o termo de alunos das turmas dele.",
-  security: [{ bearerAuth: [] }],
-  request: { params: userIdParam },
-  responses: {
-    200: commonResponse(UserSchema, "Termo registrado"),
-    401: error401Session,
-    498: error498Token,
-    403: errorResponse(
-      "Papel sem acesso à rota, ou aluno sem turma ou de turma de outro professor",
-      "Você só pode alterar o termo de alunos das suas turmas.",
-    ),
-    404: error404Student,
-    409: errorResponse(
-      "Aluno desativado (\"Não é possível registrar o termo de um aluno desativado.\") ou "
-      + "termo já registrado",
-      "O termo deste aluno já foi registrado.",
-    ),
-  },
-});
-
-registry.registerPath({
   method: "post",
   path: "/users/{id}/guardian-consent/revoke",
   tags: ["LGPD"],
@@ -885,7 +855,8 @@ registry.registerPath({
     "Registra guardian_consent_revoked_at, desativa a conta (preenchendo deactivated_at, se "
     + "ela ainda estava ativa), encerra a sessão e recalcula os rankings. Os dados seguem para "
     + "a regra de retenção. Professor só revoga o consentimento de alunos das turmas dele. "
-    + "Para o aluno voltar, o admin reativa a conta (PATCH active: true) e registra um termo novo.",
+    + "Para o aluno voltar, o admin reativa a conta com PATCH /users/{id}, enviando active: true "
+    + "e guardian_consent: true (termo novo).",
   security: [{ bearerAuth: [] }],
   request: { params: userIdParam },
   responses: {

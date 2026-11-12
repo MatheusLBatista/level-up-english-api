@@ -203,6 +203,27 @@ describe("UserRepository", () => {
     });
   });
 
+  describe("findActiveStudentsWithoutConsent", () => {
+    it("deve buscar alunos ativos sem termo registrado ou com consentimento revogado, por nome", async() => {
+      const alunos = [{ _id: USER_ID, name: "Bia" }];
+      const lean = jest.fn().mockResolvedValue(alunos);
+      const sort = jest.fn(() => ({ lean }));
+      const select = jest.fn(() => ({ sort }));
+      modelo.find = jest.fn(() => ({ select }));
+
+      const resultado = await repository.findActiveStudentsWithoutConsent();
+
+      expect(modelo.find).toHaveBeenCalledWith({
+        role: "student",
+        active: true,
+        $or: [{ guardian_consent_at: null }, { guardian_consent_revoked_at: { $ne: null } }],
+      });
+      expect(select).toHaveBeenCalledWith("_id name class");
+      expect(sort).toHaveBeenCalledWith({ name: 1 });
+      expect(resultado).toBe(alunos);
+    });
+  });
+
   describe("findIdsToAnonymize", () => {
     it("deve buscar alunos desativados até a data de corte e ainda não anonimizados", async() => {
       const corte = new Date("2025-11-12T00:00:00.000Z");
@@ -304,18 +325,6 @@ describe("UserRepository", () => {
       expect(modelo.paginate.mock.calls[0][0]).toEqual({ active: true });
       expect(modelo.paginate.mock.calls[1][0]).toEqual({ active: true });
       expect(modelo.paginate.mock.calls[2][0]).toEqual({ active: false });
-    });
-
-    it("deve repassar o filtro da situação do termo dos responsáveis", async() => {
-      modelo.paginate.mockResolvedValue(paginado());
-
-      await repository.list({ query: { guardian_consent: "pending" } });
-
-      expect(modelo.paginate.mock.calls[0][0]).toEqual({
-        role: "student",
-        guardian_consent_at: null,
-        guardian_consent_revoked_at: null,
-      });
     });
 
     it("deve limitar a página a 100 registros", async() => {

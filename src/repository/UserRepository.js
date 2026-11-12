@@ -92,6 +92,18 @@ class UserRepository {
     return await this.userModel.distinct("_id", { _id: { $in: ids }, role: "student", anonymized_at: null });
   }
 
+  async findActiveStudentsWithoutConsent() {
+    return await this.userModel
+      .find({
+        role: "student",
+        active: true,
+        $or: [{ guardian_consent_at: null }, { guardian_consent_revoked_at: { $ne: null } }],
+      })
+      .select("_id name class")
+      .sort({ name: 1 })
+      .lean();
+  }
+
   async setClass(ids, classId) {
     return await this.userModel.updateMany({ _id: { $in: ids } }, { class: classId });
   }
@@ -137,7 +149,7 @@ class UserRepository {
   }
 
   async list(req) {
-    const { name, email, role, class: classId, active, guardian_consent, page = 1 } = req.query || {};
+    const { name, email, role, class: classId, active, page = 1 } = req.query || {};
     const limit = Math.min(parseInt(req.query?.limit, 10) || 10, 100);
 
     const filters = new UserFilterBuild()
@@ -146,7 +158,6 @@ class UserRepository {
       .withRole(role)
       .withClass(classId)
       .withActive(active)
-      .withGuardianConsent(guardian_consent)
       .build();
 
     const options = {

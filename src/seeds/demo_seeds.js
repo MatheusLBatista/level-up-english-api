@@ -105,7 +105,7 @@ async function seedPeople() {
       level: 1,
       mission_progress: [],
       active: true,
-      guardian_consent_at: student.consentPending ? null : createdAt,
+      guardian_consent_at: createdAt,
       guardian_consent_recorded_by: null,
       guardian_consent_revoked_at: null,
       deactivated_at: null,
@@ -164,10 +164,7 @@ async function seedClasses(people) {
     });
 
     await User.updateMany({ _id: { $in: studentIds } }, { $set: { class: insertedId } });
-    await User.updateMany(
-      { _id: { $in: studentIds }, guardian_consent_at: { $ne: null } },
-      { $set: { guardian_consent_recorded_by: teacherId } },
-    );
+    await User.updateMany({ _id: { $in: studentIds } }, { $set: { guardian_consent_recorded_by: teacherId } });
     classes.set(classDef.key, insertedId);
   }
 

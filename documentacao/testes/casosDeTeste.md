@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.23 — complementa o [Plano de Teste](planoTeste.md) v3.15_
+_versão 2.24 — complementa o [Plano de Teste](planoTeste.md) v3.16_
 
 ## Histórico das alterações
 
@@ -33,6 +33,7 @@ _versão 2.23 — complementa o [Plano de Teste](planoTeste.md) v3.15_
 | 09/11/2026 | 2.21   | Streak retirado do escopo do RF-009: o `CT-STREAK-001` sai dos casos bloqueados e a seção 11 fica sem casos | Matheus Lucas |
 | 12/11/2026 | 2.22   | Adequação à LGPD (RF-018): nova seção 9 com `CT-LGPD-001` a `041` (termo dos responsáveis, revogação, desativação no lugar da exclusão, retenção e anonimização, eliminação e exportação); ranking da turma ocultável pelo professor e ranking sem e-mail (`CT-RANK-013` a `017`); `CT-PERM-051` a `054`; `CT-USER-012` a `016`, `028`, `034`, `035`, `050` e `CT-PERM-013` ajustados para a desativação; as seções seguintes passam a 10 a 13 | Matheus Lucas |
 | 12/11/2026 | 2.23   | Rastreio da LGPD dividido entre RF-018 (ações do usuário) e o novo RNF-008 (conformidade com a lei): `CT-LGPD-023` a `031` e `CT-RANK-017` passam a apontar para o RNF-008 | Matheus Lucas |
+| 12/11/2026 | 2.24   | Termo dos responsáveis obrigatório, sem estado pendente: saem o filtro `guardian_consent` e a rota `PATCH /users/{id}/guardian-consent`, com os casos `CT-LGPD-006` a `012` e o `CT-PERM-051`; `CT-LGPD-018` reescrito (reativar aluno revogado exige termo novo, 409 sem ele) e caso `CT-LGPD-042` (script que lista alunos ativos sem termo) | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -465,19 +466,12 @@ O público inclui crianças e adolescentes, e as contas são criadas pela escola
 | CT-LGPD-003  | Criação de aluno com o termo         | `POST /users` como `admin` com `guardian_consent: true`                 | 201 com a data do termo e `guardian_consent_recorded_by` igual ao `admin`                | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-LGPD-004  | Criação de aluno sem o termo         | `POST /users` sem `guardian_consent`, sem papel e com `role: "student"`  | 400 no path `guardian_consent`; nenhum usuário criado                                    | RF-018 | Int   | `routes/userRoutes`, `controllers/UserController` | ✅ |
 | CT-LGPD-005  | Professor ou admin dispensam o termo | `POST /users` como `admin` com `role: "teacher"`, sem `guardian_consent` | 201 com os campos do termo nulos — o termo é só de aluno                                 | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
-| CT-LGPD-006  | Filtro pela situação do termo        | `GET /users?guardian_consent=pending`, `recorded` e `revoked` como `admin` | cada filtro traz só os alunos na situação pedida; o filtro restringe a `role: "student"`; valor desconhecido é ignorado | RF-018 | Int | `routes/userRoutes`, `repository/filters/UserFilterBuild` | ✅ |
-| CT-LGPD-007  | Professor registra o termo pendente  | `PATCH /users/{alunoA}/guardian-consent` como `profA`, `alunoA` sem termo | 200, "Termo dos responsáveis registrado."; data gravada e `guardian_consent_recorded_by` igual a `profA` | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
-| CT-LGPD-008  | Admin registra o termo de aluno sem turma | `PATCH /users/{semTurma}/guardian-consent` como `admin`            | 200 com `guardian_consent_recorded_by` igual ao `admin`                                  | RF-018 | Int   | `routes/userRoutes`   | ✅       |
-| CT-LGPD-009  | Professor registra termo de aluno alheio | `profA` registrando o termo de `alunoB` ou de `semTurma`            | 403, "Você só pode alterar o termo de alunos das suas turmas."; nada gravado            | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
-| CT-LGPD-010  | Alvo que não é aluno                 | `PATCH /users/{profB}/guardian-consent`, id inexistente e `nao-e-id`, como `admin` | 404, "Aluno não encontrado." nos três                                      | RF-018 | Int   | `routes/userRoutes`   | ✅       |
-| CT-LGPD-011  | Termo de aluno desativado            | `PATCH /users/{inativo}/guardian-consent` como `admin`                  | 409, "Não é possível registrar o termo de um aluno desativado."                          | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
-| CT-LGPD-012  | Termo já registrado                  | `PATCH /users/{alunoA}/guardian-consent` com o termo já gravado         | 409, "O termo deste aluno já foi registrado."; a data original fica                     | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-LGPD-013  | Revogação do consentimento           | `alunoA` logado; `POST /users/{alunoA}/guardian-consent/revoke` como `profA` | 200, "Consentimento revogado. A conta do aluno foi desativada."; `active: false`, `guardian_consent_revoked_at` e `deactivated_at` preenchidos; o access token antigo, o refresh e um novo login respondem 401 | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-LGPD-014  | Revogação tira dos rankings          | revogar `alunoA` com 500 XP                                             | `alunoA` sai do ranking da Turma A e do global; o XP continua 500                        | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-LGPD-015  | Professor revoga aluno alheio        | `profA` revogando o consentimento de aluno de outra turma               | 403; a conta segue ativa e sem revogação                                                 | RF-011 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-LGPD-016  | Revogar duas vezes                   | segundo `POST .../revoke` no mesmo aluno                                | 409, "O consentimento deste aluno já foi revogado."                                      | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-LGPD-017  | Revogação de aluno já desativado     | revogar aluno desativado pela escola antes                              | só `guardian_consent_revoked_at` é gravado; `deactivated_at` mantém a data original, para não esticar o prazo de retenção | RF-018 | Unit | `services/UserService` | ✅ |
-| CT-LGPD-018  | Reativação e termo novo              | revogar `alunoA`; `PATCH /users/{alunoA}` como `admin` com `active: true`; registrar o termo como `profA` | a reativação zera os três campos do termo e o aluno aparece em `guardian_consent=pending`; o termo novo é aceito (200) | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
+| CT-LGPD-018  | Reativação exige termo novo          | revogar `alunoA`; `PATCH /users/{alunoA}` como `admin` com `active: true` sem `guardian_consent`, com `false` e com `true` | sem o termo, 409 "Para reativar um aluno com consentimento revogado, confirme o recebimento de um termo novo."; com `false`, 400 no path `guardian_consent`; nos dois o aluno segue revogado e inativo. Com `true`, 200: conta ativa, `deactivated_at` e `guardian_consent_revoked_at` nulos, data nova e o `admin` em `guardian_consent_recorded_by`. O termo enviado por quem não é admin, ou fora dessa reativação, é ignorado | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-LGPD-019  | Desativação no lugar da exclusão     | `DELETE /users/{alunoA}` como `admin`, aluno com 300 XP e turma          | 200, "User deactivated successfully."; `active: false` e `deactivated_at` preenchido; o documento continua, com XP e turma | RF-018 | Int | `routes/userRoutes`, `services/UserService` | ✅ |
 | CT-LGPD-020  | Desativação encerra a sessão e o ranking | `alunoA` logado; `DELETE /users/{alunoA}` como `admin`              | o refresh token antigo responde 401 e o aluno sai do ranking da turma                    | RF-018 | Int   | `routes/userRoutes`   | ✅       |
 | CT-LGPD-021  | Desativar conta já desativada        | `DELETE /users/{inativo}` como `admin`                                  | 409, "Este usuário já está desativado."; `deactivated_at` não muda                       | RF-018 | Int   | `routes/userRoutes`, `services/UserService` | ✅ |
@@ -501,10 +495,13 @@ O público inclui crianças e adolescentes, e as contas são criadas pela escola
 | CT-LGPD-039  | Exportação dos dados do aluno        | `GET /users/{alunoA}/data-export` como `admin`, aluno com missão, atitude, ajuste, notificação e ranking | 200 com `Content-Disposition: attachment; filename="dados-aluno-<id>.json"`; perfil, termo, progresso com título, atitudes, ajustes, notificações e posição no ranking; professor só pelo nome; nenhuma senha ou token no JSON | RF-018 | Int | `routes/privacyRoutes`, `services/PrivacyService` | ✅ |
 | CT-LGPD-040  | Exportação de aluno anonimizado      | exportar depois do CT-LGPD-033                                          | 200 com o que restou: "Aluno removido", `anonymized_at` preenchido e nenhuma notificação | RF-018 | Int   | `routes/privacyRoutes` | ✅      |
 | CT-LGPD-041  | Exportação por quem não é admin      | `profA` e `alunoA` exportando os dados de `alunoA`; `admin` exportando `profA` | 403 para os dois primeiros; 404 para o alvo que não é aluno                       | RF-011 | Int   | `routes/privacyRoutes` | ✅      |
+| CT-LGPD-042  | Conferência de alunos sem termo      | `npm run check:guardian-consent` (consulta `findActiveStudentsWithoutConsent`) | lista, por nome, os alunos ativos sem `guardian_consent_at` ou com `guardian_consent_revoked_at`, com id, nome e turma; o aluno reativado com termo novo não aparece | RNF-008 | Int | `routes/userRoutes`, `repository/UserRepository` | ✅ |
 
 **Contrato do Swagger (`CT-LGPD-033`, `039`).** As respostas da eliminação, da revogação, do registro do termo e da desativação são validadas no teste de rota contra o `UserSchema` do Swagger, e a exportação contra o `DataExportSchema` (em modo estrito no primeiro nível). Um campo novo na resposta que não estiver no contrato quebra o teste.
 
-**Fora da suíte.** O script `npm run retention:anonymize` (`src/jobs/run_retention.js`) só conecta ao banco, chama o `RetentionService` e imprime o resumo; a regra está coberta pelos casos acima. Ele foi conferido à mão contra um MongoDB em memória em 12/11/2026.
+**IDs retirados.** Os casos `CT-LGPD-006` a `012` cobriam o estado "termo pendente" (filtro `guardian_consent` e registro posterior do termo), que saiu da API na v2.24: como todos os ambientes são recriados pelos seeds, não há aluno anterior ao termo, e o cadastro sem termo já é recusado (`CT-LGPD-002` e `004`). Os IDs não são reaproveitados.
+
+**Fora da suíte.** Os scripts `npm run retention:anonymize` (`src/jobs/run_retention.js`) e `npm run check:guardian-consent` (`scripts/check-guardian-consent.js`) só conectam ao banco, chamam o service ou o repositório e imprimem o resultado; a regra está coberta pelos casos acima. Os dois foram conferidos à mão contra um MongoDB em memória em 12/11/2026, o segundo depois dos dois seeds (lista vazia) e com um aluno sem termo inserido (lista com ele, código 1).
 
 ---
 
@@ -566,12 +563,11 @@ Uma linha por operação da API. Cada célula é o status esperado para um token
 | CT-PERM-048  | `POST /auth/register-teacher`     | 403                             | 403                                  | 201   | `routes/authRoutes`         | ✅       |
 | CT-PERM-049  | `PATCH /users/{id}/avatar`        | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-050  | `DELETE /users/{id}/avatar`       | 200 próprio / 403 outro         | 200 próprio / 403 outro              | 200   | `routes/userRoutes`         | ✅       |
-| CT-PERM-051  | `PATCH /users/{id}/guardian-consent` | 403 (inclusive o próprio)    | 200 aluno da turma dele / 403 outro  | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-052  | `POST /users/{id}/guardian-consent/revoke` | 403                    | 200 aluno da turma dele / 403 outro  | 200   | `routes/userRoutes`         | ✅       |
 | CT-PERM-053  | `POST /users/{id}/erasure`        | 403 (inclusive o próprio)       | 403 (inclusive aluno da turma dele)  | 200   | `routes/privacyRoutes`      | ✅       |
 | CT-PERM-054  | `GET /users/{id}/data-export`     | 403 (inclusive o próprio)       | 403 (inclusive aluno da turma dele)  | 200   | `routes/privacyRoutes`      | ✅       |
 
-**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida, e as cinco linhas novas da v2.19 entraram completas. Na v2.22 entraram as quatro rotas da LGPD, completas, e a matriz chega às 53 operações do Swagger. Na v2.20 a matriz passou a ter uma linha para cada uma das 49 operações de então: entraram as duas rotas da foto de perfil e o `POST /auth/register-teacher`, que existia desde a v2.6 com a célula restritiva coberta pelo `CT-AUTH-030`, mas não tinha linha aqui. As rotas de notificação não restringem papel — o que restringe é a posse, sempre pelo usuário do token —, e a célula restritiva do `CT-PERM-047` é o 404 do `CT-NOTIF-015`. A última célula restritiva a ser coberta antes delas foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
+**Matriz completa.** Desde a v2.18 todas as operações têm a célula restritiva exercida, e as cinco linhas novas da v2.19 entraram completas. Na v2.22 entraram as quatro rotas da LGPD, completas; na v2.24 saiu a do registro posterior do termo (`CT-PERM-051`, ID não reaproveitado), e a matriz fica com as 52 operações do Swagger. Na v2.20 a matriz passou a ter uma linha para cada uma das 49 operações de então: entraram as duas rotas da foto de perfil e o `POST /auth/register-teacher`, que existia desde a v2.6 com a célula restritiva coberta pelo `CT-AUTH-030`, mas não tinha linha aqui. As rotas de notificação não restringem papel — o que restringe é a posse, sempre pelo usuário do token —, e a célula restritiva do `CT-PERM-047` é o 404 do `CT-NOTIF-015`. A última célula restritiva a ser coberta antes delas foi a do `CT-PERM-033`: o teste chama `GET /attitude-logs/{id}` com o token do próprio aluno que recebeu a atitude, o caso mais forte, porque é o único aluno com algum vínculo com o log, e espera 403.
 
 ---
 
@@ -627,7 +623,7 @@ O `CT-STREAK-001` (streak diária de atividade) saiu desta tabela na v2.21: o st
 
 ## 13 - Resumo
 
-Situação em 12/11/2026, com a suíte em **77 arquivos de teste e 1687 testes**, executando em cerca de 11 segundos.
+Situação em 12/11/2026, com a suíte em **77 arquivos de teste e 1661 testes**, executando em cerca de 11 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
@@ -639,10 +635,10 @@ Situação em 12/11/2026, com a suíte em **77 arquivos de teste e 1687 testes**
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
 | Ranking                       | `CT-RANK`    | 17    | 17               | 0            |
 | Notificações                  | `CT-NOTIF`   | 19    | 19               | 0            |
-| Privacidade e LGPD            | `CT-LGPD`    | 41    | 41               | 0            |
-| Matriz de permissões          | `CT-PERM`    | 54    | 54               | 0            |
+| Privacidade e LGPD            | `CT-LGPD`    | 35    | 35               | 0            |
+| Matriz de permissões          | `CT-PERM`    | 53    | 53               | 0            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **391** | **387 (99,0%)** | **4**        |
+| **Total**                     | -            | **384** | **380 (99,0%)** | **4**        |
 
 ### As quatro pendências
 

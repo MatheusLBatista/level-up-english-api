@@ -60,12 +60,6 @@ router
     authorize("student", "teacher", "admin"),
     asyncWrapper(userController.update.bind(userController)),
   )
-  .patch(
-    "/users/:id/guardian-consent",
-    authMiddleware,
-    authorize("teacher", "admin"),
-    asyncWrapper(userController.recordGuardianConsent.bind(userController)),
-  )
   .post(
     "/users/:id/guardian-consent/revoke",
     authMiddleware,
