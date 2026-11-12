@@ -43,6 +43,26 @@ describe("UserController", () => {
     throw new Error("Esperava que a promessa fosse rejeitada, mas ela resolveu.");
   };
 
+  describe("revokeGuardianConsent", () => {
+    it("deve devolver 200 com o aluno desativado, sem a senha", async() => {
+      const revogado = { _id: USER_ID, active: false, guardian_consent_revoked_at: "2026-11-12T00:00:00.000Z" };
+      controller.service.revokeGuardianConsent.mockResolvedValue(documento({ ...revogado, password: "hash" }));
+      req.params.id = USER_ID;
+
+      await controller.revokeGuardianConsent(req, res);
+
+      expect(controller.service.revokeGuardianConsent).toHaveBeenCalledWith(USER_ID, req);
+      esperarResposta(200, "Consentimento revogado. A conta do aluno foi desativada.", revogado);
+    });
+
+    it("deve propagar o erro lançado pelo service", async() => {
+      controller.service.revokeGuardianConsent.mockRejectedValue(new Error("Conflito"));
+
+      await expect(controller.revokeGuardianConsent(req, res)).rejects.toThrow("Conflito");
+      expect(res.status).not.toHaveBeenCalled();
+    });
+  });
+
   describe("list", () => {
     it("deve devolver 200 com o resultado da listagem", async() => {
       const paginado = { docs: [{ name: "Aluno" }], totalDocs: 1 };
@@ -65,7 +85,7 @@ describe("UserController", () => {
   });
 
   describe("create", () => {
-    const novoUsuario = { name: "Maria", email: "maria@escola.com", password: "senha123" };
+    const novoUsuario = { name: "Maria", email: "maria@escola.com", password: "senha123", guardian_consent: true };
 
     it("deve devolver 201 com o usuário criado", async() => {
       controller.service.create.mockResolvedValue(documento({ _id: USER_ID, name: "Maria" }));
@@ -113,6 +133,29 @@ describe("UserController", () => {
 
       await expect(controller.create(req, res)).rejects.toThrow();
       expect(controller.service.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["ausente, sem papel", { guardian_consent: undefined }],
+      ["ausente, com papel de aluno", { guardian_consent: undefined, role: "student" }],
+      ["falso", { guardian_consent: false }],
+    ])("deve rejeitar o cadastro de aluno com o termo dos responsáveis %s", async(_, campos) => {
+      req.body = { ...novoUsuario, ...campos };
+
+      await expect(controller.create(req, res)).rejects.toMatchObject({
+        issues: [expect.objectContaining({ path: ["guardian_consent"] })],
+      });
+      expect(controller.service.create).not.toHaveBeenCalled();
+    });
+
+    it("não deve exigir o termo ao cadastrar professora", async() => {
+      controller.service.create.mockResolvedValue(documento({ _id: USER_ID }));
+      const { guardian_consent: _ignorado, ...semTermo } = novoUsuario;
+      req.body = { ...semTermo, role: "teacher" };
+
+      await controller.create(req, res);
+
+      expect(controller.service.create).toHaveBeenCalledWith({ ...semTermo, role: "teacher" }, req);
     });
 
     it("deve rejeitar quando o papel não for um dos previstos", async() => {
@@ -231,15 +274,15 @@ describe("UserController", () => {
   });
 
   describe("delete", () => {
-    it("deve devolver 200 com o usuário removido", async() => {
-      const removido = { _id: USER_ID };
-      controller.service.delete.mockResolvedValue(removido);
+    it("deve desativar pelo service e devolver 200 sem a senha", async() => {
+      const desativado = { _id: USER_ID, active: false };
+      controller.service.deactivate.mockResolvedValue(documento({ ...desativado, password: "hash" }));
       req.params.id = USER_ID;
 
       await controller.delete(req, res);
 
-      expect(controller.service.delete).toHaveBeenCalledWith(USER_ID, req);
-      esperarResposta(200, "User deleted successfully.", removido);
+      expect(controller.service.deactivate).toHaveBeenCalledWith(USER_ID, req);
+      esperarResposta(200, "User deactivated successfully.", desativado);
     });
 
     it("deve lançar 400 quando o id não vier na rota", async() => {
@@ -248,7 +291,7 @@ describe("UserController", () => {
       expect(erro).toBeInstanceOf(CustomError);
       expect(erro.statusCode).toBe(400);
       expect(erro.customMessage).toBe("User ID is required.");
-      expect(controller.service.delete).not.toHaveBeenCalled();
+      expect(controller.service.deactivate).not.toHaveBeenCalled();
     });
   });
 

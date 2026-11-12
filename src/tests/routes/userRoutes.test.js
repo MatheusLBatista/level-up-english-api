@@ -12,6 +12,8 @@ import errorHandler from "../../utils/helpers/errorHandler.js";
 import User from "../../models/User.js";
 import Class from "../../models/Class.js";
 import Ranking from "../../models/Ranking.js";
+import { UserSchema } from "../../schemas/UserSchema.js";
+import UserRepository from "../../repository/UserRepository.js";
 // registra o model "missions", que o ClassRepository.findById popula
 import "../../models/Mission.js";
 import {
@@ -333,7 +335,7 @@ describe("Rotas de usuários", () => {
   });
 
   describe("POST /users", () => {
-    const novoUsuario = { name: "Maria Silva", email: "maria@escola.com", password: "senha123" };
+    const novoUsuario = { name: "Maria Silva", email: "maria@escola.com", password: "senha123", guardian_consent: true };
 
     it("deve permitir que a professora cadastre um aluno na turma dela", async() => {
       const turma = await Class.create({ name: "Turma A", teacher: teacher._id });
@@ -470,6 +472,50 @@ describe("Rotas de usuários", () => {
 
       expect(res.status).toBe(403);
       expect(res.body.message).toBe("Permissão insuficiente para executar a operação.");
+    });
+
+    it("deve registrar o termo dos responsáveis com a data e quem cadastrou", async() => {
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(admin))
+        .send(novoUsuario);
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.guardian_consent_at).toEqual(expect.any(String));
+      expect(res.body.data.guardian_consent_recorded_by).toBe(String(admin._id));
+      expect(res.body.data.guardian_consent_revoked_at).toBeNull();
+    });
+
+    it.each([
+      ["sem papel", {}],
+      ["com papel de aluno", { role: "student" }],
+    ])("deve retornar 400 sem criar o aluno quando faltar o termo dos responsáveis (%s)", async(_, papel) => {
+      const { guardian_consent: _ignorado, ...semTermo } = novoUsuario;
+
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(admin))
+        .send({ ...semTermo, ...papel });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{
+        path: "guardian_consent",
+        message: "Confirme o recebimento do termo de consentimento assinado pelos responsáveis.",
+      }]);
+      expect(await User.findOne({ email: novoUsuario.email })).toBeNull();
+    });
+
+    it("não deve exigir nem registrar termo ao criar professora", async() => {
+      const { guardian_consent: _ignorado, ...semTermo } = novoUsuario;
+
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(admin))
+        .send({ ...semTermo, role: "teacher" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.guardian_consent_at).toBeNull();
+      expect(res.body.data.guardian_consent_recorded_by).toBeNull();
     });
 
     it("deve retornar 498 quando não houver autenticação", async() => {
@@ -680,6 +726,160 @@ describe("Rotas de usuários", () => {
 
   const caminhoNoDisco = (avatarUrl) => path.join(process.env.UPLOAD_DIR, avatarUrl.replace("/uploads/", ""));
 
+  describe("termo dos responsáveis", () => {
+    let turma;
+    let aluno;
+
+    beforeEach(async() => {
+      turma = await Class.create({ name: "Turma A", teacher: teacher._id });
+      aluno = await criarUsuario({ name: "Bia", email: "bia@escola.com", class: turma._id });
+      await Class.updateOne({ _id: turma._id }, { $push: { students: aluno._id } });
+    });
+
+    const revogar = async(quem, alvoId) =>
+      await request(app)
+        .post(`/users/${alvoId}/guardian-consent/revoke`)
+        .set("Authorization", await como(quem));
+
+    describe("POST /users/:id/guardian-consent/revoke", () => {
+      it("deve registrar a revogação, desativar a conta e derrubar a sessão do aluno", async() => {
+        const login = await request(app).post("/auth/login").send({ email: aluno.email, password: SENHA_PADRAO });
+        const { accessToken, refreshToken } = login.body.data;
+
+        const res = await revogar(teacher, aluno._id);
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe("Consentimento revogado. A conta do aluno foi desativada.");
+        expect(() => UserSchema.parse(res.body.data)).not.toThrow();
+        expect(res.body.data.active).toBe(false);
+        expect(res.body.data.guardian_consent_revoked_at).toEqual(expect.any(String));
+
+        const comToken = await request(app).get(`/users/${aluno._id}`).set("Authorization", `Bearer ${accessToken}`);
+        const renovacao = await request(app).post("/auth/refresh").send({ refreshToken });
+        const novoLogin = await request(app).post("/auth/login").send({ email: aluno.email, password: SENHA_PADRAO });
+
+        expect(comToken.status).toBe(401);
+        expect(renovacao.status).toBe(401);
+        expect(novoLogin.status).toBe(401);
+      });
+
+      it("deve tirar o aluno dos rankings da turma e global", async() => {
+        await User.updateOne({ _id: aluno._id }, { xp: 500 });
+
+        await revogar(admin, aluno._id);
+
+        const daTurma = await Ranking.findOne({ type: "class", class: turma._id });
+        const global = await Ranking.findOne({ type: "global" });
+        expect(daTurma.entries.map((entrada) => String(entrada.user))).not.toContain(String(aluno._id));
+        expect(global.entries.map((entrada) => String(entrada.user))).not.toContain(String(aluno._id));
+      });
+
+      it("deve manter o XP e o progresso do aluno", async() => {
+        await User.updateOne({ _id: aluno._id }, { xp: 500 });
+
+        await revogar(admin, aluno._id);
+
+        expect((await User.findById(aluno._id)).xp).toBe(500);
+      });
+
+      it("deve retornar 403 sem alterar nada quando a professora tenta revogar aluno de outra turma", async() => {
+        const outraTurma = await Class.create({ name: "Turma B" });
+        await User.updateOne({ _id: aluno._id }, { class: outraTurma._id });
+
+        const res = await revogar(teacher, aluno._id);
+
+        expect(res.status).toBe(403);
+        const salvo = await User.findById(aluno._id);
+        expect(salvo.active).toBe(true);
+        expect(salvo.guardian_consent_revoked_at).toBeNull();
+      });
+
+      it("deve retornar 403 quando quem chama é aluno", async() => {
+        const res = await revogar(aluno, aluno._id);
+
+        expect(res.status).toBe(403);
+        expect((await User.findById(aluno._id)).active).toBe(true);
+      });
+
+      it("deve retornar 404 quando o alvo for admin", async() => {
+        const res = await revogar(admin, admin._id);
+
+        expect(res.status).toBe(404);
+        expect((await User.findById(admin._id)).active).toBe(true);
+      });
+
+      it("deve retornar 409 quando o consentimento já tiver sido revogado", async() => {
+        await revogar(admin, aluno._id);
+
+        const res = await revogar(admin, aluno._id);
+
+        expect(res.status).toBe(409);
+        expect(res.body.message).toBe("O consentimento deste aluno já foi revogado.");
+      });
+
+      it("deve retornar 498 quando não houver autenticação", async() => {
+        const res = await request(app).post(`/users/${aluno._id}/guardian-consent/revoke`);
+
+        expect(res.status).toBe(498);
+      });
+    });
+
+    describe("reativação de aluno revogado", () => {
+      const reativar = async(corpo) =>
+        await request(app)
+          .patch(`/users/${aluno._id}`)
+          .set("Authorization", await como(admin))
+          .send(corpo);
+
+      beforeEach(async() => {
+        await revogar(teacher, aluno._id);
+      });
+
+      it.each([
+        ["sem o termo", { active: true }],
+        ["com o termo falso", { active: true, guardian_consent: false }],
+      ])("deve retornar 409 e manter o aluno revogado quando o admin reativa %s", async(_, corpo) => {
+        const res = await reativar(corpo);
+
+        if (corpo.guardian_consent === false) {
+          expect(res.status).toBe(400);
+          expect(res.body.errors[0].path).toBe("guardian_consent");
+        } else {
+          expect(res.status).toBe(409);
+          expect(res.body.message).toBe(
+            "Para reativar um aluno com consentimento revogado, confirme o recebimento de um termo novo.",
+          );
+        }
+
+        const salvo = await User.findById(aluno._id);
+        expect(salvo.active).toBe(false);
+        expect(salvo.guardian_consent_revoked_at).toBeInstanceOf(Date);
+      });
+
+      it("deve reativar com o termo novo, registrando a data e o admin e limpando a revogação", async() => {
+        const antes = Date.now();
+
+        const res = await reativar({ active: true, guardian_consent: true });
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.active).toBe(true);
+        expect(res.body.data.guardian_consent_revoked_at).toBeNull();
+        expect(res.body.data.guardian_consent_recorded_by).toBe(String(admin._id));
+        expect(new Date(res.body.data.guardian_consent_at).getTime()).toBeGreaterThanOrEqual(antes - 1000);
+        expect(res.body.data.deactivated_at).toBeNull();
+      });
+
+      it("deve deixar o aluno reativado fora da lista do script de checagem", async() => {
+        await reativar({ active: true, guardian_consent: true });
+
+        const semTermo = await new UserRepository().findActiveStudentsWithoutConsent();
+
+        expect(semTermo.map((u) => String(u._id))).not.toContain(String(aluno._id));
+      });
+    });
+
+  });
+
   describe("PATCH /users/:id/avatar", () => {
     it("deve gravar a foto tratada e salvar a URL no usuário", async() => {
       const res = await enviarFoto(student, student);
@@ -741,15 +941,14 @@ describe("Rotas de usuários", () => {
       expect((await User.findById(student._id)).avatar_url).toBeNull();
     });
 
-    it("deve apagar o arquivo da foto quando o usuário é excluído", async() => {
+    it("deve manter o arquivo da foto quando o usuário é desativado", async() => {
       const upload = await enviarFoto(student, student);
       const arquivo = caminhoNoDisco(upload.body.data.avatar_url);
-      await expect(fs.access(arquivo)).resolves.toBeUndefined();
 
       const res = await request(app).delete(`/users/${student._id}`).set("Authorization", await como(admin));
 
       expect(res.status).toBe(200);
-      await expect(fs.access(arquivo)).rejects.toThrow();
+      await expect(fs.access(arquivo)).resolves.toBeUndefined();
     });
   });
 
@@ -812,104 +1011,124 @@ describe("Rotas de usuários", () => {
   });
 
   describe("DELETE /users/:id", () => {
-    it("deve permitir que o aluno apague a própria conta", async() => {
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(student));
+    const desativar = async(alvo, logado) =>
+      await request(app).delete(`/users/${alvo._id}`).set("Authorization", await como(logado));
+
+    it("deve desativar a conta em vez de apagar, preservando XP e turma", async() => {
+      const turma = await Class.create({ name: "Turma A", students: [student._id] });
+      await User.findByIdAndUpdate(student._id, { class: turma._id, xp: 300 });
+
+      const res = await desativar(student, admin);
 
       expect(res.status).toBe(200);
-      expect(res.body.message).toBe("User deleted successfully.");
-      expect(await User.findById(student._id)).toBeNull();
+      expect(res.body.message).toBe("User deactivated successfully.");
+      expect(() => UserSchema.parse(res.body.data)).not.toThrow();
+      expect(res.body.data.active).toBe(false);
+      expect(res.body.data.deactivated_at).toEqual(expect.any(String));
+
+      const salvo = await User.findById(student._id);
+      expect(salvo).not.toBeNull();
+      expect(salvo.xp).toBe(300);
+      expect((await Class.findById(turma._id)).students.map(String)).toEqual([String(student._id)]);
     });
 
-    it("deve retornar 403 quando o aluno apaga a conta de outro", async() => {
-      const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com" });
+    it("deve encerrar a sessão de quem foi desativado", async() => {
+      const login = await request(app).post("/auth/login").send({ email: student.email, password: SENHA_PADRAO });
 
-      const res = await request(app)
-        .delete(`/users/${outro._id}`)
-        .set("Authorization", await como(student));
+      await desativar(student, admin);
+
+      const renovacao = await request(app).post("/auth/refresh").send({ refreshToken: login.body.data.refreshToken });
+      expect(renovacao.status).toBe(401);
+    });
+
+    it("deve tirar o aluno desativado do ranking da turma", async() => {
+      const turma = await Class.create({ name: "Turma A", students: [student._id] });
+      await User.findByIdAndUpdate(student._id, { class: turma._id, xp: 300 });
+
+      await desativar(student, admin);
+
+      const ranking = await Ranking.findOne({ type: "class", class: turma._id });
+      expect(ranking.entries).toHaveLength(0);
+    });
+
+    it("deve retornar 403 quando o aluno tenta desativar a própria conta", async() => {
+      const res = await desativar(student, student);
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Students can only delete their own account.");
-      expect(await User.findById(outro._id)).not.toBeNull();
+      expect(res.body.message).toBe("Permissão insuficiente para executar a operação.");
+      expect((await User.findById(student._id)).active).toBe(true);
     });
 
-    it("deve permitir que a professora apague um aluno da turma dela", async() => {
+    it("deve retornar 403 quando o aluno tenta desativar a conta de outro", async() => {
+      const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com" });
+
+      const res = await desativar(outro, student);
+
+      expect(res.status).toBe(403);
+      expect((await User.findById(outro._id)).active).toBe(true);
+    });
+
+    it("deve permitir que a professora desative um aluno da turma dela", async() => {
       const turma = await Class.create({ name: "Turma A", teacher: teacher._id, students: [student._id] });
       await User.findByIdAndUpdate(student._id, { class: turma._id });
 
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(teacher));
+      const res = await desativar(student, teacher);
 
       expect(res.status).toBe(200);
-      expect(await User.findById(student._id)).toBeNull();
-      expect((await Class.findById(turma._id)).students).toHaveLength(0);
+      expect((await User.findById(student._id)).active).toBe(false);
     });
 
-    it("deve retornar 403 quando a professora apaga um aluno de turma de outro professor", async() => {
+    it("deve retornar 403 quando a professora desativa um aluno de turma de outro professor", async() => {
       const outro = await criarUsuario({ name: "Outro", email: "outro@escola.com", role: "teacher" });
       const turma = await Class.create({ name: "Turma B", teacher: outro._id, students: [student._id] });
       await User.findByIdAndUpdate(student._id, { class: turma._id });
 
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(teacher));
+      const res = await desativar(student, teacher);
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Você só pode excluir alunos das suas turmas.");
-      expect(await User.findById(student._id)).not.toBeNull();
-      expect((await Class.findById(turma._id)).students.map(String)).toEqual([String(student._id)]);
+      expect(res.body.message).toBe("Você só pode desativar alunos das suas turmas.");
+      expect((await User.findById(student._id)).active).toBe(true);
     });
 
-    it("deve retornar 403 quando a professora apaga um aluno sem turma", async() => {
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(teacher));
+    it("deve retornar 403 quando a professora desativa um aluno sem turma", async() => {
+      const res = await desativar(student, teacher);
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Você só pode excluir alunos das suas turmas.");
-      expect(await User.findById(student._id)).not.toBeNull();
+      expect(res.body.message).toBe("Você só pode desativar alunos das suas turmas.");
+      expect((await User.findById(student._id)).active).toBe(true);
     });
 
-    it("deve permitir que a professora apague a própria conta", async() => {
-      const res = await request(app)
-        .delete(`/users/${teacher._id}`)
-        .set("Authorization", await como(teacher));
+    it("deve permitir que a professora desative a própria conta", async() => {
+      const res = await desativar(teacher, teacher);
 
       expect(res.status).toBe(200);
-      expect(await User.findById(teacher._id)).toBeNull();
+      expect((await User.findById(teacher._id)).active).toBe(false);
     });
 
-    it("deve retornar 403 quando a professora apaga uma conta privilegiada", async() => {
-      const res = await request(app)
-        .delete(`/users/${admin._id}`)
-        .set("Authorization", await como(teacher));
+    it("deve retornar 403 quando a professora desativa uma conta privilegiada", async() => {
+      const res = await desativar(admin, teacher);
 
       expect(res.status).toBe(403);
-      expect(res.body.message).toBe("Teachers can only delete student accounts.");
-      expect(await User.findById(admin._id)).not.toBeNull();
+      expect(res.body.message).toBe("Teachers can only deactivate student accounts.");
+      expect((await User.findById(admin._id)).active).toBe(true);
     });
 
-    it("deve permitir que o admin apague qualquer conta", async() => {
-      const res = await request(app)
-        .delete(`/users/${teacher._id}`)
-        .set("Authorization", await como(admin));
+    it("deve permitir que o admin desative uma professora", async() => {
+      const res = await desativar(teacher, admin);
 
       expect(res.status).toBe(200);
-      expect(await User.findById(teacher._id)).toBeNull();
+      expect((await User.findById(teacher._id)).active).toBe(false);
     });
 
-    it("deve tirar o id do aluno apagado de Class.students", async() => {
-      const turma = await Class.create({ name: "Turma A", students: [student._id] });
-      await User.findByIdAndUpdate(student._id, { class: turma._id });
+    it("deve retornar 409 sem mudar a data quando a conta já estiver desativada", async() => {
+      const desativadoEm = new Date("2026-02-01T00:00:00.000Z");
+      await User.findByIdAndUpdate(student._id, { active: false, deactivated_at: desativadoEm });
 
-      const res = await request(app)
-        .delete(`/users/${student._id}`)
-        .set("Authorization", await como(admin));
+      const res = await desativar(student, admin);
 
-      expect(res.status).toBe(200);
-      expect((await Class.findById(turma._id)).students).toHaveLength(0);
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe("Este usuário já está desativado.");
+      expect((await User.findById(student._id)).deactivated_at).toEqual(desativadoEm);
     });
 
     it("deve retornar 404 quando o usuário não existir", async() => {
@@ -924,6 +1143,38 @@ describe("Rotas de usuários", () => {
       const res = await request(app).delete(`/users/${student._id}`);
 
       expect(res.status).toBe(498);
+    });
+  });
+
+  describe("PATCH /users/:id com active", () => {
+    it("deve preencher deactivated_at quando o admin desativa e limpar quando reativa", async() => {
+      const desativacao = await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(admin))
+        .send({ active: false });
+
+      expect(desativacao.status).toBe(200);
+      expect((await User.findById(student._id)).deactivated_at).toBeInstanceOf(Date);
+
+      const reativacao = await request(app)
+        .patch(`/users/${student._id}`)
+        .set("Authorization", await como(admin))
+        .send({ active: true });
+
+      expect(reativacao.status).toBe(200);
+      expect((await User.findById(student._id)).deactivated_at).toBeNull();
+    });
+
+    it("deve ignorar active vindo da professora", async() => {
+      const res = await request(app)
+        .patch(`/users/${teacher._id}`)
+        .set("Authorization", await como(teacher))
+        .send({ active: false });
+
+      expect(res.status).toBe(200);
+      const salvo = await User.findById(teacher._id);
+      expect(salvo.active).toBe(true);
+      expect(salvo.deactivated_at).toBeNull();
     });
   });
 

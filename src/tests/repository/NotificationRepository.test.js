@@ -51,6 +51,32 @@ describe("NotificationRepository", () => {
     });
   });
 
+  describe("findAllByUser", () => {
+    it("deve buscar todas as notificações do usuário, das mais recentes para as mais antigas", async() => {
+      const lista = [{ message: "Nova missão" }];
+      const lean = jest.fn().mockResolvedValue(lista);
+      const sort = jest.fn(() => ({ lean }));
+      modelo.find = jest.fn(() => ({ sort }));
+
+      const resultado = await repository.findAllByUser(ALUNO_ID);
+
+      expect(modelo.find).toHaveBeenCalledWith({ user: ALUNO_ID });
+      expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
+      expect(resultado).toBe(lista);
+    });
+  });
+
+  describe("deleteByUser", () => {
+    it("deve apagar todas as notificações do usuário e devolver quantas saíram", async() => {
+      modelo.deleteMany = jest.fn().mockResolvedValue({ deletedCount: 4 });
+
+      const apagadas = await repository.deleteByUser(ALUNO_ID);
+
+      expect(modelo.deleteMany).toHaveBeenCalledWith({ user: ALUNO_ID });
+      expect(apagadas).toBe(4);
+    });
+  });
+
   describe("listByUser", () => {
     it("deve paginar só as notificações do usuário, das mais recentes para as mais antigas", async() => {
       const pagina = { docs: [], totalDocs: 0 };

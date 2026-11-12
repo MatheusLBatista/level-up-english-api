@@ -43,6 +43,7 @@ describe("UserService", () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      findByIds: jest.fn(),
       setLevelForXpRange: jest.fn().mockResolvedValue(0),
     };
 
@@ -60,7 +61,7 @@ describe("UserService", () => {
       keyFromUrl: jest.fn((url) => (url ? url.replace("/uploads/", "") : null)),
     };
 
-    rankingService = { refreshGlobal: jest.fn() };
+    rankingService = { refreshGlobal: jest.fn(), refreshClass: jest.fn() };
 
     UserRepository.mockImplementation(() => repository);
     RankingService.mockImplementation(() => rankingService);
@@ -227,6 +228,36 @@ describe("UserService", () => {
       const [dados] = repository.create.mock.calls[0];
       expect(dados.password).not.toBe(novoAluno.password);
       expect(await bcrypt.compare(novoAluno.password, dados.password)).toBe(true);
+    });
+
+    it.each([
+      ["sem papel", {}],
+      ["com papel de aluno", { role: "student" }],
+    ])("deve registrar o termo dos responsáveis ao criar aluno %s", async(_, papel) => {
+      responderFindById(admin());
+      repository.findByEmail.mockResolvedValue(null);
+      repository.create.mockResolvedValue({});
+      const antes = Date.now();
+
+      await service.create({ ...novoAluno, ...papel, guardian_consent: true }, { user_id: ADMIN_ID });
+
+      const [dados] = repository.create.mock.calls[0];
+      expect(dados.guardian_consent_recorded_by).toBe(ADMIN_ID);
+      expect(dados.guardian_consent_at.getTime()).toBeGreaterThanOrEqual(antes);
+      expect(dados).not.toHaveProperty("guardian_consent");
+    });
+
+    it.each(["teacher", "admin"])("não deve registrar termo ao criar usuário com papel %s", async(role) => {
+      responderFindById(admin());
+      repository.findByEmail.mockResolvedValue(null);
+      repository.create.mockResolvedValue({});
+
+      await service.create({ ...novoAluno, role, guardian_consent: true }, { user_id: ADMIN_ID });
+
+      const [dados] = repository.create.mock.calls[0];
+      expect(dados).not.toHaveProperty("guardian_consent_at");
+      expect(dados).not.toHaveProperty("guardian_consent_recorded_by");
+      expect(dados).not.toHaveProperty("guardian_consent");
     });
 
     describe("quando quem cria é professora", () => {
@@ -396,7 +427,108 @@ describe("UserService", () => {
     });
   });
 
+  describe("dados eliminados", () => {
+    const anonimizado = () => usuario(STUDENT_ID, "student", { active: false, anonymized_at: new Date() });
+    const mensagem = "Os dados deste aluno foram eliminados e não podem ser alterados.";
+
+    it("deve lançar 409 quando o admin tenta alterar ou reativar um aluno anonimizado", async() => {
+      responderFindById(anonimizado(), admin());
+
+      const erro = await capturarErro(service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID }));
+
+      expect(erro.statusCode).toBe(409);
+      expect(erro.errorType).toBe("conflictError");
+      expect(erro.customMessage).toBe(mensagem);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 409 antes de processar a foto de um aluno anonimizado", async() => {
+      responderFindById(anonimizado(), admin());
+
+      const erro = await capturarErro(service.updateAvatar(STUDENT_ID, Buffer.from("x"), { user_id: ADMIN_ID }));
+
+      expect(erro.statusCode).toBe(409);
+      expect(toAvatarWebp).not.toHaveBeenCalled();
+      expect(storage.save).not.toHaveBeenCalled();
+    });
+
+    it("deve lançar 409 ao revogar o consentimento de um aluno anonimizado", async() => {
+      responderFindById(admin());
+      repository.findByIds.mockResolvedValue([anonimizado()]);
+
+      const erro = await capturarErro(service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+      expect(erro.statusCode).toBe(409);
+      expect(erro.customMessage).toBe(mensagem);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe("update", () => {
+    describe("ao reativar um aluno com consentimento revogado", () => {
+      const revogado = () => usuario(STUDENT_ID, "student", {
+        active: false,
+        guardian_consent_at: new Date("2026-01-10"),
+        guardian_consent_recorded_by: TEACHER_ID,
+        guardian_consent_revoked_at: new Date("2026-03-01"),
+      });
+
+      it("deve lançar 409 sem gravar nada quando o termo novo não vier", async() => {
+        responderFindById(revogado(), admin());
+
+        const erro = await capturarErro(service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID }));
+
+        expect(erro.statusCode).toBe(409);
+        expect(erro.errorType).toBe("conflictError");
+        expect(erro.field).toBe("guardian_consent");
+        expect(erro.customMessage).toBe(
+          "Para reativar um aluno com consentimento revogado, confirme o recebimento de um termo novo.",
+        );
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+
+      it("deve registrar o termo novo com a data e o admin e limpar a revogação", async() => {
+        responderFindById(revogado(), admin());
+        repository.update.mockResolvedValue({});
+        const antes = Date.now();
+
+        await service.update(STUDENT_ID, { active: true, guardian_consent: true }, { user_id: ADMIN_ID });
+
+        const [, dados] = repository.update.mock.calls[0];
+        expect(dados).toEqual({
+          active: true,
+          deactivated_at: null,
+          guardian_consent_at: expect.any(Date),
+          guardian_consent_recorded_by: ADMIN_ID,
+          guardian_consent_revoked_at: null,
+        });
+        expect(dados.guardian_consent_at.getTime()).toBeGreaterThanOrEqual(antes);
+      });
+
+      it.each([
+        ["desativado sem revogação", usuario(STUDENT_ID, "student", { active: false, guardian_consent_revoked_at: null })],
+        ["já ativo", usuario(STUDENT_ID, "student", { active: true, guardian_consent_revoked_at: new Date() })],
+      ])("não deve exigir nem gravar termo ao reativar aluno %s", async(_, alvo) => {
+        responderFindById(alvo, admin());
+        repository.update.mockResolvedValue({});
+
+        await service.update(STUDENT_ID, { active: true, guardian_consent: true }, { user_id: ADMIN_ID });
+
+        const [, dados] = repository.update.mock.calls[0];
+        expect(dados).not.toHaveProperty("guardian_consent");
+        expect(dados).not.toHaveProperty("guardian_consent_at");
+      });
+
+      it("deve ignorar o termo enviado por quem não é admin", async() => {
+        responderFindById(student(), student());
+        repository.update.mockResolvedValue({});
+
+        await service.update(STUDENT_ID, { name: "Novo", guardian_consent: true }, { user_id: STUDENT_ID });
+
+        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { name: "Novo" });
+      });
+    });
+
     it("deve permitir que o usuário altere o próprio nome", async() => {
       const atualizado = { name: "Novo nome" };
       responderFindById(student(), student());
@@ -469,10 +601,57 @@ describe("UserService", () => {
         { user_id: ADMIN_ID },
       );
 
-      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, {
+      expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, expect.objectContaining({
         role: "teacher",
         xp: 500,
         active: false,
+      }));
+    });
+
+    describe("ao mudar active", () => {
+      const CLASS_ID = "507f1f77bcf86cd799439021";
+
+      it("deve preencher deactivated_at e encerrar a sessão ao desativar", async() => {
+        responderFindById(usuario(STUDENT_ID, "student", { class: CLASS_ID }), admin());
+        repository.update.mockResolvedValue({});
+        const antes = Date.now();
+
+        await service.update(STUDENT_ID, { active: false }, { user_id: ADMIN_ID });
+
+        const [, dados] = repository.update.mock.calls[0];
+        expect(dados).toMatchObject({ active: false, accesstoken: null, refreshtoken: null });
+        expect(dados.deactivated_at.getTime()).toBeGreaterThanOrEqual(antes);
+        expect(rankingService.refreshGlobal).toHaveBeenCalled();
+        expect(rankingService.refreshClass).toHaveBeenCalledWith(CLASS_ID);
+      });
+
+      it("deve limpar deactivated_at e recalcular os rankings ao reativar", async() => {
+        responderFindById(usuario(STUDENT_ID, "student", { active: false, deactivated_at: new Date() }), admin());
+        repository.update.mockResolvedValue({});
+
+        await service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID });
+
+        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { active: true, deactivated_at: null });
+        expect(rankingService.refreshGlobal).toHaveBeenCalled();
+      });
+
+      it("não deve recalcular rankings ao mudar active de professor", async() => {
+        responderFindById(teacher(), admin());
+        repository.update.mockResolvedValue({});
+
+        await service.update(TEACHER_ID, { active: false }, { user_id: ADMIN_ID });
+
+        expect(rankingService.refreshGlobal).not.toHaveBeenCalled();
+      });
+
+      it("não deve mexer em deactivated_at quando active não muda", async() => {
+        responderFindById(usuario(STUDENT_ID, "student", { active: false }), admin());
+        repository.update.mockResolvedValue({});
+
+        await service.update(STUDENT_ID, { active: false }, { user_id: ADMIN_ID });
+
+        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { active: false });
+        expect(rankingService.refreshGlobal).not.toHaveBeenCalled();
       });
     });
 
@@ -654,6 +833,112 @@ describe("UserService", () => {
         { path: "class", message: "Apenas alunos podem ser vinculados a uma turma." },
       ]);
       expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("termo dos responsáveis", () => {
+    const CLASS_ID = "507f1f77bcf86cd799439021";
+    const aluno = (overrides = {}) => usuario(STUDENT_ID, "student", { class: CLASS_ID, ...overrides });
+    const turmaDela = { _id: CLASS_ID, teacher: TEACHER_ID, active: true };
+    const turmaDeOutro = { _id: CLASS_ID, teacher: OUTRO_ID, active: true };
+
+    const prepararAcesso = (logado, alvo, turma = turmaDela) => {
+      responderFindById(logado);
+      repository.findByIds.mockResolvedValue(alvo ? [alvo] : []);
+      classRepository.findPlainById.mockResolvedValue(turma);
+      repository.update.mockImplementation(async(id, dados) => ({ _id: id, ...dados }));
+    };
+
+    describe("revokeGuardianConsent", () => {
+      it("deve registrar a revogação, desativar a conta e encerrar a sessão", async() => {
+        prepararAcesso(teacher(), aluno({ guardian_consent_at: new Date("2026-01-10") }));
+        const antes = Date.now();
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID });
+
+        const [id, dados] = repository.update.mock.calls[0];
+        expect(id).toBe(STUDENT_ID);
+        expect(dados).toMatchObject({ active: false, accesstoken: null, refreshtoken: null });
+        expect(dados.guardian_consent_revoked_at.getTime()).toBeGreaterThanOrEqual(antes);
+      });
+
+      it("deve recalcular o ranking global e o da turma do aluno", async() => {
+        prepararAcesso(admin(), aluno());
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        expect(rankingService.refreshGlobal).toHaveBeenCalled();
+        expect(rankingService.refreshClass).toHaveBeenCalledWith(CLASS_ID);
+      });
+
+      it("não deve recalcular ranking de turma quando o aluno não tiver turma", async() => {
+        prepararAcesso(admin(), aluno({ class: null }));
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        expect(rankingService.refreshGlobal).toHaveBeenCalled();
+        expect(rankingService.refreshClass).not.toHaveBeenCalled();
+      });
+
+      it("deve concluir a revogação e só registrar no log quando o ranking falhar", async() => {
+        prepararAcesso(admin(), aluno());
+        rankingService.refreshGlobal.mockRejectedValue(new Error("mongo fora"));
+        const logError = jest.spyOn(logger, "error").mockImplementation(() => {});
+
+        const resultado = await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        expect(resultado.active).toBe(false);
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining("mongo fora"));
+        logError.mockRestore();
+      });
+
+      it("deve manter a data de desativação original quando o aluno já estava desativado", async() => {
+        prepararAcesso(admin(), aluno({ active: false, deactivated_at: new Date("2026-02-01") }));
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        const [, dados] = repository.update.mock.calls[0];
+        expect(Object.keys(dados)).toEqual(["guardian_consent_revoked_at"]);
+      });
+
+      it("deve preencher deactivated_at ao desativar pela revogação", async() => {
+        prepararAcesso(admin(), aluno());
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        const [, dados] = repository.update.mock.calls[0];
+        expect(dados.deactivated_at).toBeInstanceOf(Date);
+      });
+
+      it("deve lançar 403 quando a professora tenta revogar o consentimento de aluno de outra turma", async() => {
+        prepararAcesso(teacher(), aluno(), turmaDeOutro);
+
+        const erro = await capturarErro(service.revokeGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID }));
+
+        expect(erro.statusCode).toBe(403);
+        expect(repository.update).not.toHaveBeenCalled();
+        expect(rankingService.refreshGlobal).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 404 quando o alvo não for aluno", async() => {
+        prepararAcesso(admin(), usuario(STUDENT_ID, "admin"));
+
+        const erro = await capturarErro(service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+        expect(erro.statusCode).toBe(404);
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 409 quando o consentimento já tiver sido revogado", async() => {
+        prepararAcesso(admin(), aluno({ active: false, guardian_consent_revoked_at: new Date() }));
+
+        const erro = await capturarErro(service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+        expect(erro.statusCode).toBe(409);
+        expect(erro.errorType).toBe("conflictError");
+        expect(erro.customMessage).toBe("O consentimento deste aluno já foi revogado.");
+        expect(repository.update).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -866,171 +1151,131 @@ describe("UserService", () => {
     });
   });
 
-  describe("delete", () => {
-    it("deve permitir que o aluno apague a própria conta", async() => {
-      responderFindById(student(), student());
-      repository.delete.mockResolvedValue({ _id: STUDENT_ID });
+  describe("deactivate", () => {
+    const CLASS_ID = "507f1f77bcf86cd799439021";
+    const alunoDaTurma = (overrides = {}) => usuario(STUDENT_ID, "student", { class: CLASS_ID, ...overrides });
 
-      await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
-
-      expect(repository.delete).toHaveBeenCalledWith(STUDENT_ID);
+    beforeEach(() => {
+      repository.update.mockImplementation(async(id, dados) => ({ _id: id, ...dados }));
     });
 
-    it("deve lançar 403 quando o aluno tenta apagar outra conta", async() => {
-      responderFindById(student(), usuario(OUTRO_ID, "student"));
+    it("deve desativar a conta, preencher deactivated_at e encerrar a sessão em vez de apagar", async() => {
+      responderFindById(admin(), alunoDaTurma());
+      const antes = Date.now();
 
-      const erro = await capturarErro(service.delete(OUTRO_ID, { user_id: STUDENT_ID }));
+      await service.deactivate(STUDENT_ID, { user_id: ADMIN_ID });
 
-      expect(erro.statusCode).toBe(403);
-      expect(erro.customMessage).toBe("Students can only delete their own account.");
-      expect(repository.delete).not.toHaveBeenCalled();
+      const [id, dados] = repository.update.mock.calls[0];
+      expect(id).toBe(STUDENT_ID);
+      expect(dados).toMatchObject({ active: false, accesstoken: null, refreshtoken: null });
+      expect(dados.deactivated_at.getTime()).toBeGreaterThanOrEqual(antes);
     });
 
-    describe("quando a professora apaga um aluno", () => {
-      const CLASS_ID = "507f1f77bcf86cd799439021";
-      const alunoDaTurma = () => usuario(STUDENT_ID, "student", { class: CLASS_ID });
+    it("deve manter o aluno na turma e a foto no disco", async() => {
+      responderFindById(admin(), alunoDaTurma({ avatar_url: "/uploads/avatars/aluno.webp" }));
 
-      it("deve apagar o aluno da turma dela", async() => {
+      await service.deactivate(STUDENT_ID, { user_id: ADMIN_ID });
+
+      expect(classRepository.removeStudent).not.toHaveBeenCalled();
+      expect(storage.delete).not.toHaveBeenCalled();
+    });
+
+    it("deve recalcular os rankings quando o desativado é aluno", async() => {
+      responderFindById(admin(), alunoDaTurma());
+
+      await service.deactivate(STUDENT_ID, { user_id: ADMIN_ID });
+
+      expect(rankingService.refreshGlobal).toHaveBeenCalled();
+      expect(rankingService.refreshClass).toHaveBeenCalledWith(CLASS_ID);
+    });
+
+    it("não deve recalcular rankings quando o desativado é professor", async() => {
+      responderFindById(admin(), teacher());
+
+      await service.deactivate(TEACHER_ID, { user_id: ADMIN_ID });
+
+      expect(rankingService.refreshGlobal).not.toHaveBeenCalled();
+    });
+
+    describe("quando a professora desativa um aluno", () => {
+      it("deve desativar o aluno da turma dela", async() => {
         responderFindById(teacher(), alunoDaTurma());
         classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true, teacher: TEACHER_ID });
-        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
 
-        await service.delete(STUDENT_ID, { user_id: TEACHER_ID });
+        await service.deactivate(STUDENT_ID, { user_id: TEACHER_ID });
 
         expect(classRepository.findPlainById).toHaveBeenCalledWith(CLASS_ID);
-        expect(repository.delete).toHaveBeenCalledWith(STUDENT_ID);
-        expect(classRepository.removeStudent).toHaveBeenCalledWith(CLASS_ID, STUDENT_ID);
+        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, expect.objectContaining({ active: false }));
       });
 
-      it("deve apagar o aluno mesmo que a turma dela esteja inativa", async() => {
+      it("deve desativar o aluno mesmo que a turma dela esteja inativa", async() => {
         responderFindById(teacher(), alunoDaTurma());
         classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: false, teacher: TEACHER_ID });
 
-        await service.delete(STUDENT_ID, { user_id: TEACHER_ID });
+        await service.deactivate(STUDENT_ID, { user_id: TEACHER_ID });
 
-        expect(repository.delete).toHaveBeenCalledWith(STUDENT_ID);
+        expect(repository.update).toHaveBeenCalled();
       });
 
       it("deve lançar 403 quando o aluno for de turma de outro professor", async() => {
         responderFindById(teacher(), alunoDaTurma());
         classRepository.findPlainById.mockResolvedValue({ _id: CLASS_ID, active: true, teacher: OUTRO_ID });
 
-        const erro = await capturarErro(service.delete(STUDENT_ID, { user_id: TEACHER_ID }));
+        const erro = await capturarErro(service.deactivate(STUDENT_ID, { user_id: TEACHER_ID }));
 
         expect(erro.statusCode).toBe(403);
         expect(erro.errorType).toBe("permissionError");
         expect(erro.field).toBe("class");
-        expect(erro.customMessage).toBe("Você só pode excluir alunos das suas turmas.");
-        expect(repository.delete).not.toHaveBeenCalled();
-        expect(classRepository.removeStudent).not.toHaveBeenCalled();
+        expect(erro.customMessage).toBe("Você só pode desativar alunos das suas turmas.");
+        expect(repository.update).not.toHaveBeenCalled();
       });
 
       it("deve lançar 403 quando o aluno não tiver turma", async() => {
         responderFindById(teacher(), student());
 
-        const erro = await capturarErro(service.delete(STUDENT_ID, { user_id: TEACHER_ID }));
+        const erro = await capturarErro(service.deactivate(STUDENT_ID, { user_id: TEACHER_ID }));
 
         expect(erro.statusCode).toBe(403);
-        expect(erro.customMessage).toBe("Você só pode excluir alunos das suas turmas.");
         expect(classRepository.findPlainById).not.toHaveBeenCalled();
-        expect(repository.delete).not.toHaveBeenCalled();
+        expect(repository.update).not.toHaveBeenCalled();
       });
     });
 
-    it("deve lançar 403 quando a professora tenta apagar uma conta não-aluno", async() => {
+    it("deve lançar 403 quando a professora tenta desativar uma conta não-aluno", async() => {
       responderFindById(teacher(), usuario(OUTRO_ID, "admin"));
 
-      const erro = await capturarErro(service.delete(OUTRO_ID, { user_id: TEACHER_ID }));
+      const erro = await capturarErro(service.deactivate(OUTRO_ID, { user_id: TEACHER_ID }));
 
       expect(erro.statusCode).toBe(403);
-      expect(erro.customMessage).toBe("Teachers can only delete student accounts.");
-      expect(repository.delete).not.toHaveBeenCalled();
+      expect(erro.customMessage).toBe("Teachers can only deactivate student accounts.");
+      expect(repository.update).not.toHaveBeenCalled();
     });
 
-    it("deve permitir que a professora apague a própria conta", async() => {
+    it("deve permitir que a professora desative a própria conta", async() => {
       responderFindById(teacher(), teacher());
-      repository.delete.mockResolvedValue({ _id: TEACHER_ID });
 
-      await service.delete(TEACHER_ID, { user_id: TEACHER_ID });
+      await service.deactivate(TEACHER_ID, { user_id: TEACHER_ID });
 
-      expect(repository.delete).toHaveBeenCalledWith(TEACHER_ID);
+      expect(repository.update).toHaveBeenCalledWith(TEACHER_ID, expect.objectContaining({ active: false }));
     });
 
-    it("deve permitir que o admin apague qualquer conta", async() => {
+    it("deve permitir que o admin desative qualquer conta", async() => {
       responderFindById(admin(), teacher());
-      repository.delete.mockResolvedValue({ _id: TEACHER_ID });
 
-      await service.delete(TEACHER_ID, { user_id: ADMIN_ID });
+      await service.deactivate(TEACHER_ID, { user_id: ADMIN_ID });
 
-      expect(repository.delete).toHaveBeenCalledWith(TEACHER_ID);
+      expect(repository.update).toHaveBeenCalledWith(TEACHER_ID, expect.objectContaining({ active: false }));
     });
 
-    it("deve tirar o id do aluno apagado de Class.students", async() => {
-      const CLASS_ID = "507f1f77bcf86cd799439021";
-      responderFindById(admin(), usuario(STUDENT_ID, "student", { class: CLASS_ID }));
+    it("deve lançar 409 sem mexer no deactivated_at quando a conta já estiver desativada", async() => {
+      responderFindById(admin(), alunoDaTurma({ active: false }));
 
-      await service.delete(STUDENT_ID, { user_id: ADMIN_ID });
+      const erro = await capturarErro(service.deactivate(STUDENT_ID, { user_id: ADMIN_ID }));
 
-      expect(classRepository.removeStudent).toHaveBeenCalledWith(CLASS_ID, STUDENT_ID);
-    });
-
-    it("não deve mexer em turma quando o usuário apagado não tinha uma", async() => {
-      responderFindById(admin(), student());
-
-      await service.delete(STUDENT_ID, { user_id: ADMIN_ID });
-
-      expect(classRepository.removeStudent).not.toHaveBeenCalled();
-    });
-
-    describe("foto de perfil", () => {
-      const comFoto = () => usuario(STUDENT_ID, "student", { avatar_url: "/uploads/avatars/aluno.webp" });
-
-      beforeEach(() => {
-        jest.spyOn(logger, "warn").mockImplementation(() => {});
-      });
-
-      afterEach(() => {
-        logger.warn.mockRestore();
-      });
-
-      it("deve apagar o arquivo só depois de excluir o usuário", async() => {
-        responderFindById(student(), comFoto());
-        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
-
-        await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
-
-        expect(storage.delete).toHaveBeenCalledWith("avatars/aluno.webp");
-        expect(repository.delete.mock.invocationCallOrder[0])
-          .toBeLessThan(storage.delete.mock.invocationCallOrder[0]);
-      });
-
-      it("não deve tocar no disco quando o usuário não tem foto", async() => {
-        responderFindById(student(), student());
-        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
-
-        await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
-
-        expect(storage.delete).not.toHaveBeenCalled();
-      });
-
-      it("deve concluir a exclusão mesmo se apagar o arquivo falhar", async() => {
-        responderFindById(student(), comFoto());
-        repository.delete.mockResolvedValue({ _id: STUDENT_ID });
-        storage.delete.mockRejectedValue(new Error("sem permissão"));
-
-        const resultado = await service.delete(STUDENT_ID, { user_id: STUDENT_ID });
-
-        expect(resultado).toEqual({ _id: STUDENT_ID });
-        expect(logger.warn).toHaveBeenCalled();
-      });
-
-      it("não deve apagar a foto quando a exclusão é proibida", async() => {
-        responderFindById(student(), usuario(OUTRO_ID, "student", { avatar_url: "/uploads/avatars/outro.webp" }));
-
-        await capturarErro(service.delete(OUTRO_ID, { user_id: STUDENT_ID }));
-
-        expect(storage.delete).not.toHaveBeenCalled();
-      });
+      expect(erro.statusCode).toBe(409);
+      expect(erro.errorType).toBe("conflictError");
+      expect(erro.customMessage).toBe("Este usuário já está desativado.");
+      expect(repository.update).not.toHaveBeenCalled();
     });
   });
 

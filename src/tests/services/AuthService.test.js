@@ -314,7 +314,13 @@ describe("AuthService", () => {
         await service.registerStudent({ ...aluno, class: CLASS_ID }, TEACHER_ID);
 
         expect(repository.findById).toHaveBeenCalledWith(TEACHER_ID);
-        expect(repository.create).toHaveBeenCalledWith({ ...aluno, role: "student", class: CLASS_ID });
+        expect(repository.create).toHaveBeenCalledWith({
+          ...aluno,
+          role: "student",
+          class: CLASS_ID,
+          guardian_consent_at: expect.any(Date),
+          guardian_consent_recorded_by: TEACHER_ID,
+        });
         expect(classRepository.addStudent).toHaveBeenCalledWith(CLASS_ID, USER_ID);
         expect(SendMail.enviaEmail).toHaveBeenCalled();
       });
@@ -360,7 +366,20 @@ describe("AuthService", () => {
       await service.registerStudent(aluno);
 
       // Sem senha: ela é definida pelo próprio aluno, pelo link do e-mail.
-      expect(repository.create).toHaveBeenCalledWith({ ...aluno, role: "student" });
+      expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ ...aluno, role: "student" }));
+      expect(repository.create.mock.calls[0][0]).not.toHaveProperty("password");
+    });
+
+    it("deve registrar o termo dos responsáveis com a data e quem cadastrou", async() => {
+      prepararCriacao();
+      const antes = Date.now();
+
+      await service.registerStudent(aluno, ADMIN_ID);
+
+      const [dados] = repository.create.mock.calls[0];
+      expect(dados.guardian_consent_recorded_by).toBe(ADMIN_ID);
+      expect(dados.guardian_consent_at.getTime()).toBeGreaterThanOrEqual(antes);
+      expect(dados).not.toHaveProperty("guardian_consent");
     });
 
     it("deve vincular a turma somente quando ela for informada", async() => {
@@ -369,7 +388,9 @@ describe("AuthService", () => {
 
       await service.registerStudent({ ...aluno, class: CLASS_ID });
 
-      expect(repository.create).toHaveBeenCalledWith({ ...aluno, role: "student", class: CLASS_ID });
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ ...aluno, role: "student", class: CLASS_ID }),
+      );
     });
 
     it("deve adicionar o aluno criado em Class.students", async() => {

@@ -203,6 +203,66 @@ describe("UserRepository", () => {
     });
   });
 
+  describe("findActiveStudentsWithoutConsent", () => {
+    it("deve buscar alunos ativos sem termo registrado ou com consentimento revogado, por nome", async() => {
+      const alunos = [{ _id: USER_ID, name: "Bia" }];
+      const lean = jest.fn().mockResolvedValue(alunos);
+      const sort = jest.fn(() => ({ lean }));
+      const select = jest.fn(() => ({ sort }));
+      modelo.find = jest.fn(() => ({ select }));
+
+      const resultado = await repository.findActiveStudentsWithoutConsent();
+
+      expect(modelo.find).toHaveBeenCalledWith({
+        role: "student",
+        active: true,
+        $or: [{ guardian_consent_at: null }, { guardian_consent_revoked_at: { $ne: null } }],
+      });
+      expect(select).toHaveBeenCalledWith("_id name class");
+      expect(sort).toHaveBeenCalledWith({ name: 1 });
+      expect(resultado).toBe(alunos);
+    });
+  });
+
+  describe("findIdsToAnonymize", () => {
+    it("deve buscar alunos desativados até a data de corte e ainda não anonimizados", async() => {
+      const corte = new Date("2025-11-12T00:00:00.000Z");
+      modelo.distinct = jest.fn().mockResolvedValue([USER_ID]);
+
+      const resultado = await repository.findIdsToAnonymize(corte);
+
+      expect(modelo.distinct).toHaveBeenCalledWith("_id", {
+        role: "student",
+        active: false,
+        anonymized_at: null,
+        deactivated_at: { $ne: null, $lte: corte },
+      });
+      expect(resultado).toEqual([USER_ID]);
+    });
+  });
+
+  describe("findNotAnonymizedStudentIds", () => {
+    it("deve filtrar, entre os ids informados, os alunos que voltaram a ter dados", async() => {
+      modelo.distinct = jest.fn().mockResolvedValue([USER_ID]);
+
+      const resultado = await repository.findNotAnonymizedStudentIds([USER_ID]);
+
+      expect(modelo.distinct).toHaveBeenCalledWith("_id", {
+        _id: { $in: [USER_ID] },
+        role: "student",
+        anonymized_at: null,
+      });
+      expect(resultado).toEqual([USER_ID]);
+    });
+
+    it("não deve consultar o banco quando a lista estiver vazia", async() => {
+      modelo.distinct = jest.fn();
+
+      expect(await repository.findNotAnonymizedStudentIds([])).toEqual([]);
+      expect(modelo.distinct).not.toHaveBeenCalled();
+    });
+  });
+
   describe("setClass e clearClass", () => {
     const CLASS_ID = "507f1f77bcf86cd799439033";
 
@@ -369,17 +429,6 @@ describe("UserRepository", () => {
 
       expect(erro).toBeInstanceOf(CustomError);
       expect(erro.statusCode).toBe(404);
-    });
-  });
-
-  describe("delete", () => {
-    it("deve remover o usuário pelo id", async() => {
-      modelo.findByIdAndDelete.mockResolvedValue({ _id: USER_ID });
-
-      const resultado = await repository.delete(USER_ID);
-
-      expect(modelo.findByIdAndDelete).toHaveBeenCalledWith(USER_ID);
-      expect(resultado).toEqual({ _id: USER_ID });
     });
   });
 

@@ -9,21 +9,37 @@ O **LevelUp English** ajuda professores de inglês a engajar turmas através de 
 Existem três papéis de usuário, com permissões diferentes em cada rota:
 
 * **student (aluno)** — vê suas turmas, missões e atitudes; submete o progresso de missões; consulta seu próprio ranking.
-* **teacher (professor)** — cadastra alunos, turmas, missões e atitudes; registra ocorrências de atitude dos alunos (`attitude-logs`).
-* **admin** — acesso total, incluindo exclusão de turmas/atitudes, revogação de sessões e recálculo de níveis.
+* **teacher (professor)** — cadastra alunos (com o termo dos responsáveis), turmas, missões e atitudes; registra ocorrências de atitude dos alunos (`attitude-logs`); revoga o consentimento e desativa alunos das turmas dele; pode esconder o ranking da turma dos alunos.
+* **admin** — acesso total, incluindo exclusão de turmas/atitudes, desativação de qualquer conta, eliminação e exportação dos dados de um aluno (LGPD), revogação de sessões e recálculo de níveis.
+
+As contas são criadas pela escola (admin) ou pelo professor; não há cadastro aberto.
 
 ### Domínios da API
 
 | Domínio | O que faz |
 | :------ | :-------- |
 | **Auth** | Login, refresh/revogação de token, cadastro de aluno, recuperação e troca de senha |
-| **User** | CRUD de usuários; XP, nível e progresso são calculados a partir daqui. Também expõe o histórico de XP e o desempenho do aluno por tipo de missão (radar), com a média da turma e filtro por período |
-| **Class** | Turmas às quais os alunos pertencem |
+| **User** | Cadastro, edição e desativação de usuários (não há exclusão: a conta é desativada, para preservar o histórico de XP); XP, nível e progresso são calculados a partir daqui. Também expõe o histórico de XP, o desempenho do aluno por tipo de missão (radar), com a média da turma e filtro por período, e as rotas da LGPD (veja abaixo) |
+| **Class** | Turmas às quais os alunos pertencem; o professor pode esconder o ranking da turma dos alunos (`class_ranking_visible`) |
 | **Mission** | Missões (quizzes); o aluno submete respostas e o servidor corrige contra o gabarito, creditando XP pelo melhor score |
 | **Attitude** | Catálogo de atitudes (comportamentos) que podem ser registradas |
 | **AttitudeLog** | Registro de uma atitude aplicada a um aluno |
-| **Ranking** | Ranking global, por turma e do próprio usuário; o aluno pode sair do ranking global e continua no da turma |
+| **Ranking** | Ranking global, por turma e do próprio usuário; o aluno pode sair do ranking global e continua no da turma. As entradas trazem nome, nível, XP e foto, sem o e-mail |
 | **Notification** | Avisos ao aluno: atitude aplicada, corrigida ou desfeita, ajuste manual de XP e missão nova na turma. Listagem paginada, contador de não lidas e marcação como lida; apagadas após 90 dias |
+
+### Privacidade (LGPD)
+
+O público inclui crianças e adolescentes, então a API segue a Lei 13.709/2018 (arts. 14, 16 e 18):
+
+* **Termo dos responsáveis** — obrigatório: cadastrar aluno sem `guardian_consent: true` é recusado com 400. O campo registra que a escola recebeu o termo assinado em papel (não é um aceite do aluno), e o aluno guarda a data e quem registrou. Não existe aluno ativo sem termo — veja [Conferência do termo](#conferência-do-termo-dos-responsáveis).
+* **Revogação** — `POST /users/{id}/guardian-consent/revoke` (professor da turma ou admin) registra a revogação, desativa a conta e encerra a sessão. Para o aluno voltar, o admin reativa a conta com `PATCH /users/{id}` enviando `active: true` e `guardian_consent: true` (termo novo); sem o termo, a reativação é recusada com 409.
+* **Desativação no lugar da exclusão** — `DELETE /users/{id}` desativa a conta e marca `deactivated_at`. O aluno não desativa a própria conta: o pedido passa pela escola.
+* **Retenção** — os dados de um aluno desativado ficam guardados por `RETENTION_MONTHS` (12 por padrão) e depois são anonimizados por um script diário (veja [Retenção de dados](#retenção-de-dados-lgpd)).
+* **Eliminação a pedido** — `POST /users/{id}/erasure` (admin, com `{ "confirm": true }`) anonimiza o aluno na hora, de forma irreversível.
+* **Acesso aos dados** — `GET /users/{id}/data-export` (admin) entrega os dados do aluno em JSON, como arquivo para baixar.
+* **Minimização** — o ranking não mostra e-mail, a foto de perfil é opcional e gravada sem metadados, as notificações somem após 90 dias e o aluno pode sair do ranking global.
+
+A anonimização troca o nome por "Aluno removido" e o e-mail por um endereço fictício, apaga a foto, a senha, as notificações e o motivo dos ajustes de XP, e mantém XP e progresso no registro anonimizado, para os rankings e as médias da turma não mudarem. Cada eliminação fica registrada (quem executou e quando), sem nenhum dado pessoal. Atitudes e ajustes de XP não podem ser aplicados a aluno desativado. A política de privacidade, os termos de uso e o modelo do termo ficam no front-end.
 
 ## Arquitetura
 
@@ -63,6 +79,7 @@ src/
 ├── utils/            # helpers (JWT, nível/XP, envio de e-mail, respostas padrão, erros)
 ├── seeds/            # popula o banco com dados fake para desenvolvimento
 ├── migrations/       # scripts avulsos que ajustam dados ou índices de um banco existente
+├── jobs/             # scripts agendados pelo cron da VM (retenção de dados da LGPD)
 └── tests/            # suíte de testes, espelhando as camadas acima
 ```
 
@@ -92,7 +109,7 @@ A API sobe em `http://localhost:$APP_PORT` (padrão `5011`, definido no `.env`).
 
 > ⚠️ `npm run seed` apaga (`deleteMany`) e recria usuários, turmas, missões, atitudes e attitude-logs. Não rode em um banco com dados que você queira manter.
 
-Para apresentações, `npm run seed:demo` monta uma escola realista: um semestre simulado pelos próprios services, com turmas, missões, atitudes, ranking, as notificações de cada aluno (com a data do evento e as da última semana como não lidas) e uma foto de perfil ilustrada para cada pessoa (estilo [Lorelei](https://www.dicebear.com/styles/lorelei/) do DiceBear, licença CC0, gerada a partir do e-mail e tratada como um upload comum). Ele também apaga o banco e as fotos dos usuários apagados. Com `NODE_ENV=production`, ou em um banco com "prod" no nome, só roda se receber o nome exato do banco em `SEED_DEMO_CONFIRM`:
+Para apresentações, `npm run seed:demo` monta uma escola realista: um semestre simulado pelos próprios services, com turmas, missões, atitudes, ranking, as notificações de cada aluno (com a data do evento e as da última semana como não lidas) e uma foto de perfil ilustrada para cada pessoa (estilo [Lorelei](https://www.dicebear.com/styles/lorelei/) do DiceBear, licença CC0, gerada a partir do e-mail e tratada como um upload comum). Todos os alunos vêm com o termo dos responsáveis registrado pelo professor da turma. Ele também apaga o banco e as fotos dos usuários apagados. Com `NODE_ENV=production`, ou em um banco com "prod" no nome, só roda se receber o nome exato do banco em `SEED_DEMO_CONFIRM`:
 
 ```bash
 # no Docker, para as fotos irem para o volume vol-uploads
@@ -113,6 +130,7 @@ Opcionais (têm valor padrão ou só fazem sentido em produção):
 
 * `SWAGGER_SERVER_URL` — URL exibida como servidor no Swagger; sem ela, usa `http://localhost:$APP_PORT`.
 * `TRUST_PROXY` — número de proxies reversos na frente da API (ex.: `1` atrás de um nginx). Ausente ou `0`, o `X-Forwarded-For` é ignorado e o rate limit usa o IP da conexão; ligar sem proxy deixaria o cliente forjar o IP.
+* `RETENTION_MONTHS` — meses que os dados de um aluno desativado ficam guardados antes da anonimização (padrão `12`). Veja [Retenção de dados](#retenção-de-dados-lgpd).
 * `DB_URL_TEST`, `MONGO_*`, `LOG_*` — ajustes de teste, timeouts do Mongo e do logger.
 
 ## Rodando com Docker
@@ -180,7 +198,41 @@ npm run migrate:mission-title-index
 npm run migrate:notification-indexes
 ```
 
+**`npm run migrate:deactivated-at`** — só para um banco que já existia antes da adequação à LGPD; um ambiente recriado pelos seeds não precisa dela. Preenche `deactivated_at` dos usuários que já estavam desativados, usando o `updatedAt` como aproximação. Sem ela, esses alunos nunca entram na retenção.
+
+```bash
+docker exec level-up-english-api npm run migrate:deactivated-at
+```
+
 **`npm run sync:class-students`** — reconstrói `Class.students` a partir de `User.class`.
+
+### Retenção de dados (LGPD)
+
+Aluno desativado (pela escola ou pela revogação do consentimento) mantém os dados por `RETENTION_MONTHS` meses contados de `deactivated_at`. Vencido o prazo, o `npm run retention:anonymize` troca o nome por "Aluno removido" e o e-mail por um endereço fictício, apaga a foto, as notificações, as credenciais e os motivos dos ajustes de XP, e registra a eliminação em `dataErasureLogs`. XP e progresso continuam no registro anonimizado, para os rankings e as médias da turma não mudarem.
+
+O script também reaplica a anonimização a todo aluno registrado em `dataErasureLogs` que voltou a ter dados — o que acontece quando um backup anterior à eliminação é restaurado. Por isso, **depois de restaurar um backup, rode o script na hora**, sem esperar o cron.
+
+Roda uma vez por dia pelo cron da VM, meia hora depois do backup (`crontab -e` no usuário que roda o Docker):
+
+```bash
+30 3 * * * docker exec level-up-english-api npm run --silent retention:anonymize >> $HOME/retencao.log 2>&1
+```
+
+O script termina com código 1 se algum aluno falhar (os demais seguem), e o motivo fica no log. Os dados anonimizados ainda existem nos backups dos dias anteriores, que o `scripts/backup-mongo.sh` apaga depois de `KEEP_DAYS` (7) dias — esse é o prazo extra que a política de privacidade precisa informar.
+
+### Conferência do termo dos responsáveis
+
+O termo é obrigatório para todo aluno, e o `scripts/check-guardian-consent.js` confere isso no banco: lista os alunos **ativos** sem termo registrado ou com o consentimento revogado (aluno revogado deveria estar desativado). Rode depois de cada reseed e em cada ambiente; a lista precisa vir vazia.
+
+```bash
+# na VM, dentro do container da API (usa o DB_URL do container)
+docker exec level-up-english-api npm run check:guardian-consent
+
+# localmente, com o DB_URL do .env
+npm run check:guardian-consent
+```
+
+Com a lista vazia, imprime `OK: todos os alunos ativos têm o termo dos responsáveis registrado.` e sai com código 0. Se achar alguém, imprime o id, o nome e a turma de cada aluno e sai com código 1 — dá para usar no cron ou num pipeline. O script só lê o banco.
 
 ## Equipe
 

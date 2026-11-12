@@ -400,6 +400,65 @@ describe("Rotas de turmas", () => {
     });
   });
 
+  describe("PATCH /classes/:id com a visibilidade do ranking", () => {
+    it("deve criar a turma com o ranking visível por padrão", async() => {
+      const res = await request(app)
+        .post("/classes")
+        .set("Authorization", await como(profA))
+        .send({ name: "Turma Nova" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.class_ranking_visible).toBe(true);
+    });
+
+    it("deve permitir que a professora dona oculte e volte a mostrar o ranking da turma", async() => {
+      const ocultar = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(profA))
+        .send({ class_ranking_visible: false });
+
+      expect(ocultar.status).toBe(200);
+      expect(ocultar.body.data.class_ranking_visible).toBe(false);
+
+      const mostrar = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(profA))
+        .send({ class_ranking_visible: true });
+
+      expect(mostrar.body.data.class_ranking_visible).toBe(true);
+    });
+
+    it("deve retornar 403 quando a professora altera o ranking de turma de outra", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaB._id}`)
+        .set("Authorization", await como(profA))
+        .send({ class_ranking_visible: false });
+
+      expect(res.status).toBe(403);
+      expect((await Class.findById(turmaB._id)).class_ranking_visible).toBe(true);
+    });
+
+    it("deve retornar 403 quando o aluno tenta ocultar o ranking da própria turma", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(alunoA))
+        .send({ class_ranking_visible: false });
+
+      expect(res.status).toBe(403);
+      expect((await Class.findById(turmaA._id)).class_ranking_visible).toBe(true);
+    });
+
+    it("deve retornar 400 quando o valor não for booleano", async() => {
+      const res = await request(app)
+        .patch(`/classes/${turmaA._id}`)
+        .set("Authorization", await como(admin))
+        .send({ class_ranking_visible: "não" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].path).toBe("class_ranking_visible");
+    });
+  });
+
   describe("PATCH /classes/:id", () => {
     it("deve permitir que a professora dona renomeie a turma", async() => {
       const res = await request(app)

@@ -13,7 +13,7 @@ class RankingRepository {
   async findGlobal() {
     const ranking = await this.rankingModel
       .findOne({ type: "global" })
-      .populate("entries.user", "name email level xp avatar_url");
+      .populate("entries.user", "name level xp avatar_url");
 
     if (!ranking) {
       throw new CustomError({
@@ -31,7 +31,7 @@ class RankingRepository {
   async findByClass(classId) {
     const ranking = await this.rankingModel
       .findOne({ type: "class", class: classId })
-      .populate("entries.user", "name email level xp avatar_url")
+      .populate("entries.user", "name level xp avatar_url")
       .populate("class", "name");
 
     if (!ranking) {
@@ -60,6 +60,14 @@ class RankingRepository {
       .find(filter)
       .select("_id xp level")
       .sort({ xp: -1, level: -1 });
+  }
+
+  async findContainingUser(userId) {
+    return await this.rankingModel
+      .find({ "entries.user": userId })
+      .select("type class entries updatedAt")
+      .populate("class", "name")
+      .lean();
   }
 
   async findActiveClasses() {

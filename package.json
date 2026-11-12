@@ -14,7 +14,10 @@
     "migrate:indexes": "node src/migrations/migrate_indexes.js",
     "migrate:mission-title-index": "node src/migrations/migrate_mission_title_index.js",
     "migrate:notification-indexes": "node src/migrations/migrate_notification_indexes.js",
+    "migrate:deactivated-at": "node src/migrations/migrate_deactivated_at.js",
     "sync:class-students": "node src/migrations/sync_class_students.js",
+    "retention:anonymize": "node src/jobs/run_retention.js",
+    "check:guardian-consent": "node scripts/check-guardian-consent.js",
     "start": "node server.js",
     "test": "jest --coverage --detectOpenHandles"
   },

@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.13_
+_versão 3.16_
 
 ## Histórico das alterações
 
@@ -24,6 +24,9 @@ _versão 3.13_
 | 31/10/2026 | 3.11   | RF-017 (foto de perfil); seção 2 alinhada à API atual (9 domínios, 33 caminhos e 49 operações, com notificações, desempenho e upload); RNF-005 com as 49 operações; seção 4 alinhada à seção 12 do catálogo (341 casos, 337 automatizados) | Matheus Lucas |
 | 09/11/2026 | 3.12   | Streak retirado do escopo do RF-009 e removido da API, por nunca ter tido regra que o alimentasse; RF-009 passa a Implementado e o streak fica como trabalho futuro | Matheus Lucas |
 | 09/11/2026 | 3.13   | RNF-002 atendido com o p95 medido na VM de produção; RNF-006 implementado, com backup diário e plano de recuperação; seções 1 e 10 alinhadas ao projeto atual (frontend e pipeline existem) | Matheus Lucas |
+| 12/11/2026 | 3.14   | RF-018 (adequação à LGPD): termo dos responsáveis, revogação, desativação no lugar da exclusão, retenção com anonimização, eliminação e exportação a pedido; RF-007 com o ranking da turma ocultável pelo professor e sem e-mail; seção 2 alinhada à API atual (37 caminhos e 53 operações); seção 4 alinhada à seção 13 do catálogo (391 casos, 387 automatizados); seções 6, 7 e 10 medidas de novo | Matheus Lucas |
+| 12/11/2026 | 3.15   | A LGPD passa a ser também requisito não funcional: RNF-008 (conformidade com a LGPD, com retenção, minimização, backups e registro das eliminações) e RF-018 restrito ao que o usuário faz (termo, revogação, desativação, eliminação e exportação); a retirada do e-mail do ranking sai do RF-007 e vai para o RNF-008 | Matheus Lucas |
+| 12/11/2026 | 3.16   | Termo dos responsáveis obrigatório para todo aluno, sem estado pendente (os ambientes são recriados pelos seeds): sai o registro posterior do termo, e reativar aluno revogado exige termo novo; RNF-008 com a conferência `check:guardian-consent`; seção 2 com 36 caminhos e 52 operações; seção 4 alinhada à seção 13 do catálogo (384 casos, 380 automatizados); seções 7 e 10 medidas de novo | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -37,13 +40,13 @@ O escopo deste plano é a API REST. O front-end fica em repositório próprio, c
 
 A aplicação é construída em uma arquitetura modular em camadas, utilizando Node.js, Express 5, MongoDB com Mongoose, Zod para validação de dados, JWT para autenticação e Swagger (zod-to-openapi) para documentação.
 
-São **9 domínios**, expostos em **33 caminhos** e **49 operações** documentadas em `/api-docs`.
+São **9 domínios**, expostos em **36 caminhos** e **52 operações** documentadas em `/api-docs`.
 
 ### Camadas
 
 - **Routes**: definem os endpoints, declaram quem pode chamá-los e direcionam para os controllers.
   - `authRoutes.js`: autenticação e gestão de sessão
-  - `userRoutes.js`: gerenciamento de usuários, foto de perfil, histórico de XP e desempenho do aluno
+  - `userRoutes.js`: gerenciamento de usuários, foto de perfil, histórico de XP, desempenho do aluno e as rotas da LGPD (revogação do consentimento, eliminação e exportação)
   - `classRoutes.js`: gerenciamento de turmas
   - `missionRoutes.js`: gerenciamento de missões e submissão de progresso
   - `attitudeRoutes.js`: catálogo de atitudes
@@ -53,11 +56,11 @@ São **9 domínios**, expostos em **33 caminhos** e **49 operações** documenta
   - `notificationRoutes.js`: notificações do usuário logado
 
 - **Controllers**: validam o corpo da requisição com Zod e chamam o service correspondente.
-  - `AuthController`, `UserController`, `ClassController`, `MissionController`, `AttitudeController`, `AttitudeLogController`, `RankingController`, `XpAdjustmentController`, `XpHistoryController`, `PerformanceController`, `NotificationController`
+  - `AuthController`, `UserController`, `ClassController`, `MissionController`, `AttitudeController`, `AttitudeLogController`, `RankingController`, `XpAdjustmentController`, `XpHistoryController`, `PerformanceController`, `NotificationController`, `PrivacyController`
 
 - **Services**: concentram as regras de negócio e a verificação de posse do recurso.
   - `AuthService`: login, refresh rotation, recuperação e troca de senha
-  - `UserService`: validação de e-mail, permissões de criação/edição/exclusão, troca e remoção da foto de perfil
+  - `UserService`: validação de e-mail, permissões de criação, edição e desativação, termo dos responsáveis e revogação, troca e remoção da foto de perfil
   - `ClassService`: turmas, visibilidade por papel, posse do professor
   - `MissionService`: missões, correção do quiz, ocultação do gabarito
   - `AttitudeService` / `AttitudeLogService`: catálogo de atitudes e aplicação de XP
@@ -67,12 +70,15 @@ São **9 domínios**, expostos em **33 caminhos** e **49 operações** documenta
   - `ProgressionService`: aplica XP, recalcula o nível e atualiza os rankings; no ajuste manual, com piso em 0 XP
   - `PerformanceService`: média das melhores notas por tipo de missão, comparada à da turma, para o radar
   - `NotificationService`: cria, lista e marca como lidas as notificações; os textos de cada aviso ficam nos métodos `notify*`
+  - `AnonymizationService`: anonimiza o aluno (nome, e-mail, foto, credenciais, notificações e motivos dos ajustes de XP) e registra a eliminação em `DataErasureLog`
+  - `RetentionService`: aplica o prazo de retenção (`RETENTION_MONTHS`) e reaplica a anonimização depois de restaurar um backup; executado pelo `npm run retention:anonymize` (`src/jobs/run_retention.js`), agendado no cron da VM
+  - `PrivacyService`: eliminação a pedido do titular e exportação dos dados do aluno em JSON
 
 - **Repositories**: acessam o MongoDB, isolando a persistência.
   - Paginação com `mongoose-paginate-v2`, populate de referências e filtros dedicados (`repository/filters/`)
 
 - **Models**: definem os schemas das entidades.
-  - `User` (role, xp, level, mission_progress, avatar_url, badges, active), `Class`, `Mission`, `Attitude`, `AttitudeLog`, `XpAdjustment`, `Ranking`, `Notification`
+  - `User` (role, xp, level, mission_progress, avatar_url, badges, active, deactivated_at, anonymized_at e os três campos do termo dos responsáveis), `Class` (com `class_ranking_visible`), `Mission`, `Attitude`, `AttitudeLog`, `XpAdjustment`, `Ranking`, `Notification`, `DataErasureLog` (quem teve os dados eliminados, por quê, por quem e quando, sem dado pessoal)
 
 - **Schemas (validação)**: regras de entrada e contratos de saída em Zod, reaproveitados pelo Swagger.
 
@@ -103,13 +109,13 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 
 | Código | Nome                           | Descrição                                                                                                                          | Prioridade    | Situação        |
 | ------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------- | --------------- |
-| RF-001 | Cadastro de Usuários           | Cadastro de alunos com nome, e-mail e senha. Apenas teacher/admin criam usuários, e o professor só cria aluno.                       | Essencial     | Implementado    |
+| RF-001 | Cadastro de Usuários           | Cadastro de alunos com nome, e-mail e senha. Apenas teacher/admin criam usuários, e o professor só cria aluno. O cadastro de aluno exige a confirmação do termo dos responsáveis (RF-018). | Essencial     | Implementado    |
 | RF-002 | Login de Usuários              | Login com JWT (access + refresh token). Conta desativada não autentica.                                                              | Essencial     | Implementado    |
 | RF-003 | Gestão de Turmas               | Teacher e admin criam, listam e atualizam turmas; a exclusão é exclusiva do admin. O professor só altera as turmas dele.             | Essencial     | Implementado    |
 | RF-004 | Criação de Missões             | Teacher e admin criam missões de quiz, vocabulário e áudio, vinculadas a uma turma. O professor só cria nas turmas dele. O título é único por turma, sem diferenciar maiúsculas, e não na escola inteira. O enunciado de cada pergunta tem até 500 caracteres e cada alternativa até 200. | Essencial     | Implementado    |
 | RF-005 | Progresso de Missões           | O aluno submete a missão e o servidor apura o score nos três tipos, ignorando o enviado no corpo: quiz e vocabulário ou áudio com perguntas de checagem são corrigidos contra o gabarito; vocabulário ou áudio antigo, sem perguntas, vale 100 na conclusão. | Essencial     | Implementado    |
 | RF-006 | Sistema de XP e Nível          | O XP é proporcional ao score sobre o `xp_reward` e paga apenas a diferença do melhor desempenho. O nível segue curva quadrática.     | Essencial     | Implementado    |
-| RF-007 | Ranking Global e por Turma     | Ranking dos 30 melhores por XP, global e por turma, recalculado a cada mudança de XP. O aluno pode sair do ranking global, e a mudança vale na hora; ele continua no ranking da turma. | Essencial     | Implementado    |
+| RF-007 | Ranking Global e por Turma     | Ranking dos 30 melhores por XP, global e por turma, recalculado a cada mudança de XP. O aluno pode sair do ranking global, e a mudança vale na hora; ele continua no ranking da turma. O professor pode esconder o ranking da turma dos alunos (`class_ranking_visible`), e continua vendo. | Essencial     | Implementado    |
 | RF-008 | Registro de Atitudes           | Professor aplica atitudes positivas e negativas a alunos das turmas dele, creditando ou descontando XP; desfazer estorna o XP.       | Essencial     | Implementado    |
 | RF-009 | Gerenciamento de Badges        | O aluno vê conquistas por marcos de progresso — missões concluídas, missões com nota 100% e XP ganho em missões —, calculadas no frontend a partir do `mission_progress` que já vem no `GET /users/{id}`. | Não Essencial | Implementado    |
 | RF-010 | Autenticação por Refresh Token | Refresh token rotation para renovar a sessão sem novo login, com o token vigente conferido no banco.                                  | Essencial     | Implementado    |
@@ -120,6 +126,9 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-015 | Desempenho por Tipo de Missão  | O aluno vê a média das melhores notas por tipo de missão (quiz, vocabulário e áudio), para o gráfico de radar, comparada à média dos alunos ativos da turma e com filtro opcional por período de conclusão. Mesma regra de acesso do RF-014. | Não Essencial | Implementado    |
 | RF-016 | Notificações                   | O aluno é avisado de atitude aplicada, corrigida ou desfeita, de ajuste manual de XP e de missão nova na turma, com o XP aplicado de fato e a mudança de nível. Ele lista as próprias notificações, vê quantas não leu e marca uma ou todas como lidas; as notificações são apagadas após 90 dias. | Não Essencial | Implementado    |
 | RF-017 | Foto de Perfil                 | O usuário envia a própria foto (JPEG, PNG ou WebP, até 2 MB), que o servidor converte para WebP 256×256 sem metadados e entrega em `/uploads`. Ele pode trocá-la ou removê-la, e a foto antiga sai do disco; o admin troca ou remove a de qualquer usuário. | Não Essencial | Implementado    |
+| RF-018 | Direitos do titular e consentimento | O cadastro de aluno exige a confirmação do termo assinado pelos responsáveis e registra a data e quem registrou; sem ela, o cadastro é recusado. Professor e admin revogam o consentimento, o que desativa a conta, e reativar o aluno exige um termo novo. A exclusão vira desativação, e o aluno não desativa a própria conta. A pedido do titular, o admin elimina os dados do aluno na hora (anonimização irreversível) e exporta os dados dele em JSON. | Essencial     | Implementado    |
+
+`RF-018` reúne as ações que um usuário dispara por causa da LGPD; a obrigação de cumprir a lei, que vale para o sistema inteiro, está no `RNF-008`. A divisão segue a classificação de Sommerville, em que a exigência legal é requisito não funcional externo: ela não descreve uma função, e sim uma restrição sobre como todas as funções tratam os dados. A retenção automática fica no RNF-008 porque ninguém a dispara — ela existe só para cumprir o prazo da lei.
 
 `RF-009` é atendido no frontend, e o backend não persiste conquistas: o campo `badges` do model segue sem uso. Como as conquistas são derivadas do progresso de missão e não alteram XP nem ranking, gravá-las seria duplicar um dado que a API já entrega. Nenhuma conquista regride, e por isso não há conquista de nível — o nível pode cair com uma atitude negativa. O `streak` saiu do escopo do requisito na v3.12 e foi removido da API, porque nenhuma regra o alimentava. Fica como trabalho futuro: exigiria um campo `last_activity_at` no model e a regra de atualização.
 
@@ -131,9 +140,12 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-002 | Desempenho        | Responder em até 500 ms (p95) nos endpoints comuns, com paginação limitada a 100 registros por página.                          | **Atendido** — limite aplicado nos 5 repositórios e p95 de até 33,38 ms na VM de produção (detalhe abaixo) |
 | RNF-003 | Escalabilidade    | Arquitetura preparada para múltiplas turmas e usuários, com índices apropriados no MongoDB.                                     | Implementado                    |
 | RNF-004 | Usabilidade da API | Documentação completa via Swagger/OpenAPI, com mensagens de erro claras e padronizadas pelo `CustomError`/`CommonResponse`.    | Implementado                    |
-| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,93% de linhas e as 49 operações exercitadas por teste de integração (ver seção 7) |
+| RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,94% de linhas e as 52 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Implementado — backup diário e plano de recuperação (detalhe abaixo) |
 | RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
+| RNF-008 | Conformidade com a LGPD | Tratamento dos dados dos alunos conforme a Lei 13.709/2018: consentimento dos responsáveis para menores (art. 14, pelo RF-018), sem nenhum aluno ativo sem termo — conferido pelo `npm run check:guardian-consent` depois de cada reseed; minimização — o ranking não traz e-mail, a foto é opcional e sem metadados, as notificações somem após 90 dias; retenção de 12 meses após a desativação (`RETENTION_MONTHS`), com anonimização automática diária (art. 16); dados anonimizados nos backups por no máximo 7 dias; registro de cada eliminação sem dado pessoal; atendimento aos direitos do titular (art. 18, pelo RF-018). | Implementado — o texto jurídico da política e do termo é modelo e exige revisão antes do uso real (detalhe abaixo) |
+
+`RNF-008` é verificado pelos casos `CT-LGPD` (seção 9 do catálogo) e pelo `CT-RANK-017`. A anonimização mantém XP, progresso, turma e logs de atitude ligados ao registro anonimizado, para os rankings e as médias da turma não mudarem, e apaga o que identifica o aluno: nome, e-mail, foto, credenciais, notificações e o texto livre dos ajustes de XP (o único campo de texto livre ligado ao aluno; `AttitudeLog` não tem). O `DataErasureLog` guarda só o id, o motivo, quem executou e a data, e serve também para a retenção reaplicar a anonimização se um backup antigo for restaurado. A API não decide quem é o controlador dos dados: isso, a política de privacidade, os termos de uso e o modelo do termo ficam no frontend, como textos-modelo.
 
 `RNF-007` guarda os contadores em memória: um restart ou deploy da API os zera, e com mais de uma instância cada uma contaria separado. Para a escala do projeto, com uma instância, é aceitável; o passo seguinte seria um store compartilhado (Redis ou o próprio MongoDB).
 
@@ -179,13 +191,14 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Missões                       | `CT-MISSION` | 47    | RF-004, RF-011, RF-012      |
 | Progressão de XP e nível      | `CT-XP`      | 49    | RF-005, RF-006, RF-011, RF-013, RF-014, RF-015 |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | RF-008, RF-011              |
-| Ranking                       | `CT-RANK`    | 12    | RF-007, RF-011              |
+| Ranking                       | `CT-RANK`    | 17    | RF-007, RF-011, RNF-008     |
 | Notificações                  | `CT-NOTIF`   | 19    | RF-011, RF-016              |
-| Matriz de permissões          | `CT-PERM`    | 50    | RF-011                      |
+| Privacidade e LGPD            | `CT-LGPD`    | 35    | RF-011, RF-018, RNF-008     |
+| Matriz de permissões          | `CT-PERM`    | 53    | RF-011                      |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
-| **Total**                     | -            | **341** | -                         |
+| **Total**                     | -            | **384** | -                         |
 
-**Situação em 31/10/2026: 337 dos 341 casos estão automatizados (98,8%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 12 do catálogo.
+**Situação em 12/11/2026: 380 dos 384 casos estão automatizados (99,0%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 13 do catálogo.
 
 A matriz `CT-PERM` cobre uma linha por operação da API, com o status esperado para cada um dos três papéis. Ela é a rede de segurança contra regressão de permissão: qualquer rota nova entra ali antes de ser considerada pronta.
 
@@ -290,15 +303,15 @@ src/
 └── tests/
     ├── setup/
     │   └── testDatabase.js       # sobe, limpa e derruba o MongoDB em memória
-    ├── routes/                   # 12 arquivos — nível Int, a pilha completa via Supertest
-    ├── controllers/              # 11 arquivos — validação Zod e envelope de resposta
-    ├── services/                 # 12 arquivos — regra de negócio e posse, com dublês
-    ├── repository/               # 8 arquivos + filters/ com 4
+    ├── routes/                   # 13 arquivos — nível Int, a pilha completa via Supertest
+    ├── controllers/              # 12 arquivos — validação Zod e envelope de resposta
+    ├── services/                 # 15 arquivos — regra de negócio e posse, com dublês
+    ├── repository/               # 9 arquivos + filters/ com 4
     ├── schemas/                  # 1 arquivo — limites e regras de conteúdo da missão
-    ├── migrations/               # 3 arquivos — índices e sincronização, contra o Mongo em memória
+    ├── migrations/               # 5 arquivos — índices, sincronização e deactivated_at, contra o Mongo em memória
     ├── middlewares/              # 2 arquivos — upload e entrega das fotos de perfil
     ├── config/                   # 1 arquivo — trust proxy
-    ├── models/                   # 1 arquivo
+    ├── models/                   # 2 arquivos — Ranking e DataErasureLog
     └── utils/                    # 6 arquivos + errors/ com 3 e helpers/ com 4
 ```
 
@@ -308,6 +321,8 @@ Dos três apoios previstos na v2.0 deste plano, **um foi construído e dois não
 
 1. `setup/testDatabase.js` — construído. `connectTestDatabase` levanta o `MongoMemoryServer`, `clearTestDatabase` esvazia as coleções entre testes e `disconnectTestDatabase` derruba tudo. Como cada arquivo de teste roda em um processo próprio do Jest, cada um levanta a própria instância e nenhum disputa dados com outro.
 2. `factories` e `auth` — **não foram extraídos**. Cada suíte de rota monta o próprio elenco no `beforeEach` e tem a própria função de autenticação. É duplicação assumida: o custo de manter sete cópias apareceu como aceitável perto do risco de um helper compartilhado esconder o que cada teste realmente prepara. Se um oitavo módulo entrar, a conta muda e vale extrair.
+
+O `services/RetentionService.test.js` é a exceção à regra de "services com dublês": além dos testes unitários, tem um bloco contra o Mongo em memória e uma pasta de fotos própria, porque o que importa na retenção é o efeito combinado em várias coleções e no disco.
 
 Uma consequência dessa estrutura merece registro: **nenhuma suíte carrega `src/app.js` nem `routes/index.js`**. Cada teste de rota monta o próprio Express com o router que vai exercitar. Ficam sem cobertura o handler 404, o `helmet`/`cors`/`compression`, a ordem de montagem dos routers e o `LogRoutesMiddleware`. A causa é o `await DbConnect.conectar()` no topo do módulo de `app.js`, que conecta ao banco só de importar o arquivo; extrair uma função `createApp()` destrava esse teste.
 
@@ -321,7 +336,7 @@ Uma consequência dessa estrutura merece registro: **nenhuma suíte carrega `src
 
 ### Metas de cobertura por camada, e o que foi alcançado
 
-Medição de 29/10/2026, com 68 arquivos de teste e 1483 testes:
+Medição de 12/11/2026, com 77 arquivos de teste e 1661 testes:
 
 | Camada             | Meta  | Realizado (stmts)  | Prioridade | Justificativa                                                |
 | ------------------ | ----- | ------------------ | ---------- | ------------------------------------------------------------ |
@@ -331,10 +346,10 @@ Medição de 29/10/2026, com 68 arquivos de teste e 1483 testes:
 | Repositories       | 80%   | **100%**           | Alta       | Filtros e paginação são fonte recorrente de erro sutil       |
 | Controllers        | 70%   | **100%**           | Média      | Camada fina; o essencial já passa pela integração            |
 | Utils/Helpers      | 75%   | **100%**           | Média      | `LevelHelper` é exceção: cobertura alta, é regra de XP       |
-| Routes             | —     | **100%**           | —          | Consequência das 12 suítes de rota                           |
+| Routes             | —     | **100%**           | —          | Consequência das 13 suítes de rota                           |
 | Models             | —     | **100%**           | —          | Consequência dos testes que gravam de verdade                |
-| Migrations         | —     | **97,62%**         | —          | Rodadas contra o Mongo em memória, como na produção sem `autoIndex` |
-| **Total**          | **~80%** | **99,93% stmts / 98,07% branches / 100% funcs / 99,93% linhas** | - | Piso contratual de 70% no RNF-005 |
+| Migrations         | —     | **98,11%**         | —          | Rodadas contra o Mongo em memória, como na produção sem `autoIndex` |
+| **Total**          | **~80%** | **99,94% stmts / 98,34% branches / 100% funcs / 99,94% linhas** | - | Piso contratual de 70% no RNF-005 |
 
 Todas as metas foram atingidas. Em linhas, só o `migrateMissionTitleIndex.js` fica abaixo de 100% (94,44%, linha 12: o `throw` de erro que não seja coleção inexistente ao listar os índices). O `AuthMiddleware.js` chegou a 100%: o token malformado, o expirado e o inválido passam por teste de rota (`CT-AUTH-011`, `012` e `051`), e o `if (!decoded)` depois do `jwt.verify`, que nunca era alcançado porque o `jwt.verify` já lança quando o token não presta, foi removido.
 
@@ -350,13 +365,13 @@ Configurar `collectCoverageFrom` continua sendo o ajuste correto: ele faz a gara
 
 ### Métricas de qualidade da suíte
 
-| Métrica              | Alvo                     | Medido em 29/10/2026     |
+| Métrica              | Alvo                     | Medido em 12/11/2026     |
 | -------------------- | ------------------------ | ------------------------ |
-| Pass rate na `main`  | mínimo de 95%            | **100%** (1483/1483)     |
-| Flakiness            | máximo de 5%             | Nenhum caso instável isolado; a suíte cheia tem uma falha intermitente de infraestrutura em testes de rota (~1 em 8 rodadas em 02/10/2026; 2 em 7 em 16/10/2026, com `socket hang up` do supertest; em 29/10/2026, timeouts de 30 s em `missionRoutes` e `classRoutes` e um 401 no lugar de 403 em `performanceRoutes`, todos passando isolados) |
-| Tempo de execução    | menos de 60 s            | **~8 a 12 s**            |
-| Cobertura de linhas  | mínimo de 70%            | **99,93%**               |
-| Cobertura de branches | mínimo de 65%           | **98,07%**               |
+| Pass rate na `main`  | mínimo de 95%            | **100%** (1661/1661)     |
+| Flakiness            | máximo de 5%             | Nenhum caso instável isolado; a suíte cheia tem uma falha intermitente de infraestrutura em testes de rota (~1 em 8 rodadas em 02/10/2026; 2 em 7 em 16/10/2026, com `socket hang up` do supertest; em 29/10/2026, timeouts de 30 s em `missionRoutes` e `classRoutes` e um 401 no lugar de 403 em `performanceRoutes`; em 12/11/2026, uma falha em `middlewares/UploadsStaticMiddleware`, que usa diretório temporário próprio; todos passando isolados e na rodada seguinte) |
+| Tempo de execução    | menos de 60 s            | **~11 s**                |
+| Cobertura de linhas  | mínimo de 70%            | **99,94%**               |
+| Cobertura de branches | mínimo de 65%           | **98,34%**               |
 
 O relatório sai em `coverage/` a cada `npm run test`. A configuração do Jest, no `package.json`, exclui da contagem os arquivos sem regra própria (helpers de resposta, logger, conexão com o banco, seeds e a documentação Swagger) para que a métrica reflita código de negócio.
 
@@ -411,8 +426,8 @@ O campo **Teste de regressão** é obrigatório para severidade Blocker e Grave:
 | ---------------- | --------------------------------------------------------------- | -------- | ----------------------------------------------- |
 | Planejamento     | Revisão do plano e do catálogo de casos                          | 1 dia    | ✅ concluído em 14/08/2026                      |
 | Infraestrutura   | `setupDatabase`, factories e helper de autenticação              | 2 dias   | ✅ concluído — sem factories nem helper de auth, ver seção 6 |
-| Integração       | Suíte por módulo, seguindo a ordem de criticidade                | 5 dias   | ✅ concluído — 12 suítes de rota                |
-| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 47 de 47                                     |
+| Integração       | Suíte por módulo, seguindo a ordem de criticidade                | 5 dias   | ✅ concluído — 13 suítes de rota                |
+| Permissões       | Matriz `CT-PERM` completa                                        | 2 dias   | ✅ 53 de 53                                     |
 | Unitários        | Regras isoladas de XP, nível, correção de quiz e schemas         | 2 dias   | ✅ concluído                                    |
 | Ponta a ponta    | Fluxos `CT-E2E`                                                  | 1 dia    | ⬜ pendente                                     |
 | Fechamento       | Cobertura, ajuste das metas e revisão do plano                   | 1 dia    | ✅ concluído em 19/08/2026 — esta versão        |

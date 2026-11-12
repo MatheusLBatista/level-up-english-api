@@ -254,6 +254,16 @@ describe("Rotas de atitudes aplicadas", () => {
       expect(res.body.message).toBe("O usuário informado não é um aluno.");
     });
 
+    it("deve retornar 409 sem aplicar a atitude quando o aluno estiver desativado", async() => {
+      await User.updateOne({ _id: alunoA._id }, { active: false });
+
+      const res = await aplicar(profA);
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe("Este aluno está desativado.");
+      expect((await User.findById(alunoA._id)).xp).toBe(0);
+    });
+
     it("deve retornar 404 quando a atitude não existir", async() => {
       const res = await request(app)
         .post("/attitude-logs")

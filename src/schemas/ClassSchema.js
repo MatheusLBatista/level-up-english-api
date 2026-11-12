@@ -16,6 +16,13 @@ const classBase = {
   _id: classIdSchema,
   name: z.string().openapi({ example: "Turma A" }),
   active: z.boolean().openapi({ example: true }),
+  class_ranking_visible: z.boolean().optional().openapi({
+    example: true,
+    description:
+      "Se os alunos veem o ranking da turma. Com false, `GET /rankings/me` e "
+      + "`GET /rankings/class/{classId}` respondem 403 para o aluno; professor e admin continuam vendo. "
+      + "Turmas criadas antes do campo vêm sem ele e contam como visível.",
+  }),
   createdAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
   updatedAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
 };
@@ -68,6 +75,10 @@ export const CreateClassBodySchema = z
       .min(1, "O nome da turma é obrigatório.")
       .openapi({ example: "Turma A" }),
     active: z.boolean().optional().openapi({ example: true }),
+    class_ranking_visible: z.boolean().optional().openapi({
+      example: false,
+      description: "Mostra ou esconde o ranking da turma para os alunos. Padrão true.",
+    }),
     teacher: classIdSchema.optional().openapi({
       description: "Só admin: precisa ser professor ativo. Para o professor logado, é ignorado.",
     }),
@@ -94,6 +105,10 @@ export const UpdateClassBodySchema = z
       .optional()
       .openapi({ example: "Turma A" }),
     active: z.boolean().optional().openapi({ example: true }),
+    class_ranking_visible: z.boolean().optional().openapi({
+      example: false,
+      description: "Mostra ou esconde o ranking da turma para os alunos. Padrão true.",
+    }),
     teacher: classIdSchema.nullable().optional().openapi({
       description:
         "Só admin: precisa ser professor ativo, ou null para deixar a turma sem professor. "

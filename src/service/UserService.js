@@ -6,6 +6,7 @@ import AuthHelper from "../utils/AuthHelper.js";
 import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import { ensureTeacherCanEnroll, ensureTeacherOwnsClass } from "../utils/ClassOwnershipHelper.js";
+import { findAccessibleStudent } from "../utils/StudentAccessHelper.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
 import RankingService from "./RankingService.js";
 import LocalDiskStorage from "../utils/LocalDiskStorage.js";
@@ -104,6 +105,13 @@ class UserService {
       parsedData.password = hash;
     }
 
+    delete parsedData.guardian_consent;
+
+    if ((parsedData.role ?? "student") === "student") {
+      parsedData.guardian_consent_at = new Date();
+      parsedData.guardian_consent_recorded_by = loggedUser._id;
+    }
+
     const created = await this.repository.create(parsedData);
 
     if (parsedData.class) {
@@ -133,6 +141,7 @@ class UserService {
     delete parsedData.password;
 
     const target = await this.ensureUserExists(id);
+    this.ensureNotAnonymized(target);
 
     const user = await this.repository.findById(req.user_id);
     const isAdmin = user?.role === "admin";
@@ -156,6 +165,32 @@ class UserService {
       delete parsedData.active;
     }
 
+    const newConsent = parsedData.guardian_consent === true;
+    delete parsedData.guardian_consent;
+
+    const reactivatingRevokedStudent = parsedData.active === true
+      && target.active === false
+      && target.guardian_consent_revoked_at;
+
+    if (reactivatingRevokedStudent) {
+      if (!newConsent) {
+        throw this.conflict(
+          "guardian_consent",
+          "Para reativar um aluno com consentimento revogado, confirme o recebimento de um termo novo.",
+        );
+      }
+
+      parsedData.guardian_consent_at = new Date();
+      parsedData.guardian_consent_recorded_by = user._id;
+      parsedData.guardian_consent_revoked_at = null;
+    }
+
+    const changingActive = "active" in parsedData && parsedData.active !== target.active;
+
+    if (changingActive) {
+      Object.assign(parsedData, parsedData.active ? { deactivated_at: null } : this.deactivationFields());
+    }
+
     const changingClass = "class" in parsedData;
 
     if (changingClass && parsedData.class !== null) {
@@ -172,9 +207,64 @@ class UserService {
     const changingRankingVisibility = "show_in_global_ranking" in parsedData
       && (target.show_in_global_ranking !== false) !== parsedData.show_in_global_ranking;
 
-    if (changingRankingVisibility) await this.refreshGlobalRanking(id);
+    if (changingActive && target.role === "student") {
+      await this.refreshStudentRankings(id, target.class);
+    } else if (changingRankingVisibility) {
+      await this.refreshGlobalRanking(id);
+    }
 
     return updated;
+  }
+
+  async revokeGuardianConsent(id, req) {
+    const loggedUser = await this.repository.findById(req.user_id);
+    const student = await this.findStudentForConsent(id, loggedUser);
+    this.ensureNotAnonymized(student);
+
+    if (student.guardian_consent_revoked_at) {
+      throw this.conflict("guardian_consent", "O consentimento deste aluno já foi revogado.");
+    }
+
+    const updated = await this.repository.update(id, {
+      ...(student.active ? this.deactivationFields() : {}),
+      guardian_consent_revoked_at: new Date(),
+    });
+
+    await this.refreshStudentRankings(id, student.class);
+
+    return updated;
+  }
+
+  async findStudentForConsent(id, loggedUser) {
+    const repositories = { userRepository: this.repository, classRepository: this.classRepository };
+
+    return await findAccessibleStudent(repositories, id, loggedUser, {
+      ownOnly: "Você não pode alterar o termo de outro aluno.",
+      teacherOnly: "Você só pode alterar o termo de alunos das suas turmas.",
+    });
+  }
+
+  conflict(field, message) {
+    return new CustomError({
+      statusCode: HttpStatusCodes.CONFLICT.code,
+      errorType: "conflictError",
+      field,
+      details: [],
+      customMessage: message,
+    });
+  }
+
+  deactivationFields() {
+    return { active: false, deactivated_at: new Date(), accesstoken: null, refreshtoken: null };
+  }
+
+  async refreshStudentRankings(id, classId) {
+    try {
+      await this.rankingService.refreshGlobal();
+      if (classId) await this.rankingService.refreshClass(classId);
+    } catch (err) {
+      logger.error(`Falha ao atualizar os rankings após mudar a situação do usuário ${id}: ${err.message}`);
+    }
   }
 
   async refreshGlobalRanking(id) {
@@ -187,6 +277,7 @@ class UserService {
 
   async updateAvatar(id, buffer, req) {
     const target = await this.ensureUserExists(id);
+    this.ensureNotAnonymized(target);
     const user = await this.repository.findById(req.user_id);
 
     if (user.role !== "admin" && String(user._id) !== String(id)) {
@@ -238,21 +329,11 @@ class UserService {
     return updated;
   }
 
-  async delete(id, req) {
+  async deactivate(id, req) {
     const loggedUser = await this.repository.findById(req.user_id);
     const target = await this.ensureUserExists(id);
 
     const isSelf = String(loggedUser._id) === String(id);
-
-    if (loggedUser.role === "student" && !isSelf) {
-      throw new CustomError({
-        statusCode: HttpStatusCodes.FORBIDDEN.code,
-        errorType: "permissionError",
-        field: "User",
-        details: [],
-        customMessage: "Students can only delete their own account.",
-      });
-    }
 
     if (loggedUser.role === "teacher" && !isSelf && target.role !== "student") {
       throw new CustomError({
@@ -260,25 +341,25 @@ class UserService {
         errorType: "permissionError",
         field: "User",
         details: [],
-        customMessage: "Teachers can only delete student accounts.",
+        customMessage: "Teachers can only deactivate student accounts.",
       });
     }
 
     if (loggedUser.role === "teacher" && !isSelf) {
       const classDoc = target.class ? await this.classRepository.findPlainById(target.class) : null;
 
-      ensureTeacherOwnsClass(classDoc, loggedUser, "Você só pode excluir alunos das suas turmas.");
+      ensureTeacherOwnsClass(classDoc, loggedUser, "Você só pode desativar alunos das suas turmas.");
     }
 
-    const deleted = await this.repository.delete(id);
-
-    if (target.class) {
-      await this.classRepository.removeStudent(target.class, id);
+    if (!target.active) {
+      throw this.conflict("User", "Este usuário já está desativado.");
     }
 
-    await this.discardAvatarFile(this.storage.keyFromUrl(target.avatar_url));
+    const deactivated = await this.repository.update(id, this.deactivationFields());
 
-    return deleted;
+    if (target.role === "student") await this.refreshStudentRankings(id, target.class);
+
+    return deactivated;
   }
 
   async recalculateLevels() {
@@ -342,6 +423,12 @@ class UserService {
     }
 
     return existingUser;
+  }
+
+  ensureNotAnonymized(user) {
+    if (user.anonymized_at) {
+      throw this.conflict("User", "Os dados deste aluno foram eliminados e não podem ser alterados.");
+    }
   }
 
   async discardAvatarFile(key) {

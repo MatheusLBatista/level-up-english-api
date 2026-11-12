@@ -30,6 +30,18 @@ const MissionProgressEntrySchema = z
   })
   .openapi("MissionProgressEntry");
 
+export const GUARDIAN_CONSENT_MESSAGE =
+  "Confirme o recebimento do termo de consentimento assinado pelos responsáveis.";
+
+export const GuardianConsentSchema = z
+  .literal(true, { errorMap: () => ({ message: GUARDIAN_CONSENT_MESSAGE }) })
+  .openapi({
+    example: true,
+    description:
+      "Termo de consentimento assinado pelos responsáveis recebido. Não é um aceite do aluno: "
+      + "registra que a escola recebeu o termo em papel. Só `true` é aceito.",
+  });
+
 export const UserSchema = z
   .object({
     _id: z.string().openapi({ example: "507f1f77bcf86cd799439011" }),
@@ -65,9 +77,37 @@ export const UserSchema = z
         + "muda a cada troca, então pode ser cacheada.",
     }),
     active: z.boolean().openapi({ example: true }),
+    deactivated_at: z.string().nullable().openapi({
+      example: null,
+      description:
+        "Quando a conta foi desativada; `null` enquanto ativa. Conta o prazo de retenção "
+        + "dos dados do aluno.",
+    }),
+    anonymized_at: z.string().nullable().openapi({
+      example: null,
+      description:
+        "Quando os dados pessoais do aluno foram eliminados, pelo prazo de retenção ou a pedido "
+        + "do titular. Depois disso o nome é \"Aluno removido\" e o e-mail é um endereço fictício.",
+    }),
     show_in_global_ranking: z.boolean().openapi({
       example: true,
       description: "Se o aluno aparece no ranking geral. O ranking da turma não muda.",
+    }),
+    guardian_consent_at: z.string().nullable().openapi({
+      example: "2026-01-01T00:00:00.000Z",
+      description:
+        "Quando a escola registrou o recebimento do termo assinado pelos responsáveis. Todo aluno "
+        + "nasce com ele preenchido; é `null` só para professor e admin.",
+    }),
+    guardian_consent_recorded_by: z.string().nullable().openapi({
+      example: "507f1f77bcf86cd799439011",
+      description: "Id do professor ou admin que registrou o termo.",
+    }),
+    guardian_consent_revoked_at: z.string().nullable().openapi({
+      example: null,
+      description:
+        "Quando o consentimento foi revogado. A revogação desativa a conta, e reativar exige um "
+        + "termo novo (guardian_consent no PATCH /users/{id}).",
     }),
     createdAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
     updatedAt: z.string().openapi({ example: "2026-01-01T00:00:00.000Z" }),
@@ -76,6 +116,11 @@ export const UserSchema = z
 
 export const CreateUserBodySchema = z
   .object({
+    guardian_consent: GuardianConsentSchema.optional().openapi({
+      description:
+        "Obrigatório quando o usuário criado é aluno (papel student ou não informado). "
+        + "Ignorado para professor e admin.",
+    }),
     name: z.string().openapi({ example: "John Doe" }),
     email: z.string().email().openapi({ example: "john@example.com" }),
     password: z.string().min(6).openapi({ example: "senha123" }),
@@ -89,6 +134,15 @@ export const CreateUserBodySchema = z
         + "O id do aluno entra em Class.students.",
     }),
   })
+  .superRefine((data, ctx) => {
+    if ((data.role ?? "student") === "student" && data.guardian_consent !== true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["guardian_consent"],
+        message: GUARDIAN_CONSENT_MESSAGE,
+      });
+    }
+  })
   .openapi("CreateUserBody");
 
 export const UpdateUserBodySchema = z
@@ -97,7 +151,14 @@ export const UpdateUserBodySchema = z
     badges: z.array(z.string()).optional().openapi({ example: ["first_login"] }),
     active: z.boolean().optional().openapi({
       example: true,
-      description: "Apenas admin. Ignorado nos demais papéis.",
+      description:
+        "Apenas admin. Ignorado nos demais papéis. Desativar preenche `deactivated_at` e "
+        + "encerra a sessão; reativar limpa `deactivated_at`.",
+    }),
+    guardian_consent: GuardianConsentSchema.optional().openapi({
+      description:
+        "Apenas admin, e só tem efeito ao reativar (active: true) um aluno com consentimento "
+        + "revogado: registra o termo novo, que é obrigatório nesse caso. Ignorado nos demais.",
     }),
     show_in_global_ranking: z.boolean().optional().openapi({
       example: false,

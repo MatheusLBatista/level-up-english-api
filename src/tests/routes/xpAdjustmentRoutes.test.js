@@ -275,6 +275,16 @@ describe("Rotas de ajuste manual de XP", () => {
       expect(await xpDe(profB)).toBe(0);
     });
 
+    it("deve retornar 409 sem mexer no XP quando o aluno estiver desativado", async() => {
+      await User.updateOne({ _id: alunoA._id }, { active: false });
+
+      const res = await ajustar(profA);
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe("Este aluno está desativado.");
+      expect(await xpDe(alunoA)).toBe(0);
+    });
+
     it("deve retornar 404 quando o aluno não existir", async() => {
       const res = await ajustar(profA, { student: { _id: ID_INEXISTENTE } });
 

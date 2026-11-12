@@ -487,7 +487,7 @@ describe("Rotas de autenticação", () => {
   });
 
   describe("POST /auth/register-student", () => {
-    const novoAluno = { name: "Maria Silva", email: "maria@escola.com" };
+    const novoAluno = { name: "Maria Silva", email: "maria@escola.com", guardian_consent: true };
 
     const cadastrarAluno = async(quem, corpo) => {
       const { accessToken } = await autenticar(quem.email);
@@ -601,10 +601,39 @@ describe("Rotas de autenticação", () => {
       const res = await request(app)
         .post("/auth/register-student")
         .set("Authorization", `Bearer ${accessToken}`)
-        .send({ name: "M", email: "sem-arroba" });
+        .send({ name: "M", email: "sem-arroba", guardian_consent: true });
 
       expect(res.status).toBe(400);
       expect(res.body.errors).toHaveLength(2);
+    });
+
+    it("deve registrar a data do termo e quem o registrou", async() => {
+      const turma = await Class.create({ name: "Turma A", teacher: teacher._id });
+
+      const res = await cadastrarAluno(teacher, { ...novoAluno, class: String(turma._id) });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.guardian_consent_recorded_by).toBe(String(teacher._id));
+      expect(res.body.data.guardian_consent_revoked_at).toBeNull();
+      expect(new Date(res.body.data.guardian_consent_at).getTime()).toBeLessThanOrEqual(Date.now());
+    });
+
+    it.each([
+      ["ausente", {}],
+      ["falso", { guardian_consent: false }],
+      ["como texto", { guardian_consent: "true" }],
+    ])("deve retornar 400 sem criar o aluno quando o termo dos responsáveis estiver %s", async(_, termo) => {
+      const { guardian_consent: _ignorado, ...semTermo } = novoAluno;
+
+      const res = await cadastrarAluno(admin, { ...semTermo, ...termo });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{
+        path: "guardian_consent",
+        message: "Confirme o recebimento do termo de consentimento assinado pelos responsáveis.",
+      }]);
+      expect(await User.findOne({ email: novoAluno.email })).toBeNull();
+      expect(SendMail.enviaEmail).not.toHaveBeenCalled();
     });
 
     it("deve retornar 498 quando não houver autenticação", async() => {

@@ -1,15 +1,18 @@
 jest.mock("../../repository/RankingRepository.js");
 jest.mock("../../repository/UserRepository.js");
+jest.mock("../../repository/ClassRepository.js");
 
 import RankingService from "../../service/RankingService.js";
 import RankingRepository from "../../repository/RankingRepository.js";
 import UserRepository from "../../repository/UserRepository.js";
+import ClassRepository from "../../repository/ClassRepository.js";
 import { CustomError } from "../../utils/helpers/index.js";
 
 describe("RankingService", () => {
   let service;
   let repository;
   let userRepository;
+  let classRepository;
 
   const ADMIN_ID = "507f1f77bcf86cd799439001";
   const PROF_ID = "507f1f77bcf86cd799439002";
@@ -50,7 +53,10 @@ describe("RankingService", () => {
       }),
     };
 
+    classRepository = { findPlainById: jest.fn().mockResolvedValue({ _id: TURMA_A_ID }) };
+
     RankingRepository.mockImplementation(() => repository);
+    ClassRepository.mockImplementation(() => classRepository);
     UserRepository.mockImplementation(() => userRepository);
 
     service = new RankingService();
@@ -137,6 +143,47 @@ describe("RankingService", () => {
       const erro = await capturarErro(service.getMyClass({ user_id: PROF_ID }));
 
       expect(erro.statusCode).toBe(404);
+    });
+  });
+
+  describe("ranking da turma oculto pelo professor", () => {
+    const oculto = { _id: TURMA_A_ID, class_ranking_visible: false };
+
+    it.each([
+      ["getMyClass", () => service.getMyClass({ user_id: ALUNO_A_ID })],
+      ["getByClass", () => service.getByClass(TURMA_A_ID, { user_id: ALUNO_A_ID })],
+    ])("deve lançar 403 para o aluno em %s", async(_, chamar) => {
+      classRepository.findPlainById.mockResolvedValue(oculto);
+
+      const erro = await capturarErro(chamar());
+
+      expect(classRepository.findPlainById).toHaveBeenCalledWith(TURMA_A_ID);
+      expect(erro).toBeInstanceOf(CustomError);
+      expect(erro.statusCode).toBe(403);
+      expect(erro.errorType).toBe("permissionError");
+      expect(erro.customMessage).toBe("O professor ocultou o ranking desta turma.");
+      expect(repository.findByClass).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["visível", { _id: TURMA_A_ID, class_ranking_visible: true }],
+      ["sem o campo, de antes da configuração", { _id: TURMA_A_ID }],
+      ["inexistente", null],
+    ])("deve devolver o ranking ao aluno quando a turma estiver %s", async(_, turma) => {
+      classRepository.findPlainById.mockResolvedValue(turma);
+
+      await service.getMyClass({ user_id: ALUNO_A_ID });
+
+      expect(repository.findByClass).toHaveBeenCalledWith(TURMA_A_ID);
+    });
+
+    it.each([PROF_ID, ADMIN_ID])("deve devolver o ranking oculto para professor e admin (%s)", async(userId) => {
+      classRepository.findPlainById.mockResolvedValue(oculto);
+
+      await service.getByClass(TURMA_A_ID, { user_id: userId });
+
+      expect(repository.findByClass).toHaveBeenCalledWith(TURMA_A_ID);
+      expect(classRepository.findPlainById).not.toHaveBeenCalled();
     });
   });
 

@@ -7,6 +7,7 @@ class Class {
       {
         name: { type: String, unique: true },
         active: { type: Boolean, default: true },
+        class_ranking_visible: { type: Boolean, default: true },
 
         teacher: {
           type: mongoose.Schema.Types.ObjectId,

@@ -90,6 +90,16 @@ class AttitudeLogService {
       });
     }
 
+    if (!student.active) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.CONFLICT.code,
+        errorType: "conflictError",
+        field: "student",
+        details: [],
+        customMessage: "Este aluno está desativado.",
+      });
+    }
+
     const loggedUser = await this.userRepository.findById(req.user_id);
 
     await this.ensureOwnsStudent(student, loggedUser);
