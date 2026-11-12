@@ -246,7 +246,7 @@ describe("Rotas de ranking", () => {
 
         const primeira = res.body.data.entries[0];
         expect(primeira.user.name).toBe("Aluno A");
-        expect(primeira.user.email).toBe("alunoa@escola.com");
+        expect(primeira.user).not.toHaveProperty("email");
         expect(primeira.user).not.toHaveProperty("password");
       });
 
@@ -298,6 +298,50 @@ describe("Rotas de ranking", () => {
       const res = await request(app).get("/rankings/me");
 
       expect(res.status).toBe(498);
+    });
+  });
+
+  describe("ranking da turma oculto pelo professor", () => {
+    beforeEach(async() => {
+      await recalcular();
+      await Class.updateOne({ _id: turmaA._id }, { class_ranking_visible: false });
+    });
+
+    it.each([
+      ["/rankings/me", () => "/rankings/me"],
+      ["/rankings/class/:classId", () => `/rankings/class/${turmaA._id}`],
+    ])("deve retornar 403 para o aluno em %s", async(_, rota) => {
+      const res = await request(app).get(rota()).set("Authorization", await como(alunoA));
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("O professor ocultou o ranking desta turma.");
+    });
+
+    it("deve continuar mostrando o ranking para a professora e o admin", async() => {
+      const daProfessora = await request(app)
+        .get(`/rankings/class/${turmaA._id}`)
+        .set("Authorization", await como(profA));
+      const doAdmin = await request(app)
+        .get(`/rankings/class/${turmaA._id}`)
+        .set("Authorization", await como(admin));
+
+      expect(daProfessora.status).toBe(200);
+      expect(daProfessora.body.data.entries[0].user.name).toBe("Aluno A");
+      expect(doAdmin.status).toBe(200);
+    });
+
+    it("deve manter o ranking global visível para o aluno", async() => {
+      const res = await request(app).get("/rankings/global").set("Authorization", await como(alunoA));
+
+      expect(res.status).toBe(200);
+    });
+
+    it("deve voltar a mostrar o ranking quando a professora liga de novo", async() => {
+      await Class.updateOne({ _id: turmaA._id }, { class_ranking_visible: true });
+
+      const res = await request(app).get("/rankings/me").set("Authorization", await como(alunoA));
+
+      expect(res.status).toBe(200);
     });
   });
 

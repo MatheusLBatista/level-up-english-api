@@ -1,6 +1,7 @@
 import { CustomError, HttpStatusCodes } from "../utils/helpers/index.js";
 import RankingRepository from "../repository/RankingRepository.js";
 import UserRepository from "../repository/UserRepository.js";
+import ClassRepository from "../repository/ClassRepository.js";
 import { calculateLevel } from "../utils/LevelHelper.js";
 
 const MAX_ENTRIES = 30;
@@ -9,6 +10,7 @@ class RankingService {
   constructor() {
     this.repository = new RankingRepository();
     this.userRepository = new UserRepository();
+    this.classRepository = new ClassRepository();
   }
 
   async getGlobal() {
@@ -27,6 +29,8 @@ class RankingService {
         customMessage: "Você só pode ver o ranking da sua própria turma.",
       });
     }
+
+    if (loggedUser.role === "student") await this.ensureClassRankingVisible(classId);
 
     return await this.repository.findByClass(classId);
   }
@@ -47,7 +51,23 @@ class RankingService {
       });
     }
 
+    await this.ensureClassRankingVisible(loggedUser.class);
+
     return await this.repository.findByClass(loggedUser.class);
+  }
+
+  async ensureClassRankingVisible(classId) {
+    const classDoc = await this.classRepository.findPlainById(classId);
+
+    if (classDoc?.class_ranking_visible === false) {
+      throw new CustomError({
+        statusCode: HttpStatusCodes.FORBIDDEN.code,
+        errorType: "permissionError",
+        field: "Ranking",
+        details: [],
+        customMessage: "O professor ocultou o ranking desta turma.",
+      });
+    }
   }
 
   /**
