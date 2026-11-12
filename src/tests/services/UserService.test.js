@@ -43,6 +43,7 @@ describe("UserService", () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      findByIds: jest.fn(),
       setLevelForXpRange: jest.fn().mockResolvedValue(0),
     };
 
@@ -60,7 +61,7 @@ describe("UserService", () => {
       keyFromUrl: jest.fn((url) => (url ? url.replace("/uploads/", "") : null)),
     };
 
-    rankingService = { refreshGlobal: jest.fn() };
+    rankingService = { refreshGlobal: jest.fn(), refreshClass: jest.fn() };
 
     UserRepository.mockImplementation(() => repository);
     RankingService.mockImplementation(() => rankingService);
@@ -427,6 +428,41 @@ describe("UserService", () => {
   });
 
   describe("update", () => {
+    describe("ao reativar um aluno com consentimento revogado", () => {
+      const revogado = () => usuario(STUDENT_ID, "student", {
+        active: false,
+        guardian_consent_at: new Date("2026-01-10"),
+        guardian_consent_recorded_by: TEACHER_ID,
+        guardian_consent_revoked_at: new Date("2026-03-01"),
+      });
+
+      it("deve zerar o termo para que ele volte a ficar pendente", async() => {
+        responderFindById(revogado(), admin());
+        repository.update.mockResolvedValue({});
+
+        await service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID });
+
+        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, {
+          active: true,
+          guardian_consent_at: null,
+          guardian_consent_recorded_by: null,
+          guardian_consent_revoked_at: null,
+        });
+      });
+
+      it.each([
+        ["desativado sem revogação", usuario(STUDENT_ID, "student", { active: false, guardian_consent_revoked_at: null })],
+        ["já ativo", usuario(STUDENT_ID, "student", { active: true, guardian_consent_revoked_at: new Date() })],
+      ])("não deve mexer no termo de aluno %s", async(_, alvo) => {
+        responderFindById(alvo, admin());
+        repository.update.mockResolvedValue({});
+
+        await service.update(STUDENT_ID, { active: true }, { user_id: ADMIN_ID });
+
+        expect(repository.update).toHaveBeenCalledWith(STUDENT_ID, { active: true });
+      });
+    });
+
     it("deve permitir que o usuário altere o próprio nome", async() => {
       const atualizado = { name: "Novo nome" };
       responderFindById(student(), student());
@@ -684,6 +720,180 @@ describe("UserService", () => {
         { path: "class", message: "Apenas alunos podem ser vinculados a uma turma." },
       ]);
       expect(repository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("termo dos responsáveis", () => {
+    const CLASS_ID = "507f1f77bcf86cd799439021";
+    const aluno = (overrides = {}) => usuario(STUDENT_ID, "student", { class: CLASS_ID, ...overrides });
+    const turmaDela = { _id: CLASS_ID, teacher: TEACHER_ID, active: true };
+    const turmaDeOutro = { _id: CLASS_ID, teacher: OUTRO_ID, active: true };
+
+    const prepararAcesso = (logado, alvo, turma = turmaDela) => {
+      responderFindById(logado);
+      repository.findByIds.mockResolvedValue(alvo ? [alvo] : []);
+      classRepository.findPlainById.mockResolvedValue(turma);
+      repository.update.mockImplementation(async(id, dados) => ({ _id: id, ...dados }));
+    };
+
+    describe("recordGuardianConsent", () => {
+      it("deve registrar a data e quem registrou para o aluno pendente da turma da professora", async() => {
+        prepararAcesso(teacher(), aluno());
+        const antes = Date.now();
+
+        await service.recordGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID });
+
+        const [id, dados] = repository.update.mock.calls[0];
+        expect(id).toBe(STUDENT_ID);
+        expect(dados.guardian_consent_recorded_by).toBe(TEACHER_ID);
+        expect(dados.guardian_consent_revoked_at).toBeNull();
+        expect(dados.guardian_consent_at.getTime()).toBeGreaterThanOrEqual(antes);
+      });
+
+      it("deve permitir que o admin registre o termo de aluno de qualquer turma", async() => {
+        prepararAcesso(admin(), aluno(), turmaDeOutro);
+
+        await service.recordGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        expect(repository.update).toHaveBeenCalled();
+        expect(classRepository.findPlainById).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 403 quando a professora tenta registrar o termo de aluno de outra turma", async() => {
+        prepararAcesso(teacher(), aluno(), turmaDeOutro);
+
+        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID }));
+
+        expect(erro.statusCode).toBe(403);
+        expect(erro.customMessage).toBe("Você só pode alterar o termo de alunos das suas turmas.");
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 403 quando a professora tenta registrar o termo de aluno sem turma", async() => {
+        prepararAcesso(teacher(), aluno({ class: null }));
+
+        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID }));
+
+        expect(erro.statusCode).toBe(403);
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["não existir", null],
+        ["não for aluno", usuario(STUDENT_ID, "teacher")],
+      ])("deve lançar 404 quando o alvo %s", async(_, alvo) => {
+        prepararAcesso(admin(), alvo);
+
+        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+        expect(erro.statusCode).toBe(404);
+        expect(erro.customMessage).toBe("Aluno não encontrado.");
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 409 quando o aluno estiver desativado", async() => {
+        prepararAcesso(admin(), aluno({ active: false, guardian_consent_revoked_at: new Date() }));
+
+        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+        expect(erro).toBeInstanceOf(CustomError);
+        expect(erro.statusCode).toBe(409);
+        expect(erro.errorType).toBe("conflictError");
+        expect(erro.customMessage).toBe("Não é possível registrar o termo de um aluno desativado.");
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 409 quando o termo já estiver registrado", async() => {
+        prepararAcesso(admin(), aluno({ guardian_consent_at: new Date("2026-01-10") }));
+
+        const erro = await capturarErro(service.recordGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+        expect(erro.statusCode).toBe(409);
+        expect(erro.customMessage).toBe("O termo deste aluno já foi registrado.");
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("revokeGuardianConsent", () => {
+      it("deve registrar a revogação, desativar a conta e encerrar a sessão", async() => {
+        prepararAcesso(teacher(), aluno({ guardian_consent_at: new Date("2026-01-10") }));
+        const antes = Date.now();
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID });
+
+        const [id, dados] = repository.update.mock.calls[0];
+        expect(id).toBe(STUDENT_ID);
+        expect(dados).toMatchObject({ active: false, accesstoken: null, refreshtoken: null });
+        expect(dados.guardian_consent_revoked_at.getTime()).toBeGreaterThanOrEqual(antes);
+      });
+
+      it("deve recalcular o ranking global e o da turma do aluno", async() => {
+        prepararAcesso(admin(), aluno());
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        expect(rankingService.refreshGlobal).toHaveBeenCalled();
+        expect(rankingService.refreshClass).toHaveBeenCalledWith(CLASS_ID);
+      });
+
+      it("não deve recalcular ranking de turma quando o aluno não tiver turma", async() => {
+        prepararAcesso(admin(), aluno({ class: null }));
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        expect(rankingService.refreshGlobal).toHaveBeenCalled();
+        expect(rankingService.refreshClass).not.toHaveBeenCalled();
+      });
+
+      it("deve concluir a revogação e só registrar no log quando o ranking falhar", async() => {
+        prepararAcesso(admin(), aluno());
+        rankingService.refreshGlobal.mockRejectedValue(new Error("mongo fora"));
+        const logError = jest.spyOn(logger, "error").mockImplementation(() => {});
+
+        const resultado = await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        expect(resultado.active).toBe(false);
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining("mongo fora"));
+        logError.mockRestore();
+      });
+
+      it("deve permitir revogar o consentimento de aluno com termo pendente", async() => {
+        prepararAcesso(admin(), aluno({ guardian_consent_at: null }));
+
+        await service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID });
+
+        expect(repository.update).toHaveBeenCalled();
+      });
+
+      it("deve lançar 403 quando a professora tenta revogar o consentimento de aluno de outra turma", async() => {
+        prepararAcesso(teacher(), aluno(), turmaDeOutro);
+
+        const erro = await capturarErro(service.revokeGuardianConsent(STUDENT_ID, { user_id: TEACHER_ID }));
+
+        expect(erro.statusCode).toBe(403);
+        expect(repository.update).not.toHaveBeenCalled();
+        expect(rankingService.refreshGlobal).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 404 quando o alvo não for aluno", async() => {
+        prepararAcesso(admin(), usuario(STUDENT_ID, "admin"));
+
+        const erro = await capturarErro(service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+        expect(erro.statusCode).toBe(404);
+        expect(repository.update).not.toHaveBeenCalled();
+      });
+
+      it("deve lançar 409 quando o consentimento já tiver sido revogado", async() => {
+        prepararAcesso(admin(), aluno({ active: false, guardian_consent_revoked_at: new Date() }));
+
+        const erro = await capturarErro(service.revokeGuardianConsent(STUDENT_ID, { user_id: ADMIN_ID }));
+
+        expect(erro.statusCode).toBe(409);
+        expect(erro.errorType).toBe("conflictError");
+        expect(erro.customMessage).toBe("O consentimento deste aluno já foi revogado.");
+        expect(repository.update).not.toHaveBeenCalled();
+      });
     });
   });
 

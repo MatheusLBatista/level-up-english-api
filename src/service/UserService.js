@@ -6,6 +6,7 @@ import AuthHelper from "../utils/AuthHelper.js";
 import UserRepository from "../repository/UserRepository.js";
 import ClassRepository from "../repository/ClassRepository.js";
 import { ensureTeacherCanEnroll, ensureTeacherOwnsClass } from "../utils/ClassOwnershipHelper.js";
+import { findAccessibleStudent } from "../utils/StudentAccessHelper.js";
 import { MIN_LEVEL, MAX_LEVEL, xpForLevel } from "../utils/LevelHelper.js";
 import RankingService from "./RankingService.js";
 import LocalDiskStorage from "../utils/LocalDiskStorage.js";
@@ -163,6 +164,16 @@ class UserService {
       delete parsedData.active;
     }
 
+    const reactivatingRevokedStudent = parsedData.active === true
+      && target.active === false
+      && target.guardian_consent_revoked_at;
+
+    if (reactivatingRevokedStudent) {
+      parsedData.guardian_consent_at = null;
+      parsedData.guardian_consent_recorded_by = null;
+      parsedData.guardian_consent_revoked_at = null;
+    }
+
     const changingClass = "class" in parsedData;
 
     if (changingClass && parsedData.class !== null) {
@@ -182,6 +193,73 @@ class UserService {
     if (changingRankingVisibility) await this.refreshGlobalRanking(id);
 
     return updated;
+  }
+
+  async recordGuardianConsent(id, req) {
+    const loggedUser = await this.repository.findById(req.user_id);
+    const student = await this.findStudentForConsent(id, loggedUser);
+
+    if (!student.active) {
+      throw this.consentConflict("Não é possível registrar o termo de um aluno desativado.");
+    }
+
+    if (student.guardian_consent_at) {
+      throw this.consentConflict("O termo deste aluno já foi registrado.");
+    }
+
+    return await this.repository.update(id, {
+      guardian_consent_at: new Date(),
+      guardian_consent_recorded_by: loggedUser._id,
+      guardian_consent_revoked_at: null,
+    });
+  }
+
+  async revokeGuardianConsent(id, req) {
+    const loggedUser = await this.repository.findById(req.user_id);
+    const student = await this.findStudentForConsent(id, loggedUser);
+
+    if (student.guardian_consent_revoked_at) {
+      throw this.consentConflict("O consentimento deste aluno já foi revogado.");
+    }
+
+    const updated = await this.repository.update(id, {
+      active: false,
+      guardian_consent_revoked_at: new Date(),
+      accesstoken: null,
+      refreshtoken: null,
+    });
+
+    await this.refreshRankingsAfterDeactivation(id, student.class);
+
+    return updated;
+  }
+
+  async findStudentForConsent(id, loggedUser) {
+    const repositories = { userRepository: this.repository, classRepository: this.classRepository };
+
+    return await findAccessibleStudent(repositories, id, loggedUser, {
+      ownOnly: "Você não pode alterar o termo de outro aluno.",
+      teacherOnly: "Você só pode alterar o termo de alunos das suas turmas.",
+    });
+  }
+
+  consentConflict(message) {
+    return new CustomError({
+      statusCode: HttpStatusCodes.CONFLICT.code,
+      errorType: "conflictError",
+      field: "guardian_consent",
+      details: [],
+      customMessage: message,
+    });
+  }
+
+  async refreshRankingsAfterDeactivation(id, classId) {
+    try {
+      await this.rankingService.refreshGlobal();
+      if (classId) await this.rankingService.refreshClass(classId);
+    } catch (err) {
+      logger.error(`Falha ao atualizar os rankings após desativar o usuário ${id}: ${err.message}`);
+    }
   }
 
   async refreshGlobalRanking(id) {

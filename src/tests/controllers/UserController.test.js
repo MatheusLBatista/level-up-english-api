@@ -43,6 +43,46 @@ describe("UserController", () => {
     throw new Error("Esperava que a promessa fosse rejeitada, mas ela resolveu.");
   };
 
+  describe("recordGuardianConsent", () => {
+    it("deve devolver 200 com o aluno atualizado, sem a senha", async() => {
+      const registrado = { _id: USER_ID, guardian_consent_at: "2026-11-12T00:00:00.000Z" };
+      controller.service.recordGuardianConsent.mockResolvedValue(documento({ ...registrado, password: "hash" }));
+      req.params.id = USER_ID;
+
+      await controller.recordGuardianConsent(req, res);
+
+      expect(controller.service.recordGuardianConsent).toHaveBeenCalledWith(USER_ID, req);
+      esperarResposta(200, "Termo dos responsáveis registrado.", registrado);
+    });
+
+    it("deve propagar o erro lançado pelo service", async() => {
+      controller.service.recordGuardianConsent.mockRejectedValue(new Error("Conflito"));
+
+      await expect(controller.recordGuardianConsent(req, res)).rejects.toThrow("Conflito");
+      expect(res.status).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("revokeGuardianConsent", () => {
+    it("deve devolver 200 com o aluno desativado, sem a senha", async() => {
+      const revogado = { _id: USER_ID, active: false, guardian_consent_revoked_at: "2026-11-12T00:00:00.000Z" };
+      controller.service.revokeGuardianConsent.mockResolvedValue(documento({ ...revogado, password: "hash" }));
+      req.params.id = USER_ID;
+
+      await controller.revokeGuardianConsent(req, res);
+
+      expect(controller.service.revokeGuardianConsent).toHaveBeenCalledWith(USER_ID, req);
+      esperarResposta(200, "Consentimento revogado. A conta do aluno foi desativada.", revogado);
+    });
+
+    it("deve propagar o erro lançado pelo service", async() => {
+      controller.service.revokeGuardianConsent.mockRejectedValue(new Error("Conflito"));
+
+      await expect(controller.revokeGuardianConsent(req, res)).rejects.toThrow("Conflito");
+      expect(res.status).not.toHaveBeenCalled();
+    });
+  });
+
   describe("list", () => {
     it("deve devolver 200 com o resultado da listagem", async() => {
       const paginado = { docs: [{ name: "Aluno" }], totalDocs: 1 };

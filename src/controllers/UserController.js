@@ -77,6 +77,27 @@ class UserController {
     return CommonResponse.success(res, cleanUser, 200, "Avatar removed successfully.");
   }
 
+  async recordGuardianConsent(req, res) {
+    const data = await this.service.recordGuardianConsent(req.params.id, req);
+    return CommonResponse.success(res, this.withoutCredentials(data), 200, "Termo dos responsáveis registrado.");
+  }
+
+  async revokeGuardianConsent(req, res) {
+    const data = await this.service.revokeGuardianConsent(req.params.id, req);
+    return CommonResponse.success(
+      res,
+      this.withoutCredentials(data),
+      200,
+      "Consentimento revogado. A conta do aluno foi desativada.",
+    );
+  }
+
+  withoutCredentials(user) {
+    const clean = user.toObject();
+    delete clean.password;
+    return clean;
+  }
+
   async recalculateLevels(req, res) {
     const data = await this.service.recalculateLevels();
     return CommonResponse.success(res, data, 200, "Levels recalculated successfully.");

@@ -47,6 +47,18 @@ router
     asyncWrapper(userController.update.bind(userController)),
   )
   .patch(
+    "/users/:id/guardian-consent",
+    authMiddleware,
+    authorize("teacher", "admin"),
+    asyncWrapper(userController.recordGuardianConsent.bind(userController)),
+  )
+  .post(
+    "/users/:id/guardian-consent/revoke",
+    authMiddleware,
+    authorize("teacher", "admin"),
+    asyncWrapper(userController.revokeGuardianConsent.bind(userController)),
+  )
+  .patch(
     "/users/:id/avatar",
     authMiddleware,
     authorize("student", "teacher", "admin"),
