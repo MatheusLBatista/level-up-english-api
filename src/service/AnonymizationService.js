@@ -27,7 +27,7 @@ class AnonymizationService {
     this.storage = storage;
   }
 
-  async anonymize(userId, { reason, performedBy = null }) {
+  async anonymize(userId, { reason, performedBy = null, record = true }) {
     const user = await this.userRepository.findById(userId);
 
     if (user.role !== "student") {
@@ -72,7 +72,9 @@ class AnonymizationService {
       anonymized_at: now,
     });
 
-    await this.erasureLogRepository.create({ user: user._id, reason, performed_by: performedBy, performed_at: now });
+    if (record) {
+      await this.erasureLogRepository.create({ user: user._id, reason, performed_by: performedBy, performed_at: now });
+    }
 
     if (user.active) await this.refreshRankings(user);
 

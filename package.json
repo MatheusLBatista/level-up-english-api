@@ -16,6 +16,7 @@
     "migrate:notification-indexes": "node src/migrations/migrate_notification_indexes.js",
     "migrate:deactivated-at": "node src/migrations/migrate_deactivated_at.js",
     "sync:class-students": "node src/migrations/sync_class_students.js",
+    "retention:anonymize": "node src/jobs/run_retention.js",
     "start": "node server.js",
     "test": "jest --coverage --detectOpenHandles"
   },

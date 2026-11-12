@@ -90,13 +90,13 @@ class AttitudeLogService {
       });
     }
 
-    if (student.anonymized_at) {
+    if (!student.active) {
       throw new CustomError({
         statusCode: HttpStatusCodes.CONFLICT.code,
         errorType: "conflictError",
         field: "student",
         details: [],
-        customMessage: "Os dados deste aluno foram eliminados.",
+        customMessage: "Este aluno está desativado.",
       });
     }
 

@@ -77,6 +77,21 @@ class UserRepository {
     return await this.userModel.distinct("_id", { class: classId, role: "student", active: true });
   }
 
+  async findIdsToAnonymize(cutoff) {
+    return await this.userModel.distinct("_id", {
+      role: "student",
+      active: false,
+      anonymized_at: null,
+      deactivated_at: { $ne: null, $lte: cutoff },
+    });
+  }
+
+  async findNotAnonymizedStudentIds(ids) {
+    if (!ids.length) return [];
+
+    return await this.userModel.distinct("_id", { _id: { $in: ids }, role: "student", anonymized_at: null });
+  }
+
   async setClass(ids, classId) {
     return await this.userModel.updateMany({ _id: { $in: ids } }, { class: classId });
   }

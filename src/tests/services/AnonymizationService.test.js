@@ -157,6 +157,13 @@ describe("AnonymizationService", () => {
     });
   });
 
+  it("não deve criar registro novo quando chamado com record false", async() => {
+    await service.anonymize(ALUNO_ID, { reason: "retention", record: false });
+
+    expect(userRepository.update).toHaveBeenCalled();
+    expect(erasureLogRepository.create).not.toHaveBeenCalled();
+  });
+
   it("deve registrar performed_by nulo quando quem executa é o job de retenção", async() => {
     await service.anonymize(ALUNO_ID, { reason: "retention" });
 

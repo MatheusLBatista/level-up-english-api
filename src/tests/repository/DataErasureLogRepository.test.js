@@ -31,4 +31,15 @@ describe("DataErasureLogRepository", () => {
       expect(new DataErasureLogRepository().dataErasureLogModel.modelName).toBe("dataErasureLogs");
     });
   });
+
+  describe("findErasedUserIds", () => {
+    it("deve devolver os ids distintos de quem já teve os dados eliminados", async() => {
+      modelo.distinct = jest.fn().mockResolvedValue([ALUNO_ID]);
+
+      const ids = await repository.findErasedUserIds();
+
+      expect(modelo.distinct).toHaveBeenCalledWith("user");
+      expect(ids).toEqual([ALUNO_ID]);
+    });
+  });
 });

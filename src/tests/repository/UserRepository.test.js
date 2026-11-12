@@ -203,6 +203,45 @@ describe("UserRepository", () => {
     });
   });
 
+  describe("findIdsToAnonymize", () => {
+    it("deve buscar alunos desativados até a data de corte e ainda não anonimizados", async() => {
+      const corte = new Date("2025-11-12T00:00:00.000Z");
+      modelo.distinct = jest.fn().mockResolvedValue([USER_ID]);
+
+      const resultado = await repository.findIdsToAnonymize(corte);
+
+      expect(modelo.distinct).toHaveBeenCalledWith("_id", {
+        role: "student",
+        active: false,
+        anonymized_at: null,
+        deactivated_at: { $ne: null, $lte: corte },
+      });
+      expect(resultado).toEqual([USER_ID]);
+    });
+  });
+
+  describe("findNotAnonymizedStudentIds", () => {
+    it("deve filtrar, entre os ids informados, os alunos que voltaram a ter dados", async() => {
+      modelo.distinct = jest.fn().mockResolvedValue([USER_ID]);
+
+      const resultado = await repository.findNotAnonymizedStudentIds([USER_ID]);
+
+      expect(modelo.distinct).toHaveBeenCalledWith("_id", {
+        _id: { $in: [USER_ID] },
+        role: "student",
+        anonymized_at: null,
+      });
+      expect(resultado).toEqual([USER_ID]);
+    });
+
+    it("não deve consultar o banco quando a lista estiver vazia", async() => {
+      modelo.distinct = jest.fn();
+
+      expect(await repository.findNotAnonymizedStudentIds([])).toEqual([]);
+      expect(modelo.distinct).not.toHaveBeenCalled();
+    });
+  });
+
   describe("setClass e clearClass", () => {
     const CLASS_ID = "507f1f77bcf86cd799439033";
 

@@ -113,6 +113,7 @@ Opcionais (têm valor padrão ou só fazem sentido em produção):
 
 * `SWAGGER_SERVER_URL` — URL exibida como servidor no Swagger; sem ela, usa `http://localhost:$APP_PORT`.
 * `TRUST_PROXY` — número de proxies reversos na frente da API (ex.: `1` atrás de um nginx). Ausente ou `0`, o `X-Forwarded-For` é ignorado e o rate limit usa o IP da conexão; ligar sem proxy deixaria o cliente forjar o IP.
+* `RETENTION_MONTHS` — meses que os dados de um aluno desativado ficam guardados antes da anonimização (padrão `12`). Veja [Retenção de dados](#retenção-de-dados-lgpd).
 * `DB_URL_TEST`, `MONGO_*`, `LOG_*` — ajustes de teste, timeouts do Mongo e do logger.
 
 ## Rodando com Docker
@@ -180,7 +181,27 @@ npm run migrate:mission-title-index
 npm run migrate:notification-indexes
 ```
 
+**`npm run migrate:deactivated-at`** — rodar **uma vez, logo depois do deploy** da adequação à LGPD. Preenche `deactivated_at` dos usuários que já estavam desativados, usando o `updatedAt` como aproximação. Sem ela, esses alunos nunca entram na retenção.
+
+```bash
+docker exec level-up-english-api npm run migrate:deactivated-at
+```
+
 **`npm run sync:class-students`** — reconstrói `Class.students` a partir de `User.class`.
+
+### Retenção de dados (LGPD)
+
+Aluno desativado (pela escola ou pela revogação do consentimento) mantém os dados por `RETENTION_MONTHS` meses contados de `deactivated_at`. Vencido o prazo, o `npm run retention:anonymize` troca o nome por "Aluno removido" e o e-mail por um endereço fictício, apaga a foto, as notificações, as credenciais e os motivos dos ajustes de XP, e registra a eliminação em `dataErasureLogs`. XP e progresso continuam no registro anonimizado, para os rankings e as médias da turma não mudarem.
+
+O script também reaplica a anonimização a todo aluno registrado em `dataErasureLogs` que voltou a ter dados — o que acontece quando um backup anterior à eliminação é restaurado. Por isso, **depois de restaurar um backup, rode o script na hora**, sem esperar o cron.
+
+Roda uma vez por dia pelo cron da VM, meia hora depois do backup (`crontab -e` no usuário que roda o Docker):
+
+```bash
+30 3 * * * docker exec level-up-english-api npm run --silent retention:anonymize >> $HOME/retencao.log 2>&1
+```
+
+O script termina com código 1 se algum aluno falhar (os demais seguem), e o motivo fica no log. Os dados anonimizados ainda existem nos backups dos dias anteriores, que o `scripts/backup-mongo.sh` apaga depois de `KEEP_DAYS` (7) dias — esse é o prazo extra que a política de privacidade precisa informar.
 
 ## Equipe
 
