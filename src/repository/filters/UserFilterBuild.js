@@ -44,6 +44,19 @@ class UserFilterBuild {
     return this;
   }
 
+  withGuardianConsent(status) {
+    const filters = {
+      pending: { guardian_consent_at: null, guardian_consent_revoked_at: null },
+      recorded: { guardian_consent_at: { $ne: null }, guardian_consent_revoked_at: null },
+      revoked: { guardian_consent_revoked_at: { $ne: null } },
+    };
+
+    if (Object.hasOwn(filters, status)) {
+      Object.assign(this.filters, { role: "student" }, filters[status]);
+    }
+    return this;
+  }
+
   build() {
     return this.filters;
   }

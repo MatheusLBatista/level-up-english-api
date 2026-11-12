@@ -127,7 +127,13 @@ class AuthService {
 
     if (classId) await this.ensureActiveClasses([classId], "class");
 
-    const userData = { name, email, role: "student" };
+    const userData = {
+      name,
+      email,
+      role: "student",
+      guardian_consent_at: new Date(),
+      guardian_consent_recorded_by: loggedUser._id,
+    };
     if (classId) userData.class = classId;
     const student = await this.userRepository.create(userData);
 

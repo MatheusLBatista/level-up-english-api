@@ -229,6 +229,36 @@ describe("UserService", () => {
       expect(await bcrypt.compare(novoAluno.password, dados.password)).toBe(true);
     });
 
+    it.each([
+      ["sem papel", {}],
+      ["com papel de aluno", { role: "student" }],
+    ])("deve registrar o termo dos responsáveis ao criar aluno %s", async(_, papel) => {
+      responderFindById(admin());
+      repository.findByEmail.mockResolvedValue(null);
+      repository.create.mockResolvedValue({});
+      const antes = Date.now();
+
+      await service.create({ ...novoAluno, ...papel, guardian_consent: true }, { user_id: ADMIN_ID });
+
+      const [dados] = repository.create.mock.calls[0];
+      expect(dados.guardian_consent_recorded_by).toBe(ADMIN_ID);
+      expect(dados.guardian_consent_at.getTime()).toBeGreaterThanOrEqual(antes);
+      expect(dados).not.toHaveProperty("guardian_consent");
+    });
+
+    it.each(["teacher", "admin"])("não deve registrar termo ao criar usuário com papel %s", async(role) => {
+      responderFindById(admin());
+      repository.findByEmail.mockResolvedValue(null);
+      repository.create.mockResolvedValue({});
+
+      await service.create({ ...novoAluno, role, guardian_consent: true }, { user_id: ADMIN_ID });
+
+      const [dados] = repository.create.mock.calls[0];
+      expect(dados).not.toHaveProperty("guardian_consent_at");
+      expect(dados).not.toHaveProperty("guardian_consent_recorded_by");
+      expect(dados).not.toHaveProperty("guardian_consent");
+    });
+
     describe("quando quem cria é professora", () => {
       const CLASS_ID = "507f1f77bcf86cd799439021";
 

@@ -80,7 +80,7 @@ describe("AuthController", () => {
   });
 
   describe("registerStudent", () => {
-    const aluno = { name: "Maria Silva", email: "maria@escola.com" };
+    const aluno = { name: "Maria Silva", email: "maria@escola.com", guardian_consent: true };
 
     it("deve devolver 201 com o aluno cadastrado", async() => {
       const criado = { _id: USER_ID, ...aluno, role: "student" };
@@ -117,6 +117,18 @@ describe("AuthController", () => {
       req.body = { ...aluno, email: "sem-arroba" };
 
       await expect(controller.registerStudent(req, res)).rejects.toThrow();
+      expect(controller.service.registerStudent).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["ausente", undefined],
+      ["falso", false],
+    ])("deve rejeitar quando o termo dos responsáveis estiver %s", async(_, valor) => {
+      req.body = { ...aluno, guardian_consent: valor };
+
+      await expect(controller.registerStudent(req, res)).rejects.toMatchObject({
+        issues: [expect.objectContaining({ path: ["guardian_consent"] })],
+      });
       expect(controller.service.registerStudent).not.toHaveBeenCalled();
     });
   });

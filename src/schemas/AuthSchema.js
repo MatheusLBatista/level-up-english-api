@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
-import { UserSchema } from "./UserSchema.js";
+import { UserSchema, GuardianConsentSchema } from "./UserSchema.js";
 
 extendZodWithOpenApi(z);
 
@@ -34,6 +34,7 @@ export const RegisterStudentBodySchema = z
       description: "Turma ativa. Obrigatória para professor, e precisa ser dele. "
         + "O id do aluno criado entra em Class.students.",
     }),
+    guardian_consent: GuardianConsentSchema,
   })
   .openapi("RegisterStudentBody");
 

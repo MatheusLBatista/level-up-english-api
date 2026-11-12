@@ -89,6 +89,35 @@ describe("Rotas de usuários", () => {
       res.body.data.docs.forEach((usuario) => expect(usuario).not.toHaveProperty("password"));
     });
 
+    it.each([
+      ["pending", "pendente@escola.com"],
+      ["recorded", "registrado@escola.com"],
+      ["revoked", "revogado@escola.com"],
+    ])("deve filtrar os alunos pela situação do termo dos responsáveis (%s)", async(situacao, email) => {
+      await User.deleteOne({ _id: student._id });
+      await criarUsuario({ name: "Pendente", email: "pendente@escola.com" });
+      await criarUsuario({
+        name: "Registrado",
+        email: "registrado@escola.com",
+        guardian_consent_at: new Date(),
+        guardian_consent_recorded_by: admin._id,
+      });
+      await criarUsuario({
+        name: "Revogado",
+        email: "revogado@escola.com",
+        active: false,
+        guardian_consent_at: new Date(),
+        guardian_consent_revoked_at: new Date(),
+      });
+
+      const res = await request(app)
+        .get(`/users?guardian_consent=${situacao}`)
+        .set("Authorization", await como(admin));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.docs.map((usuario) => usuario.email)).toEqual([email]);
+    });
+
     it("deve filtrar por papel", async() => {
       const res = await request(app)
         .get("/users?role=student")
@@ -333,7 +362,7 @@ describe("Rotas de usuários", () => {
   });
 
   describe("POST /users", () => {
-    const novoUsuario = { name: "Maria Silva", email: "maria@escola.com", password: "senha123" };
+    const novoUsuario = { name: "Maria Silva", email: "maria@escola.com", password: "senha123", guardian_consent: true };
 
     it("deve permitir que a professora cadastre um aluno na turma dela", async() => {
       const turma = await Class.create({ name: "Turma A", teacher: teacher._id });
@@ -470,6 +499,50 @@ describe("Rotas de usuários", () => {
 
       expect(res.status).toBe(403);
       expect(res.body.message).toBe("Permissão insuficiente para executar a operação.");
+    });
+
+    it("deve registrar o termo dos responsáveis com a data e quem cadastrou", async() => {
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(admin))
+        .send(novoUsuario);
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.guardian_consent_at).toEqual(expect.any(String));
+      expect(res.body.data.guardian_consent_recorded_by).toBe(String(admin._id));
+      expect(res.body.data.guardian_consent_revoked_at).toBeNull();
+    });
+
+    it.each([
+      ["sem papel", {}],
+      ["com papel de aluno", { role: "student" }],
+    ])("deve retornar 400 sem criar o aluno quando faltar o termo dos responsáveis (%s)", async(_, papel) => {
+      const { guardian_consent: _ignorado, ...semTermo } = novoUsuario;
+
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(admin))
+        .send({ ...semTermo, ...papel });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors).toEqual([{
+        path: "guardian_consent",
+        message: "Confirme o recebimento do termo de consentimento assinado pelos responsáveis.",
+      }]);
+      expect(await User.findOne({ email: novoUsuario.email })).toBeNull();
+    });
+
+    it("não deve exigir nem registrar termo ao criar professora", async() => {
+      const { guardian_consent: _ignorado, ...semTermo } = novoUsuario;
+
+      const res = await request(app)
+        .post("/users")
+        .set("Authorization", await como(admin))
+        .send({ ...semTermo, role: "teacher" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.guardian_consent_at).toBeNull();
+      expect(res.body.data.guardian_consent_recorded_by).toBeNull();
     });
 
     it("deve retornar 498 quando não houver autenticação", async() => {

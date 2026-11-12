@@ -122,7 +122,7 @@ class UserRepository {
   }
 
   async list(req) {
-    const { name, email, role, class: classId, active, page = 1 } = req.query || {};
+    const { name, email, role, class: classId, active, guardian_consent, page = 1 } = req.query || {};
     const limit = Math.min(parseInt(req.query?.limit, 10) || 10, 100);
 
     const filters = new UserFilterBuild()
@@ -131,6 +131,7 @@ class UserRepository {
       .withRole(role)
       .withClass(classId)
       .withActive(active)
+      .withGuardianConsent(guardian_consent)
       .build();
 
     const options = {

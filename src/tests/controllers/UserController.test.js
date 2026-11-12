@@ -65,7 +65,7 @@ describe("UserController", () => {
   });
 
   describe("create", () => {
-    const novoUsuario = { name: "Maria", email: "maria@escola.com", password: "senha123" };
+    const novoUsuario = { name: "Maria", email: "maria@escola.com", password: "senha123", guardian_consent: true };
 
     it("deve devolver 201 com o usuário criado", async() => {
       controller.service.create.mockResolvedValue(documento({ _id: USER_ID, name: "Maria" }));
@@ -113,6 +113,29 @@ describe("UserController", () => {
 
       await expect(controller.create(req, res)).rejects.toThrow();
       expect(controller.service.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["ausente, sem papel", { guardian_consent: undefined }],
+      ["ausente, com papel de aluno", { guardian_consent: undefined, role: "student" }],
+      ["falso", { guardian_consent: false }],
+    ])("deve rejeitar o cadastro de aluno com o termo dos responsáveis %s", async(_, campos) => {
+      req.body = { ...novoUsuario, ...campos };
+
+      await expect(controller.create(req, res)).rejects.toMatchObject({
+        issues: [expect.objectContaining({ path: ["guardian_consent"] })],
+      });
+      expect(controller.service.create).not.toHaveBeenCalled();
+    });
+
+    it("não deve exigir o termo ao cadastrar professora", async() => {
+      controller.service.create.mockResolvedValue(documento({ _id: USER_ID }));
+      const { guardian_consent: _ignorado, ...semTermo } = novoUsuario;
+      req.body = { ...semTermo, role: "teacher" };
+
+      await controller.create(req, res);
+
+      expect(controller.service.create).toHaveBeenCalledWith({ ...semTermo, role: "teacher" }, req);
     });
 
     it("deve rejeitar quando o papel não for um dos previstos", async() => {

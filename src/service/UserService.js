@@ -104,6 +104,13 @@ class UserService {
       parsedData.password = hash;
     }
 
+    delete parsedData.guardian_consent;
+
+    if ((parsedData.role ?? "student") === "student") {
+      parsedData.guardian_consent_at = new Date();
+      parsedData.guardian_consent_recorded_by = loggedUser._id;
+    }
+
     const created = await this.repository.create(parsedData);
 
     if (parsedData.class) {

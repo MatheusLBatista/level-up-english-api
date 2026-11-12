@@ -88,6 +88,35 @@ describe("UserFilterBuild", () => {
     });
   });
 
+  describe("withGuardianConsent", () => {
+    it("deve buscar alunos com termo pendente, sem registro nem revogação", () => {
+      expect(builder.withGuardianConsent("pending").build()).toEqual({
+        role: "student",
+        guardian_consent_at: null,
+        guardian_consent_revoked_at: null,
+      });
+    });
+
+    it("deve buscar alunos com termo registrado e não revogado", () => {
+      expect(builder.withGuardianConsent("recorded").build()).toEqual({
+        role: "student",
+        guardian_consent_at: { $ne: null },
+        guardian_consent_revoked_at: null,
+      });
+    });
+
+    it("deve buscar alunos com consentimento revogado", () => {
+      expect(builder.withGuardianConsent("revoked").build()).toEqual({
+        role: "student",
+        guardian_consent_revoked_at: { $ne: null },
+      });
+    });
+
+    it.each([undefined, "", "qualquer", "constructor"])("deve ignorar o valor %p", (valor) => {
+      expect(new UserFilterBuild().withGuardianConsent(valor).build()).toEqual({});
+    });
+  });
+
   it("deve encadear os filtros num único objeto", () => {
     const filtros = builder
       .withRole("student")

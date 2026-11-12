@@ -38,6 +38,13 @@ class User {
         avatar_url: { type: String, default: null },
         active: { type: Boolean, default: true },
         show_in_global_ranking: { type: Boolean, default: true },
+        guardian_consent_at: { type: Date, default: null },
+        guardian_consent_recorded_by: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "users",
+          default: null,
+        },
+        guardian_consent_revoked_at: { type: Date, default: null },
 
         uniqueToken: { type: String, select: false },
         refreshtoken: { type: String, select: false },

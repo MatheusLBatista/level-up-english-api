@@ -267,6 +267,18 @@ describe("UserRepository", () => {
       expect(modelo.paginate.mock.calls[2][0]).toEqual({ active: false });
     });
 
+    it("deve repassar o filtro da situação do termo dos responsáveis", async() => {
+      modelo.paginate.mockResolvedValue(paginado());
+
+      await repository.list({ query: { guardian_consent: "pending" } });
+
+      expect(modelo.paginate.mock.calls[0][0]).toEqual({
+        role: "student",
+        guardian_consent_at: null,
+        guardian_consent_revoked_at: null,
+      });
+    });
+
     it("deve limitar a página a 100 registros", async() => {
       modelo.paginate.mockResolvedValue(paginado());
 
