@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.14_
+_versão 3.15_
 
 ## Histórico das alterações
 
@@ -25,6 +25,7 @@ _versão 3.14_
 | 09/11/2026 | 3.12   | Streak retirado do escopo do RF-009 e removido da API, por nunca ter tido regra que o alimentasse; RF-009 passa a Implementado e o streak fica como trabalho futuro | Matheus Lucas |
 | 09/11/2026 | 3.13   | RNF-002 atendido com o p95 medido na VM de produção; RNF-006 implementado, com backup diário e plano de recuperação; seções 1 e 10 alinhadas ao projeto atual (frontend e pipeline existem) | Matheus Lucas |
 | 12/11/2026 | 3.14   | RF-018 (adequação à LGPD): termo dos responsáveis, revogação, desativação no lugar da exclusão, retenção com anonimização, eliminação e exportação a pedido; RF-007 com o ranking da turma ocultável pelo professor e sem e-mail; seção 2 alinhada à API atual (37 caminhos e 53 operações); seção 4 alinhada à seção 13 do catálogo (391 casos, 387 automatizados); seções 6, 7 e 10 medidas de novo | Matheus Lucas |
+| 12/11/2026 | 3.15   | A LGPD passa a ser também requisito não funcional: RNF-008 (conformidade com a LGPD, com retenção, minimização, backups e registro das eliminações) e RF-018 restrito ao que o usuário faz (termo, revogação, desativação, eliminação e exportação); a retirada do e-mail do ranking sai do RF-007 e vai para o RNF-008 | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -113,7 +114,7 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-004 | Criação de Missões             | Teacher e admin criam missões de quiz, vocabulário e áudio, vinculadas a uma turma. O professor só cria nas turmas dele. O título é único por turma, sem diferenciar maiúsculas, e não na escola inteira. O enunciado de cada pergunta tem até 500 caracteres e cada alternativa até 200. | Essencial     | Implementado    |
 | RF-005 | Progresso de Missões           | O aluno submete a missão e o servidor apura o score nos três tipos, ignorando o enviado no corpo: quiz e vocabulário ou áudio com perguntas de checagem são corrigidos contra o gabarito; vocabulário ou áudio antigo, sem perguntas, vale 100 na conclusão. | Essencial     | Implementado    |
 | RF-006 | Sistema de XP e Nível          | O XP é proporcional ao score sobre o `xp_reward` e paga apenas a diferença do melhor desempenho. O nível segue curva quadrática.     | Essencial     | Implementado    |
-| RF-007 | Ranking Global e por Turma     | Ranking dos 30 melhores por XP, global e por turma, recalculado a cada mudança de XP. O aluno pode sair do ranking global, e a mudança vale na hora; ele continua no ranking da turma. O professor pode esconder o ranking da turma dos alunos (`class_ranking_visible`), e continua vendo. As entradas trazem nome, nível, XP e foto, sem o e-mail. | Essencial     | Implementado    |
+| RF-007 | Ranking Global e por Turma     | Ranking dos 30 melhores por XP, global e por turma, recalculado a cada mudança de XP. O aluno pode sair do ranking global, e a mudança vale na hora; ele continua no ranking da turma. O professor pode esconder o ranking da turma dos alunos (`class_ranking_visible`), e continua vendo. | Essencial     | Implementado    |
 | RF-008 | Registro de Atitudes           | Professor aplica atitudes positivas e negativas a alunos das turmas dele, creditando ou descontando XP; desfazer estorna o XP.       | Essencial     | Implementado    |
 | RF-009 | Gerenciamento de Badges        | O aluno vê conquistas por marcos de progresso — missões concluídas, missões com nota 100% e XP ganho em missões —, calculadas no frontend a partir do `mission_progress` que já vem no `GET /users/{id}`. | Não Essencial | Implementado    |
 | RF-010 | Autenticação por Refresh Token | Refresh token rotation para renovar a sessão sem novo login, com o token vigente conferido no banco.                                  | Essencial     | Implementado    |
@@ -124,9 +125,9 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RF-015 | Desempenho por Tipo de Missão  | O aluno vê a média das melhores notas por tipo de missão (quiz, vocabulário e áudio), para o gráfico de radar, comparada à média dos alunos ativos da turma e com filtro opcional por período de conclusão. Mesma regra de acesso do RF-014. | Não Essencial | Implementado    |
 | RF-016 | Notificações                   | O aluno é avisado de atitude aplicada, corrigida ou desfeita, de ajuste manual de XP e de missão nova na turma, com o XP aplicado de fato e a mudança de nível. Ele lista as próprias notificações, vê quantas não leu e marca uma ou todas como lidas; as notificações são apagadas após 90 dias. | Não Essencial | Implementado    |
 | RF-017 | Foto de Perfil                 | O usuário envia a própria foto (JPEG, PNG ou WebP, até 2 MB), que o servidor converte para WebP 256×256 sem metadados e entrega em `/uploads`. Ele pode trocá-la ou removê-la, e a foto antiga sai do disco; o admin troca ou remove a de qualquer usuário. | Não Essencial | Implementado    |
-| RF-018 | Adequação à LGPD               | O cadastro de aluno registra o recebimento do termo assinado pelos responsáveis (data e quem registrou), e alunos antigos aparecem como termo pendente. Professor e admin registram o termo depois ou revogam o consentimento, o que desativa a conta. A exclusão vira desativação, e o aluno não desativa a própria conta. Vencido o prazo de retenção (12 meses após a desativação, configurável), o aluno é anonimizado; o admin também elimina os dados na hora e exporta os dados do aluno em JSON, a pedido do titular. | Essencial     | Implementado    |
+| RF-018 | Direitos do titular e consentimento | O cadastro de aluno registra o recebimento do termo assinado pelos responsáveis (data e quem registrou), e alunos antigos aparecem como termo pendente. Professor e admin registram o termo depois ou revogam o consentimento, o que desativa a conta. A exclusão vira desativação, e o aluno não desativa a própria conta. A pedido do titular, o admin elimina os dados do aluno na hora (anonimização irreversível) e exporta os dados dele em JSON. | Essencial     | Implementado    |
 
-`RF-018` atende os arts. 14, 16 e 18 da Lei 13.709/2018 do lado da API. A anonimização mantém XP, progresso, turma e logs de atitude ligados ao registro anonimizado, para os rankings e as médias da turma não mudarem, e apaga o que identifica o aluno: nome, e-mail, foto, credenciais, notificações e o texto livre dos ajustes de XP (o único campo de texto livre ligado ao aluno; `AttitudeLog` não tem). O `DataErasureLog` guarda só o id, o motivo, quem executou e a data, e serve também para a retenção reaplicar a anonimização se um backup antigo for restaurado. Os dados anonimizados continuam nos backups por até 7 dias (`KEEP_DAYS` do `backup-mongo.sh`). As páginas de política de privacidade, termos de uso e modelo do termo ficam no frontend.
+`RF-018` reúne as ações que um usuário dispara por causa da LGPD; a obrigação de cumprir a lei, que vale para o sistema inteiro, está no `RNF-008`. A divisão segue a classificação de Sommerville, em que a exigência legal é requisito não funcional externo: ela não descreve uma função, e sim uma restrição sobre como todas as funções tratam os dados. A retenção automática fica no RNF-008 porque ninguém a dispara — ela existe só para cumprir o prazo da lei.
 
 `RF-009` é atendido no frontend, e o backend não persiste conquistas: o campo `badges` do model segue sem uso. Como as conquistas são derivadas do progresso de missão e não alteram XP nem ranking, gravá-las seria duplicar um dado que a API já entrega. Nenhuma conquista regride, e por isso não há conquista de nível — o nível pode cair com uma atitude negativa. O `streak` saiu do escopo do requisito na v3.12 e foi removido da API, porque nenhuma regra o alimentava. Fica como trabalho futuro: exigiria um campo `last_activity_at` no model e a regra de atualização.
 
@@ -141,6 +142,9 @@ Isso significa que **todo endpoint autenticado tem no mínimo dois casos de test
 | RNF-005 | Confiabilidade    | Mínimo de 70% de cobertura de linhas na suíte automatizada e todos os endpoints cobertos por teste de integração.               | **Atendido** — 99,94% de linhas e as 53 operações exercitadas por teste de integração (ver seção 7) |
 | RNF-006 | Backup & Recovery | Backup automático do MongoDB com plano de recuperação.                                                                          | Implementado — backup diário e plano de recuperação (detalhe abaixo) |
 | RNF-007 | Proteção contra força bruta | Limite de tentativas com resposta 429 e `Retry-After`. Login: 10 falhas em 15 minutos por IP + e-mail, para um aluno não bloquear o laboratório que sai pelo mesmo IP, e 100 por IP. `forgot-password`: 5 pedidos por hora por IP + e-mail. `reset-password`, que também é o primeiro acesso: 10 falhas em 15 minutos por IP. `refresh` e `logout` não são limitados. | Implementado |
+| RNF-008 | Conformidade com a LGPD | Tratamento dos dados dos alunos conforme a Lei 13.709/2018: consentimento dos responsáveis para menores (art. 14, pelo RF-018); minimização — o ranking não traz e-mail, a foto é opcional e sem metadados, as notificações somem após 90 dias; retenção de 12 meses após a desativação (`RETENTION_MONTHS`), com anonimização automática diária (art. 16); dados anonimizados nos backups por no máximo 7 dias; registro de cada eliminação sem dado pessoal; atendimento aos direitos do titular (art. 18, pelo RF-018). | Implementado — o texto jurídico da política e do termo é modelo e exige revisão antes do uso real (detalhe abaixo) |
+
+`RNF-008` é verificado pelos casos `CT-LGPD` (seção 9 do catálogo) e pelo `CT-RANK-017`. A anonimização mantém XP, progresso, turma e logs de atitude ligados ao registro anonimizado, para os rankings e as médias da turma não mudarem, e apaga o que identifica o aluno: nome, e-mail, foto, credenciais, notificações e o texto livre dos ajustes de XP (o único campo de texto livre ligado ao aluno; `AttitudeLog` não tem). O `DataErasureLog` guarda só o id, o motivo, quem executou e a data, e serve também para a retenção reaplicar a anonimização se um backup antigo for restaurado. A API não decide quem é o controlador dos dados: isso, a política de privacidade, os termos de uso e o modelo do termo ficam no frontend, como textos-modelo.
 
 `RNF-007` guarda os contadores em memória: um restart ou deploy da API os zera, e com mais de uma instância cada uma contaria separado. Para a escala do projeto, com uma instância, é aceitável; o passo seguinte seria um store compartilhado (Redis ou o próprio MongoDB).
 
@@ -186,9 +190,9 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Missões                       | `CT-MISSION` | 47    | RF-004, RF-011, RF-012      |
 | Progressão de XP e nível      | `CT-XP`      | 49    | RF-005, RF-006, RF-011, RF-013, RF-014, RF-015 |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | RF-008, RF-011              |
-| Ranking                       | `CT-RANK`    | 17    | RF-007, RF-011, RF-018      |
+| Ranking                       | `CT-RANK`    | 17    | RF-007, RF-011, RNF-008     |
 | Notificações                  | `CT-NOTIF`   | 19    | RF-011, RF-016              |
-| Privacidade e LGPD            | `CT-LGPD`    | 41    | RF-011, RF-018              |
+| Privacidade e LGPD            | `CT-LGPD`    | 41    | RF-011, RF-018, RNF-008     |
 | Matriz de permissões          | `CT-PERM`    | 54    | RF-011                      |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
 | **Total**                     | -            | **391** | -                         |
