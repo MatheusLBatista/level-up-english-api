@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 3.16_
+_versão 3.17_
 
 ## Histórico das alterações
 
@@ -27,6 +27,7 @@ _versão 3.16_
 | 12/11/2026 | 3.14   | RF-018 (adequação à LGPD): termo dos responsáveis, revogação, desativação no lugar da exclusão, retenção com anonimização, eliminação e exportação a pedido; RF-007 com o ranking da turma ocultável pelo professor e sem e-mail; seção 2 alinhada à API atual (37 caminhos e 53 operações); seção 4 alinhada à seção 13 do catálogo (391 casos, 387 automatizados); seções 6, 7 e 10 medidas de novo | Matheus Lucas |
 | 12/11/2026 | 3.15   | A LGPD passa a ser também requisito não funcional: RNF-008 (conformidade com a LGPD, com retenção, minimização, backups e registro das eliminações) e RF-018 restrito ao que o usuário faz (termo, revogação, desativação, eliminação e exportação); a retirada do e-mail do ranking sai do RF-007 e vai para o RNF-008 | Matheus Lucas |
 | 12/11/2026 | 3.16   | Termo dos responsáveis obrigatório para todo aluno, sem estado pendente (os ambientes são recriados pelos seeds): sai o registro posterior do termo, e reativar aluno revogado exige termo novo; RNF-008 com a conferência `check:guardian-consent`; seção 2 com 36 caminhos e 52 operações; seção 4 alinhada à seção 13 do catálogo (384 casos, 380 automatizados); seções 7 e 10 medidas de novo | Matheus Lucas |
+| 26/11/2026 | 3.17   | Perguntas de checagem de vocabulário e áudio passam a 1 a 10; seção 4 alinhada ao catálogo v2.25 (385 casos, 381 automatizados) | Matheus Lucas |
 
 ## 1 - Introdução
 
@@ -188,7 +189,7 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Autenticação e sessão         | `CT-AUTH`    | 51    | RF-001, RF-002, RF-010, RF-011, RNF-007 |
 | Usuários                      | `CT-USER`    | 57    | RF-001, RF-006, RF-011, RF-017 |
 | Turmas                        | `CT-CLASS`   | 28    | RF-003, RF-011              |
-| Missões                       | `CT-MISSION` | 47    | RF-004, RF-011, RF-012      |
+| Missões                       | `CT-MISSION` | 48    | RF-004, RF-011, RF-012      |
 | Progressão de XP e nível      | `CT-XP`      | 49    | RF-005, RF-006, RF-011, RF-013, RF-014, RF-015 |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | RF-008, RF-011              |
 | Ranking                       | `CT-RANK`    | 17    | RF-007, RF-011, RNF-008     |
@@ -196,9 +197,9 @@ Os casos estão no documento [casosDeTeste.md](casosDeTeste.md), organizados por
 | Privacidade e LGPD            | `CT-LGPD`    | 35    | RF-011, RF-018, RNF-008     |
 | Matriz de permissões          | `CT-PERM`    | 53    | RF-011                      |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | integração entre requisitos |
-| **Total**                     | -            | **384** | -                         |
+| **Total**                     | -            | **385** | -                         |
 
-**Situação em 12/11/2026: 380 dos 384 casos estão automatizados (99,0%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 13 do catálogo.
+**Situação em 26/11/2026: 381 dos 385 casos estão automatizados (99,0%).** As quatro pendências são os fluxos ponta a ponta (`CT-E2E-001` a `004`). A contagem por módulo e o motivo de cada pendência estão na seção 13 do catálogo.
 
 A matriz `CT-PERM` cobre uma linha por operação da API, com o status esperado para cada um dos três papéis. Ela é a rede de segurança contra regressão de permissão: qualquer rota nova entra ali antes de ser considerada pronta.
 

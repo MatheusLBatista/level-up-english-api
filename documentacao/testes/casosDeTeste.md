@@ -2,7 +2,7 @@
 
 **LevelUp English - Plataforma Gamificada de Aprendizado de Inglês**
 
-_versão 2.24 — complementa o [Plano de Teste](planoTeste.md) v3.16_
+_versão 2.25 — complementa o [Plano de Teste](planoTeste.md) v3.17_
 
 ## Histórico das alterações
 
@@ -34,6 +34,7 @@ _versão 2.24 — complementa o [Plano de Teste](planoTeste.md) v3.16_
 | 12/11/2026 | 2.22   | Adequação à LGPD (RF-018): nova seção 9 com `CT-LGPD-001` a `041` (termo dos responsáveis, revogação, desativação no lugar da exclusão, retenção e anonimização, eliminação e exportação); ranking da turma ocultável pelo professor e ranking sem e-mail (`CT-RANK-013` a `017`); `CT-PERM-051` a `054`; `CT-USER-012` a `016`, `028`, `034`, `035`, `050` e `CT-PERM-013` ajustados para a desativação; as seções seguintes passam a 10 a 13 | Matheus Lucas |
 | 12/11/2026 | 2.23   | Rastreio da LGPD dividido entre RF-018 (ações do usuário) e o novo RNF-008 (conformidade com a lei): `CT-LGPD-023` a `031` e `CT-RANK-017` passam a apontar para o RNF-008 | Matheus Lucas |
 | 12/11/2026 | 2.24   | Termo dos responsáveis obrigatório, sem estado pendente: saem o filtro `guardian_consent` e a rota `PATCH /users/{id}/guardian-consent`, com os casos `CT-LGPD-006` a `012` e o `CT-PERM-051`; `CT-LGPD-018` reescrito (reativar aluno revogado exige termo novo, 409 sem ele) e caso `CT-LGPD-042` (script que lista alunos ativos sem termo) | Matheus Lucas |
+| 26/11/2026 | 2.25   | Perguntas de checagem de vocabulário e áudio passam de 1 a 3 para 1 a 10: `CT-MISSION-026` a `028` ajustados e caso `CT-MISSION-048` para o limite na edição | Matheus Lucas |
 
 ## Como ler este documento
 
@@ -269,9 +270,9 @@ Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O
 | CT-MISSION-023  | Título de missão com parêntese           | `POST /missions` com `title: "Animais (parte 1"`                          | 201 com o título gravado como enviado, e não 500 por regex inválida                        | RF-004 | Int   | `routes/missionRoutes`, `repository/MissionRepository` | ✅ |
 | CT-MISSION-024  | Ponto no título não gera duplicado falso | `Unidade1` cadastrada; `POST /missions` com `title: "Unidade."`             | 201 — a checagem de duplicado compara o texto literal                                      | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
 | CT-MISSION-025  | Título duplicado com outra caixa         | `Animais` cadastrada na Turma A; `POST /missions` na Turma A com `title: "animais"` | 400 em `title`, como no CT-MISSION-007 — a comparação é insensível a maiúsculas | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
-| CT-MISSION-026  | Vocabulário ou áudio sem perguntas de checagem | `POST /missions` com `type: "vocabulary"` (ou `"audio"`) sem `questions` | 400 em `questions`, "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." (no áudio, "Missões de áudio…"); nada é gravado | RF-004 | Int | `routes/missionRoutes`, `controllers/MissionController`, `schemas/MissionSchema` | ✅ |
-| CT-MISSION-027  | Mais de três perguntas de checagem       | `POST /missions` com `type: "audio"` e 4 perguntas                         | 400 em `questions`, "Missões de áudio precisam de 1 a 3 perguntas de checagem."            | RF-004 | Int   | `routes/missionRoutes`, `controllers/MissionController` | ✅ |
-| CT-MISSION-028  | Limites de 1 e 3 perguntas aceitos       | vocabulário com 1 pergunta e áudio com 3                                    | 201 nos dois, com as perguntas gravadas                                                      | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
+| CT-MISSION-026  | Vocabulário ou áudio sem perguntas de checagem | `POST /missions` com `type: "vocabulary"` (ou `"audio"`) sem `questions` | 400 em `questions`, "Missões de vocabulário precisam de 1 a 10 perguntas de checagem." (no áudio, "Missões de áudio…"); nada é gravado. Vale também para `questions: []` | RF-004 | Int | `routes/missionRoutes`, `controllers/MissionController`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-027  | Mais de dez perguntas de checagem        | `POST /missions` com `type: "vocabulary"` (ou `"audio"`) e 11 perguntas     | 400 em `questions`, "Missões de vocabulário precisam de 1 a 10 perguntas de checagem." (no áudio, "Missões de áudio…"); nada é gravado | RF-004 | Int   | `routes/missionRoutes`, `controllers/MissionController`, `schemas/MissionSchema` | ✅ |
+| CT-MISSION-028  | Limites de 1 e 10 perguntas aceitos      | vocabulário com 1 pergunta; vocabulário e áudio com 10                      | 201 em todos, com as perguntas gravadas                                                      | RF-004 | Int   | `routes/missionRoutes`, `schemas/MissionSchema` | ✅       |
 | CT-MISSION-029  | Missão antiga editada sem perguntas      | vocabulário salvo sem `questions`; `PATCH` com `{ title }`                  | 400 em `questions` com a mensagem do CT-MISSION-026; o título salvo não muda. Vale para `title`, `description`, `content`, `content_url`, `xp_reward` e `questions` | RF-004 | Int | `routes/missionRoutes`, `services/MissionService`, `schemas/MissionSchema` | ✅ |
 | CT-MISSION-030  | Missão antiga editada com perguntas      | mesmo vocabulário; `PATCH` com `{ title, questions }` e 2 perguntas         | 200; a missão passa a ter as 2 perguntas e sai da condição de antiga                         | RF-004 | Int   | `routes/missionRoutes`                    | ✅       |
 | CT-MISSION-031  | Missão antiga só ativada ou desativada   | mesmo vocabulário; `PATCH` com `{ active: false }` (ou só `class_id`)       | 200 sem exigir perguntas — não é edição de conteúdo                                          | RF-004 | Int   | `routes/missionRoutes`, `schemas/MissionSchema` | ✅ |
@@ -292,6 +293,7 @@ Token ausente, malformado, expirado ou inválido responde **498**, e não 401. O
 | CT-MISSION-045  | Alternativa no limite de caracteres | alternativa com exatamente 200 caracteres | aceita pelo schema de criação | RF-004 | Unit | `schemas/MissionSchema` | ✅ |
 | CT-MISSION-046  | Alternativa acima do limite | alternativa com 201 caracteres | 400, "Cada alternativa pode ter no máximo 200 caracteres." | RF-004 | Unit | `schemas/MissionSchema` | ✅ |
 | CT-MISSION-047  | Limite também na edição | `PATCH /missions/{id}` com enunciado de 501 caracteres | 400 com a mesma mensagem — o limite está no schema da pergunta, usado no POST e no PATCH | RF-004 | Unit | `schemas/MissionSchema` | ✅ |
+| CT-MISSION-048  | Limite de perguntas de checagem na edição | vocabulário (ou áudio) salvo com 1 pergunta; `PATCH` com `questions` de 10, de 11 e vazio | 200 com 10 perguntas gravadas; com 11 ou vazio, 400 em `questions` com a mensagem do CT-MISSION-026 e a pergunta salva não muda | RF-004 | Int | `routes/missionRoutes`, `schemas/MissionSchema` | ✅ |
 
 **Limite de caracteres (`CT-MISSION-043` a `047`).** O front usa os mesmos limites — 500 para o enunciado e 200 para cada alternativa —, e o backend os repete para valer também para quem chama a API direto. Os testes são de valor-limite: o valor exato passa e o valor + 1 é recusado. As constantes `QUESTION_MAX_LENGTH` e `OPTION_MAX_LENGTH` são exportadas pelo schema e usadas pelos testes, então mudar o limite não exige mexer neles.
 
@@ -623,14 +625,14 @@ O `CT-STREAK-001` (streak diária de atividade) saiu desta tabela na v2.21: o st
 
 ## 13 - Resumo
 
-Situação em 12/11/2026, com a suíte em **77 arquivos de teste e 1661 testes**, executando em cerca de 11 segundos.
+Situação em 26/11/2026, com a suíte em **77 arquivos de teste e 1682 testes**, executando em cerca de 11 segundos.
 
 | Módulo                        | Prefixo      | Casos | ✅ Automatizados | ⬜ Pendentes |
 | ----------------------------- | ------------ | ----- | ---------------- | ------------ |
 | Autenticação e sessão         | `CT-AUTH`    | 51    | 51               | 0            |
 | Usuários                      | `CT-USER`    | 57    | 57               | 0            |
 | Turmas                        | `CT-CLASS`   | 28    | 28               | 0            |
-| Missões                       | `CT-MISSION` | 47    | 47               | 0            |
+| Missões                       | `CT-MISSION` | 48    | 48               | 0            |
 | Progressão de XP e nível      | `CT-XP`      | 49    | 49               | 0            |
 | Atitudes e atitudes aplicadas | `CT-ATT`     | 24    | 24               | 0            |
 | Ranking                       | `CT-RANK`    | 17    | 17               | 0            |
@@ -638,7 +640,7 @@ Situação em 12/11/2026, com a suíte em **77 arquivos de teste e 1661 testes**
 | Privacidade e LGPD            | `CT-LGPD`    | 35    | 35               | 0            |
 | Matriz de permissões          | `CT-PERM`    | 53    | 53               | 0            |
 | Fluxos ponta a ponta          | `CT-E2E`     | 4     | 0                | 4            |
-| **Total**                     | -            | **384** | **380 (99,0%)** | **4**        |
+| **Total**                     | -            | **385** | **381 (99,0%)** | **4**        |
 
 ### As quatro pendências
 

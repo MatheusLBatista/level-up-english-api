@@ -33,6 +33,7 @@ import {
   SubmitMissionProgressBodySchema,
   MissionProgressSchema,
   MissionWriteResponseSchema,
+  CHECK_QUESTIONS_RANGE,
 } from "../schemas/MissionSchema.js";
 import {
   ClassSchema,
@@ -1132,8 +1133,8 @@ registry.registerPath({
   summary: "Criar missão (teacher/admin; professor só nas turmas dele)",
   description:
     "Regras de conteúdo por type: quiz exige questions com no mínimo 5 itens; vocabulary "
-    + "exige content não vazio e questions com 1 a 3 perguntas de checagem; audio exige "
-    + "content_url http ou https e questions com 1 a 3 perguntas de checagem. As perguntas "
+    + `exige content não vazio e questions com ${CHECK_QUESTIONS_RANGE} perguntas de checagem; audio exige `
+    + `content_url http ou https e questions com ${CHECK_QUESTIONS_RANGE} perguntas de checagem. As perguntas `
     + "de checagem têm o mesmo formato das do quiz e são corrigidas pelo servidor. "
     + "O título é único por turma, sem diferenciar maiúsculas: outra turma pode ter uma "
     + "missão com o mesmo título, e uma missão desativada continua ocupando o dela.\n\n"
@@ -1218,15 +1219,15 @@ registry.registerPath({
       + "enviado é validado pelo type da missão já salva (o type não vem no corpo): "
       + "quiz exige questions com no mínimo 5 itens; vocabulary exige content não "
       + "vazio; audio exige content_url não vazio; em vocabulary e audio, questions "
-      + "precisa ter de 1 a 3 perguntas de checagem. Só os campos enviados são "
+      + `precisa ter de ${CHECK_QUESTIONS_RANGE} perguntas de checagem. Só os campos enviados são `
       + "validados — omitir questions, content ou content_url mantém o valor atual. "
       + "Exceção: vocabulary ou audio antiga, salva sem perguntas, só pode ter title, "
       + "description, content, content_url, xp_reward ou questions alterados se o corpo "
-      + "trouxer questions com 1 a 3 perguntas; um PATCH só com active (ou class_id) "
+      + `trouxer questions com ${CHECK_QUESTIONS_RANGE} perguntas; um PATCH só com active (ou class_id) `
       + "continua permitido. content_url só aceita URLs http ou https. Cada erro vem "
       + "em errors como { path, message }.",
       "Erro de validação. 1 campo(s) inválido(s).",
-      [{ path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." }],
+      [{ path: "questions", message: `Missões de vocabulário precisam de ${CHECK_QUESTIONS_RANGE} perguntas de checagem.` }],
     ),
     401: error401Session,
     498: error498Token,
