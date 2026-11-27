@@ -69,9 +69,13 @@ const ContentUrlSchema = z
 
 const isBlank = (value) => !value || value.trim().length === 0;
 
+export const CHECK_QUESTIONS_MIN = 1;
+export const CHECK_QUESTIONS_MAX = 10;
+export const CHECK_QUESTIONS_RANGE = `${CHECK_QUESTIONS_MIN} a ${CHECK_QUESTIONS_MAX}`;
+
 const CHECK_QUESTIONS_MESSAGES = {
-  vocabulary: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem.",
-  audio: "Missões de áudio precisam de 1 a 3 perguntas de checagem.",
+  vocabulary: `Missões de vocabulário precisam de ${CHECK_QUESTIONS_RANGE} perguntas de checagem.`,
+  audio: `Missões de áudio precisam de ${CHECK_QUESTIONS_RANGE} perguntas de checagem.`,
 };
 
 // Campos que contam como edição de conteúdo: mexer em qualquer um deles numa
@@ -112,7 +116,7 @@ export const getMissionContentIssues = (type, data, { partial = false, hasSavedQ
 
     if (shouldCheck("questions") || editingLegacy) {
       const total = data.questions?.length ?? 0;
-      if (total < 1 || total > 3) {
+      if (total < CHECK_QUESTIONS_MIN || total > CHECK_QUESTIONS_MAX) {
         issues.push({ path: "questions", message: CHECK_QUESTIONS_MESSAGES[type] });
       }
     }
@@ -259,5 +263,5 @@ export const UpdateMissionBodySchema = z
       "Todos os campos são opcionais e o type não pode ser alterado. As regras de conteúdo "
       + "(questions, content, content_url) dependem do type da missão já salva e só valem "
       + "para os campos enviados — exceto em vocabulary ou audio salva sem perguntas, em "
-      + "que editar o conteúdo exige mandar questions com 1 a 3 perguntas de checagem.",
+      + `que editar o conteúdo exige mandar questions com ${CHECK_QUESTIONS_RANGE} perguntas de checagem.`,
   });

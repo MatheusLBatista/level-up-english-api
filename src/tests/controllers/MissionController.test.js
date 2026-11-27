@@ -159,17 +159,17 @@ describe("MissionController", () => {
       expect(erro.errors).toHaveLength(1);
       expect(erro.errors[0]).toMatchObject({
         path: ["questions"],
-        message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem.",
+        message: "Missões de vocabulário precisam de 1 a 10 perguntas de checagem.",
       });
       expect(controller.service.create).not.toHaveBeenCalled();
     });
 
-    it("deve rejeitar áudio com mais de três perguntas de checagem", async() => {
-      req.body = { ...audio, questions: questoes(4) };
+    it("deve rejeitar áudio com mais de dez perguntas de checagem", async() => {
+      req.body = { ...audio, questions: questoes(11) };
 
       const erro = await capturarErro(controller.create(req, res));
 
-      expect(erro.errors[0].message).toBe("Missões de áudio precisam de 1 a 3 perguntas de checagem.");
+      expect(erro.errors[0].message).toBe("Missões de áudio precisam de 1 a 10 perguntas de checagem.");
       expect(controller.service.create).not.toHaveBeenCalled();
     });
 

@@ -111,18 +111,32 @@ describe("getMissionContentIssues", () => {
 
     it("deve apontar vocabulário e áudio sem perguntas de checagem", () => {
       expect(getMissionContentIssues("vocabulary", { content: "texto" })).toEqual([
-        { path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." },
+        { path: "questions", message: "Missões de vocabulário precisam de 1 a 10 perguntas de checagem." },
       ]);
       expect(getMissionContentIssues("audio", { content_url: "https://exemplo.com/a.mp3" })).toEqual([
-        { path: "questions", message: "Missões de áudio precisam de 1 a 3 perguntas de checagem." },
+        { path: "questions", message: "Missões de áudio precisam de 1 a 10 perguntas de checagem." },
       ]);
     });
 
-    it("deve apontar vocabulário e áudio com mais de três perguntas de checagem", () => {
-      expect(getMissionContentIssues("vocabulary", { content: "texto", questions: questoes(4) })[0].path)
-        .toBe("questions");
-      expect(getMissionContentIssues("audio", { content_url: "https://exemplo.com/a.mp3", questions: questoes(4) })[0].path)
-        .toBe("questions");
+    describe.each([
+      ["vocabulary", { content: "texto" }, "Missões de vocabulário precisam de 1 a 10 perguntas de checagem."],
+      ["audio", { content_url: "https://exemplo.com/a.mp3" }, "Missões de áudio precisam de 1 a 10 perguntas de checagem."],
+    ])("limite de perguntas de checagem em %s", (tipo, conteudo, mensagem) => {
+      it("deve aceitar dez perguntas", () => {
+        expect(getMissionContentIssues(tipo, { ...conteudo, questions: questoes(10) })).toEqual([]);
+      });
+
+      it("deve recusar onze perguntas", () => {
+        expect(getMissionContentIssues(tipo, { ...conteudo, questions: questoes(11) })).toEqual([
+          { path: "questions", message: mensagem },
+        ]);
+      });
+
+      it("deve recusar lista vazia", () => {
+        expect(getMissionContentIssues(tipo, { ...conteudo, questions: [] })).toEqual([
+          { path: "questions", message: mensagem },
+        ]);
+      });
     });
 
     it("deve ser o comportamento padrão quando as opções não forem passadas", () => {
@@ -164,10 +178,25 @@ describe("getMissionContentIssues", () => {
       expect(getMissionContentIssues("vocabulary", { content_url: "" }, partial)).toEqual([]);
     });
 
-    it("deve validar de 1 a 3 perguntas quando vierem no corpo de vocabulário ou áudio", () => {
-      expect(getMissionContentIssues("vocabulary", { questions: [] }, partial)[0].path).toBe("questions");
-      expect(getMissionContentIssues("audio", { questions: questoes(4) }, partial)[0].path).toBe("questions");
-      expect(getMissionContentIssues("audio", { questions: questoes(2) }, partial)).toEqual([]);
+    describe.each([
+      ["vocabulary", "Missões de vocabulário precisam de 1 a 10 perguntas de checagem."],
+      ["audio", "Missões de áudio precisam de 1 a 10 perguntas de checagem."],
+    ])("perguntas de checagem enviadas em %s", (tipo, mensagem) => {
+      it("deve aceitar dez perguntas", () => {
+        expect(getMissionContentIssues(tipo, { questions: questoes(10) }, partial)).toEqual([]);
+      });
+
+      it("deve recusar onze perguntas", () => {
+        expect(getMissionContentIssues(tipo, { questions: questoes(11) }, partial)).toEqual([
+          { path: "questions", message: mensagem },
+        ]);
+      });
+
+      it("deve recusar lista vazia", () => {
+        expect(getMissionContentIssues(tipo, { questions: [] }, partial)).toEqual([
+          { path: "questions", message: mensagem },
+        ]);
+      });
     });
   });
 
@@ -180,7 +209,7 @@ describe("getMissionContentIssues", () => {
 
         expect(getMissionContentIssues("vocabulary", { [campo]: valor }, antiga)).toContainEqual({
           path: "questions",
-          message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem.",
+          message: "Missões de vocabulário precisam de 1 a 10 perguntas de checagem.",
         });
       });
     });

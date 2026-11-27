@@ -455,27 +455,42 @@ describe("Rotas de missões", () => {
       expect(res.status).toBe(400);
       expect(res.body.errors).toContainEqual({
         path: "questions",
-        message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem.",
+        message: "Missões de vocabulário precisam de 1 a 10 perguntas de checagem.",
       });
       expect(await Mission.findOne({ title: nova.title })).toBeNull();
     });
 
-    it("deve retornar 400 quando o áudio vier com quatro perguntas de checagem", async() => {
-      const res = await request(app)
-        .post("/missions")
-        .set("Authorization", await como(profA))
-        .send({
-          title: "Áudio Longo",
-          type: "audio",
-          content_url: "https://exemplo.com/a.mp3",
-          class_id: String(turmaA._id),
-          questions: questoes(["a", "b", "c", "d"]),
-        });
+    describe.each([
+      ["vocabulary", { content: "texto" }, "Missões de vocabulário precisam de 1 a 10 perguntas de checagem."],
+      ["audio", { content_url: "https://exemplo.com/a.mp3" }, "Missões de áudio precisam de 1 a 10 perguntas de checagem."],
+    ])("limite de perguntas de checagem em %s", (tipo, conteudo, mensagem) => {
+      const criar = async(questions) =>
+        await request(app)
+          .post("/missions")
+          .set("Authorization", await como(profA))
+          .send({ title: `Checagem ${tipo}`, type: tipo, ...conteudo, class_id: String(turmaA._id), questions });
 
-      expect(res.status).toBe(400);
-      expect(res.body.errors).toContainEqual({
-        path: "questions",
-        message: "Missões de áudio precisam de 1 a 3 perguntas de checagem.",
+      it("deve criar com dez perguntas", async() => {
+        const res = await criar(questoes(Array(10).fill("a")));
+
+        expect(res.status).toBe(201);
+        expect(res.body.data.questions).toHaveLength(10);
+      });
+
+      it("deve retornar 400 com onze perguntas", async() => {
+        const res = await criar(questoes(Array(11).fill("a")));
+
+        expect(res.status).toBe(400);
+        expect(res.body.errors).toContainEqual({ path: "questions", message: mensagem });
+        expect(await Mission.findOne({ title: `Checagem ${tipo}` })).toBeNull();
+      });
+
+      it("deve retornar 400 com lista vazia", async() => {
+        const res = await criar([]);
+
+        expect(res.status).toBe(400);
+        expect(res.body.errors).toContainEqual({ path: "questions", message: mensagem });
+        expect(await Mission.findOne({ title: `Checagem ${tipo}` })).toBeNull();
       });
     });
 
@@ -885,6 +900,53 @@ describe("Rotas de missões", () => {
       expect((await Mission.findById(audio._id)).content_url).toBe("https://exemplo.com/musica.mp3");
     });
 
+    describe.each([
+      ["vocabulary", { content: "cat, dog" }, "Missões de vocabulário precisam de 1 a 10 perguntas de checagem."],
+      ["audio", { content_url: "https://exemplo.com/a.mp3" }, "Missões de áudio precisam de 1 a 10 perguntas de checagem."],
+    ])("limite de perguntas de checagem ao editar %s", (tipo, conteudo, mensagem) => {
+      let missao;
+
+      beforeEach(async() => {
+        missao = await Mission.create({
+          title: `Edição ${tipo}`,
+          type: tipo,
+          ...conteudo,
+          questions: questoes(["a"]),
+          class_id: turmaA._id,
+          createdBy: profA._id,
+        });
+      });
+
+      const editar = async(questions) =>
+        await request(app)
+          .patch(`/missions/${missao._id}`)
+          .set("Authorization", await como(profA))
+          .send({ questions });
+
+      it("deve aceitar dez perguntas", async() => {
+        const res = await editar(questoes(Array(10).fill("b")));
+
+        expect(res.status).toBe(200);
+        expect((await Mission.findById(missao._id)).questions).toHaveLength(10);
+      });
+
+      it("deve retornar 400 com onze perguntas", async() => {
+        const res = await editar(questoes(Array(11).fill("b")));
+
+        expect(res.status).toBe(400);
+        expect(res.body.errors).toEqual([{ path: "questions", message: mensagem }]);
+        expect((await Mission.findById(missao._id)).questions).toHaveLength(1);
+      });
+
+      it("deve retornar 400 com lista vazia", async() => {
+        const res = await editar([]);
+
+        expect(res.status).toBe(400);
+        expect(res.body.errors).toEqual([{ path: "questions", message: mensagem }]);
+        expect((await Mission.findById(missao._id)).questions).toHaveLength(1);
+      });
+    });
+
     describe("missão antiga de vocabulário, sem perguntas salvas", () => {
       it("deve retornar 400 ao editar o título sem mandar as perguntas", async() => {
         const res = await request(app)
@@ -894,7 +956,7 @@ describe("Rotas de missões", () => {
 
         expect(res.status).toBe(400);
         expect(res.body.errors).toEqual([
-          { path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." },
+          { path: "questions", message: "Missões de vocabulário precisam de 1 a 10 perguntas de checagem." },
         ]);
         expect((await Mission.findById(vocabulario._id)).title).toBe("Animais");
       });

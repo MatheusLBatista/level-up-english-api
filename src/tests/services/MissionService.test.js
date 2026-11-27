@@ -646,7 +646,7 @@ describe("MissionService", () => {
 
       expect(erro.statusCode).toBe(400);
       expect(erro.details).toEqual([
-        { path: "questions", message: "Missões de vocabulário precisam de 1 a 3 perguntas de checagem." },
+        { path: "questions", message: "Missões de vocabulário precisam de 1 a 10 perguntas de checagem." },
       ]);
       expect(repository.update).not.toHaveBeenCalled();
     });
